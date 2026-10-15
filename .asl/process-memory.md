@@ -1,0 +1,9 @@
+# Memoria di processo
+
+## Ticket #6 – Documento di design dell’agente data science
+- **Giro**: 1
+- **Data**: 2026-10-15
+- **Cosa è stato fatto**: scritto `docs/design.md` con le 16 sezioni obbligatorie (alternative scartate nelle sezioni decisionali, piano di 10 ticket successivi con fake di Kaggle e Claude). Creato lo scheletro: `pyproject.toml` (setuptools, layout `src/`, nessuna dipendenza di runtime, extra `dev` con pytest), pacchetto `kaggle_agent` con 9 sottopacchetti vuoti (`loop`, `proposals`, `evaluation`, `registry`, `kaggle`, `llm`, `sandbox`, `review`, `budget`), `README.md`, `.gitignore`, `.asl/config.yaml`, `.asl/test-map.json`.
+- **Decisioni**: lo stack (pandas, scikit-learn, LightGBM, MLflow) è un punto di partenza non vincolante, scelto ticket per ticket con criteri in sezione 1, quindi pyproject non dichiara librerie di modellazione. Il registro è dietro interfaccia sostituibile (MLflow vs SQLite/JSONL da decidere nel ticket del registro). Nomi dei sottopacchetti e layout `src/` scelti da me, repo vuota: da confermare in revisione. Predict+optimize è solo un punto di estensione in sezione 14 (ipotetico sottopacchetto `decision`).
+- **Tentativi scartati**: nessuno. La verifica è passata al primo giro (24 test) senza correzioni.
+- **Test**: `.venv/bin/pytest -q`, senza rete. `tests/test_design_doc.py` controlla sezioni, ordine, lunghezza, alternative scartate, assenza di formulazioni prescrittive, congelamento, stack, piano, credenziali, predict+optimize, README e pyproject; `tests/test_package_import.py` gli import; `tests/test_no_modeling_logic.py` solo stdlib e nessuna funzione/classe. I controlli sul documento sono euristici; il test sulle dipendenze va rilassato nei ticket successivi. Il comportamento di Claude Code headless con la subscription non è verificato (nessuna rete).

@@ -19,3 +19,14 @@ python3 -m venv .venv
 ```
 
 I test non usano la rete.
+
+## Struttura
+
+- `docs/design.md`: design in 16 sezioni (ciclo, valutazione congelata, registro, Kaggle, piano dei ticket).
+- `src/kaggle_agent/`: pacchetto con i sottopacchetti vuoti `loop`, `proposals`, `evaluation`, `registry`, `kaggle`, `llm`, `sandbox`, `review`, `budget`.
+- `tests/`: controllano che il design contenga le 16 sezioni, che il pacchetto si importi e che non ci sia logica o dipendenze di terze parti nel codice.
+
+## Limiti noti
+
+- Non c'è ancora nessun comando eseguibile dell'agente: il pacchetto è solo uno scheletro.
+- I test sul design verificano struttura e parole chiave, non la qualità del contenuto. Il test sull'assenza di dipendenze di terze parti andrà rilassato quando arriveranno i ticket di sviluppo.
