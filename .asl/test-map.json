@@ -1,0 +1,16 @@
+{"cases": {
+"1": [{"file": "tests/test_design_doc.py", "name": "test_design_ha_tutte_le_16_sezioni_in_ordine"}],
+"2": [{"file": "tests/test_design_doc.py", "name": "test_sezioni_con_contenuto_concreto"}],
+"3": [{"file": "tests/test_design_doc.py", "name": "test_sezioni_decisionali_hanno_alternative_scartate"}],
+"4": [{"file": "tests/test_design_doc.py", "name": "test_design_non_prescrive_metriche_o_tecniche_fisse"}],
+"5": [{"file": "tests/test_design_doc.py", "name": "test_metrica_e_protocollo_congelati"}],
+"6": [{"file": "tests/test_design_doc.py", "name": "test_stack_punto_di_partenza_non_vincolante"}],
+"7": [{"file": "tests/test_design_doc.py", "name": "test_pyproject_senza_dipendenze_di_runtime_ne_modellazione"}],
+"8": [{"file": "tests/test_package_import.py", "name": "test_import_pacchetto_e_versione"}, {"file": "tests/test_package_import.py", "name": "test_import_sottopacchetto"}],
+"9": [{"file": "tests/test_design_doc.py", "name": "test_sottopacchetti_citati_nella_sezione_14"}],
+"10": [{"file": "tests/test_no_modeling_logic.py", "name": "test_nessun_import_di_terze_parti"}, {"file": "tests/test_no_modeling_logic.py", "name": "test_nessuna_funzione_o_classe"}],
+"11": [{"file": "tests/test_design_doc.py", "name": "test_readme_con_scopo_e_rimando_al_design"}],
+"12": [{"file": "tests/test_design_doc.py", "name": "test_piano_di_implementazione_ticket_con_criteri_e_fake"}],
+"13": [{"file": "tests/test_design_doc.py", "name": "test_credenziali_e_protezione_valutazione"}],
+"14": [{"file": "tests/test_design_doc.py", "name": "test_visione_predict_optimize_come_punto_di_estensione"}]
+}}
