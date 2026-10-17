@@ -18,6 +18,12 @@ Invariants every implementation must keep:
   while on an intermediate execution it only means "this run crashed".
 - The fingerprint is unique across all attempts, whatever cycle and outcome.
   It is checked only in ``add_attempt``, never between executions.
+- The protocol hash of a cycle is written once; a different second value
+  raises ``RegistryError``.
+- A cycle has at most one holdout session, never reopened (even after it is
+  closed). A holdout read needs an open session. Reads and comparisons are
+  append-only. Which attempt may be read and what is compared is policy of
+  the evaluation engine, not of the registry.
 - A rejected call leaves the registry unchanged.
 """
 
@@ -26,7 +32,7 @@ from dataclasses import dataclass
 
 from kaggle_agent.proposals import Attempt, Suggestion
 
-from .records import Cycle, ExecutionRecord
+from .records import ComparisonRecord, Cycle, ExecutionRecord, HoldoutRead, HoldoutSession
 
 
 @dataclass(frozen=True)
@@ -154,3 +160,39 @@ class Registry(ABC):
     @abstractmethod
     def cycles_of_suggestion(self, suggestion_id: str) -> list[Cycle]:
         """Cycles spawned from a suggestion, in link order."""
+
+    @abstractmethod
+    def set_protocol_hash(self, cycle_id: str, protocol_hash: str) -> None:
+        """Store the frozen protocol hash; writing a different value again raises."""
+
+    @abstractmethod
+    def open_holdout_session(self, cycle_id: str, opened_at: str) -> None:
+        """Open the single holdout session of a cycle; a second opening raises."""
+
+    @abstractmethod
+    def close_holdout_session(self, cycle_id: str, closed_at: str) -> None:
+        """Close the open session; no session or already closed raises ``RegistryError``."""
+
+    @abstractmethod
+    def get_holdout_session(self, cycle_id: str) -> HoldoutSession | None:
+        """The session of a cycle, or None if it was never opened."""
+
+    @abstractmethod
+    def add_holdout_read(self, read: HoldoutRead) -> None:
+        """Log a holdout read; requires an open session and an existing attempt."""
+
+    @abstractmethod
+    def list_holdout_reads(self, cycle_id: str) -> list[HoldoutRead]:
+        """Holdout reads of a cycle in insertion order."""
+
+    @abstractmethod
+    def add_comparison(self, comparison: ComparisonRecord) -> None:
+        """Store a comparison; cycle and both attempts must exist."""
+
+    @abstractmethod
+    def list_comparisons(self, cycle_id: str) -> list[ComparisonRecord]:
+        """Comparisons of a cycle in insertion order."""
+
+    @abstractmethod
+    def count_comparisons(self, cycle_id: str) -> int:
+        """Number of comparisons made in a cycle."""

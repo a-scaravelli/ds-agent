@@ -28,7 +28,15 @@ _EXEC_FIELDS = (
     "reason",
     "artifacts",
 )
-_CYCLE_FIELDS = ("id", "plan", "iterations", "stagnation_k", "max_fix_retries", "state")
+_CYCLE_FIELDS = (
+    "id",
+    "plan",
+    "iterations",
+    "stagnation_k",
+    "max_fix_retries",
+    "state",
+    "protocol_hash",
+)
 
 
 def _finite(field: str, value: object) -> float:
@@ -197,6 +205,8 @@ class Cycle:
     """A work cycle: approved plan, parameters and state.
 
     ``state`` is free non-empty text: the transitions belong to the loop.
+    ``protocol_hash`` is the hash of the frozen evaluation protocol, set once
+    at approval (None until then).
     """
 
     id: str
@@ -205,10 +215,13 @@ class Cycle:
     stagnation_k: int
     state: str
     max_fix_retries: int = DEFAULT_MAX_FIX_RETRIES
+    protocol_hash: str | None = None
 
     def __post_init__(self) -> None:
         require_text("id", self.id)
         require_text("state", self.state)
+        if self.protocol_hash is not None:
+            require_text("protocol_hash", self.protocol_hash)
         if not isinstance(self.plan, ShortPlan):
             raise ValidationError("plan", "must be a ShortPlan")
         _int("iterations", self.iterations, 1)
@@ -236,3 +249,61 @@ class Cycle:
     @classmethod
     def from_json(cls, text: str) -> "Cycle":
         return cls.from_dict(loads_object("cycle", text))
+
+
+@dataclass(frozen=True)
+class HoldoutSession:
+    """The one window per cycle in which the holdout can be read (design section 6)."""
+
+    cycle_id: str
+    opened_at: str
+    closed_at: str | None = None
+
+    def __post_init__(self) -> None:
+        require_text("cycle_id", self.cycle_id)
+        require_text("opened_at", self.opened_at)
+        if self.closed_at is not None:
+            require_text("closed_at", self.closed_at)
+
+    @property
+    def is_open(self) -> bool:
+        return self.closed_at is None
+
+
+@dataclass(frozen=True)
+class HoldoutRead:
+    """One logged read of the holdout: which attempt, how many rows, when."""
+
+    cycle_id: str
+    attempt_id: str
+    rows: int
+    read_at: str
+
+    def __post_init__(self) -> None:
+        require_text("cycle_id", self.cycle_id)
+        require_text("attempt_id", self.attempt_id)
+        require_text("read_at", self.read_at)
+        _int("rows", self.rows, 0)
+
+
+@dataclass(frozen=True)
+class ComparisonRecord:
+    """One paired comparison against the significance threshold (design section 6)."""
+
+    cycle_id: str
+    candidate_attempt_id: str
+    reference_attempt_id: str
+    difference: float
+    threshold: float
+    is_real: bool
+
+    def __post_init__(self) -> None:
+        for name in ("cycle_id", "candidate_attempt_id", "reference_attempt_id"):
+            require_text(name, getattr(self, name))
+        object.__setattr__(self, "difference", _finite("difference", self.difference))
+        threshold = _finite("threshold", self.threshold)
+        if threshold < 0:
+            raise ValidationError("threshold", "must not be negative")
+        object.__setattr__(self, "threshold", threshold)
+        if not isinstance(self.is_real, bool):
+            raise ValidationError("is_real", "must be a boolean")

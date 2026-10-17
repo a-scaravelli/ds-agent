@@ -13,8 +13,11 @@ from .records import (
     DEFAULT_MAX_FIX_RETRIES,
     FAILURE_KINDS,
     OUTCOMES,
+    ComparisonRecord,
     Cycle,
     ExecutionRecord,
+    HoldoutRead,
+    HoldoutSession,
     PartitionMetric,
 )
 from .sqlite import SqliteRegistry
@@ -22,12 +25,15 @@ from .sqlite import SqliteRegistry
 __all__ = [
     "AttemptDetail",
     "AttemptSummary",
+    "ComparisonRecord",
     "Cycle",
     "DEFAULT_MAX_FIX_RETRIES",
     "DuplicateAttemptError",
     "ExecutionRecord",
     "FAILURE_KINDS",
     "FailureRecord",
+    "HoldoutRead",
+    "HoldoutSession",
     "MetricPoint",
     "NotFoundError",
     "OUTCOMES",

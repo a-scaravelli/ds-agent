@@ -98,14 +98,17 @@ def test_stack_is_non_binding_starting_point(sections):
     assert "alternative" in sections[15].lower()
 
 
-def test_pyproject_no_runtime_dependencies_or_modeling_libs():
+def test_pyproject_runtime_dependencies_are_the_three_confirmed_libraries():
     import tomllib
 
     data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     project = data["project"]
-    assert project.get("dependencies", []) == []
+    names = sorted(d.split("==")[0] for d in project["dependencies"])
+    assert names == ["numpy", "pandas", "scikit-learn"]
     declared = " ".join(
-        d.lower() for deps in project.get("optional-dependencies", {}).values() for d in deps
+        d.lower()
+        for deps in project.get("optional-dependencies", {}).values()
+        for d in deps
     )
     for lib in ("pandas", "scikit-learn", "lightgbm", "mlflow", "numpy"):
         assert lib not in declared
