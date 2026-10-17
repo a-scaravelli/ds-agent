@@ -53,7 +53,7 @@ States:
 
 Happy path: `PLANNING → AWAITING_PLAN_APPROVAL → SPLITTING → BASELINE → ITERATING (N times) → REPORTING → AWAITING_REVIEW`. After the plan is approved there is no other approval state until the final review.
 
-**Configurable parameters.** The number of iterations N (10 by default) and the number K of consecutive iterations without real improvement after which the cycle stops early (section 11).
+**Configurable parameters.** The number of iterations N (10 by default), the number K of consecutive iterations without real improvement after which the cycle stops early (section 11), and the cap on fix retries per attempt (3 by default).
 
 **One iteration.** The model analyzes the metric and the errors (section 9), formulates a hypothesis, decides what to change (feature engineering, model, hyperparameters, data cleaning, etc.) and runs a new attempt. The code checks the shape of the attempt and duplicates, runs it in the sandbox with the frozen evaluation and records the outcome. Every iteration produces an attempt in the registry (section 7).
 
@@ -62,7 +62,7 @@ Happy path: `PLANNING → AWAITING_PLAN_APPROVAL → SPLITTING → BASELINE → 
 Unhappy cases:
 
 - **Invalid or duplicate attempt proposal** (`validate`): back to `propose` with the reason for the rejection passed to the model. After a maximum number of consecutive rejections the iteration is recorded as `inconclusive` and the cycle goes on.
-- **Execution error** (exception, memory, invalid code): the attempt is recorded as `failed` with traceback and cause and the agent goes on. The fix is a new recorded attempt, without approval, with a cap on consecutive failed attempts; once the cap is exceeded the cycle moves to `REPORTING`.
+- **Execution error** (exception, memory, invalid code): code fixes are not attempts and do not consume one of the N iterations, because an attempt is one ML idea (features, model, hyperparameters, data cleaning). The agent fixes the code and reruns inside the same attempt, without approval, with a cap of 3 fix retries per attempt (configurable). Every run is recorded with its traceback. If the cap is exceeded the attempt is closed with outcome `failed` and `failure_kind = code_error`, and the agent goes on. A cap on consecutive attempts closed as failed stops the cycle: once it is exceeded the cycle moves to `REPORTING`.
 - **Execution timeout**: the process is terminated, the attempt is `failed(timeout)`; the next attempt must estimate a lower cost or reduce the data.
 - **Approval timeout**: applies only to the plan and the final review. The state stays waiting; there is no implicit approval. The cycle is suspended and can resume from the saved state.
 - **Model error** (rate limit, malformed response): retry with backoff; if it persists, the cycle is suspended without losing the state and resumes from the saved state.
@@ -74,7 +74,8 @@ Rejected alternatives:
 - *No control point*: rejected because a wrong metric or validation scheme invalidates the whole cycle; the approved plan is the minimum control.
 - *Cycle without an iteration cap*: rejected because it consumes the subscription quota and favors overfitting on the validation set.
 - *A generic agent framework with a dynamic graph*: rejected because it hides the transitions and makes it hard to guarantee that the evaluation is not bypassed; an explicit state machine is testable with fakes.
-- *Unlimited automatic correction of errors*: rejected because the model could get around an evaluation error by changing the protocol instead of its code; hence the cap on consecutive failures.
+- *Unlimited automatic correction of errors*: rejected because the model could get around an evaluation error by changing the protocol instead of its code; hence the cap of fix retries per attempt and the cap on consecutive attempts closed as failed.
+- *Every code fix recorded as a new attempt*: rejected because fixes would consume the N iterations and a crash is not a new idea; the fixes stay as execution records of the same attempt, so they remain traceable.
 
 ## 3. Work phases
 
@@ -195,19 +196,25 @@ The registry (`registry` subpackage) is the memory of the agent and the source o
 - complete configuration, seed, code hash, data hash, hash of the frozen protocol;
 - metrics per partition, mean and dispersion;
 - duration and resources;
-- outcome: `succeeded`, `failed`, `inconclusive`, with the **reason** (traceback, hypothesis falsified, improvement below threshold);
+- outcome: `succeeded`, `failed`, `inconclusive`, with the free-text **reason** (traceback, hypothesis falsified, improvement below threshold) and a structured `failure_kind`;
 - `artifacts`: code and diff, predictions, charts, pipeline reference (the linked pipeline, section 13);
 - conclusion of the analysis: what was learned.
 
-**Cycle and suggestions.** A cycle has an identifier, approved plan, parameters (N, K) and state. A user suggestion has text, origin cycle and the cycles spawned from it. A new cycle restarts from the best model and the history, and the suggestion stays recorded together with the cycles it generated.
+**Attempt and execution records.** The `Attempt` of section 4 is the proposal; what happened when it ran is an *execution record*, a separate type in `registry` linked to the attempt by its id. The configuration, seed, hashes, metrics, duration, resources, outcome, `failure_kind`, reason and artifacts belong to the execution record. One attempt has one or more execution records: the initial run plus any code-fix retries (section 2). The registry stores all of them, so fixes are traceable, and the outcome of the attempt is the outcome of its last execution. An attempt is final only when it is closed with its conclusion; an open attempt has no outcome and does not appear in outcome or failure queries.
+
+**Failure kind.** `failure_kind` has the values `code_error`, `hypothesis_falsified`, `timeout` and `below_threshold`. It is required when the outcome is not `succeeded` and absent when it is `succeeded`. The free-text reason is kept as well. `code_error` has two meanings. On an execution record it only means that this run crashed. At attempt level, once the attempt is closed, it means that the code still failed after the cap of fix retries, and the registry refuses to close an attempt as `code_error` before the cap is reached. The registry can list failures by `failure_kind`, so the agent avoids retrying falsified hypotheses and the web interface can filter them.
+
+Known open point: an iteration recorded as `inconclusive` after repeated rejected proposals (section 2) has no execution and no fitting `failure_kind`, so it cannot be represented by an execution record. It is settled in the loop ticket.
+
+**Cycle and suggestions.** A cycle has an identifier, approved plan, parameters (N, K, cap of fix retries) and state. A user suggestion has text, origin cycle and the cycles spawned from it. A new cycle restarts from the best model and the history, and the suggestion stays recorded together with the cycles it generated.
 
 **Required queries.** The registry must support the queries of the web interface: list of attempts, series of the metric per iteration, detail of an attempt, suggestions and linked cycles.
 
-**Deduplication.** Two levels: (1) a deterministic *fingerprint* (hash of normalized configuration, data and protocol) discards exact duplicates; (2) a semantic check: before proposing, the model receives a summary of the related attempts and must declare how the new attempt differs. The code rejects attempts without this declaration.
+**Deduplication.** Two levels: (1) a deterministic *fingerprint* (hash of normalized configuration, code, data and protocol) discards exact duplicates; the code hash is included because features and models live in the code, so the same configuration with different feature code is a different idea. The check runs when a new attempt is proposed, against all previous attempts whatever their outcome; the fix retries of the same attempt are not checked against each other; (2) a semantic check: before proposing, the model receives a summary of the related attempts and must declare how the new attempt differs. The code rejects attempts without this declaration.
 
-**Memory of failures.** Failures enter the context of `propose` as a compact list "what was tried, outcome, why"; an attempt that failed because of a code error is distinguished from one that failed because the hypothesis was wrong.
+**Memory of failures.** Failures enter the context of `propose` as a compact list "what was tried, outcome, why"; an attempt that failed because of a code error is distinguished from one that failed because the hypothesis was wrong, through `failure_kind`.
 
-**Replaceable interface.** The registry sits behind an interface. Local MLflow is the starting point; the final choice is confirmed in the registry ticket.
+**Replaceable interface.** The registry sits behind an interface (`Registry`), so the storage can be replaced.
 
 Alternatives considered:
 
@@ -215,7 +222,7 @@ Alternatives considered:
 - *Own registry (SQLite or JSONL)*: simple, inspectable, no dependencies, but the visualization part must be written.
 - *Both*: the own one as the source of truth and MLflow as an optional view.
 
-None is decided now; the choice is made with evidence in the registry ticket. Rejected for now: memory entrusted only to the model context, because it is lost between sessions and is not verifiable.
+**Decision (registry ticket).** SQLite through the standard library `sqlite3` is the source of truth behind the interface. It needs no dependency and no network, it is cheap to maintain (stable API, nothing to pin) and it is reproducible and inspectable; UNIQUE constraints and transactions enforce deduplication and referential integrity. Rejected: local MLflow, because of its many transitive dependencies and poor fit for cycles, suggestions and hypotheses (it stays possible as an optional view behind the same interface, outside this ticket); JSONL, because it has no transactions or unique indexes; and using both now, because there is no need yet for the second one. Rejected for now: memory entrusted only to the model context, because it is lost between sessions and is not verifiable.
 
 ## 8. Roles: model and deterministic code
 
@@ -275,7 +282,7 @@ Rejected alternatives:
 
 The budget is fixed code in the `budget` subpackage, configured by the human at the beginning and checked before every iteration.
 
-- **Iterations**: the number of iterations of the cycle is 10 by default and is configurable; there is also a cap on consecutive failed attempts, distinct from N and K.
+- **Iterations**: the number of iterations of the cycle is 10 by default and is configurable; there is also a cap on consecutive attempts closed as failed, distinct from N and K, and a cap of fix retries per attempt (3 by default, configurable; section 2). Code fixes do not consume iterations.
 - **Time**: maximum total time and per single run.
 - **Submissions**: total maximum and daily reserve (section 10).
 - **Subscription**: consumption of the Claude Code quota, measured with the number of calls and tokens reported by the adapter; warning threshold and stop threshold. In case of rate limit, the agent waits according to the backoff and suspends the cycle without losing the state.
@@ -322,7 +329,7 @@ The web interface can be consulted without reading code and reads the data from 
 
 The polished graphic design is deferred to a later ticket: in this design the completeness and navigability of the data matter, not the appearance.
 
-Rejected alternatives: batch approval of proposals (contradicts autonomous work and the user does not see the effect of each one), a web interface only for approval (traceability requires mostly consultation), a report only in Markdown (it does not allow navigating between attempts, suggestions and cycles) and a polished chart right away (deferred).
+Rejected alternatives: batch approval of proposals (contradicts autonomous work and the user does not see the effect of each one), a web interface only for approval (traceability requires mostly consultation), a report only in Markdown (it does not allow navigating between attempts, suggestions and cycles) and a polished graphic design right away (deferred).
 
 ## 14. Architecture and repository structure
 
@@ -351,7 +358,7 @@ Existing subpackages under `src/kaggle_agent/`:
 - `loop`: state machine (section 2);
 - `proposals`: schema and validation of plan, attempts and suggestions (sections 4 and 7);
 - `evaluation`: metric, split, threshold, holdout, hash (sections 5 and 6);
-- `registry`: registry of attempts and deduplication (section 7);
+- `registry`: registry of attempts, execution records, cycles and suggestions behind a replaceable interface, with a SQLite implementation, fingerprint and deduplication (section 7);
 - `kaggle`: client and fake (section 10);
 - `llm`: adapter for headless Claude Code, with fake;
 - `sandbox`: execution of the generated code (section 8);
@@ -371,12 +378,12 @@ Rejected alternatives: a single monolithic module (it does not allow protecting 
 Sequence of successive tickets. Principle: each ticket that introduces a dependency chooses the library among its own tasks, with the alternatives evaluated according to the criteria of section 1 (the starting stack is a starting point that is not binding). All tests run without network: Kaggle and Claude have a fake (simulation) and no test contacts them. The order puts first what protects the evaluation and gives priority to traceability.
 
 1. **Data model of plan, attempt and suggestion.** Goal: schema and validation of the short plan (five items, length limit), of the attempt and of the suggestion. Acceptance criteria: incomplete or overlong plans rejected; attempts without `what_changed` rejected; serialization and rereading identical; examples of section 4 valid.
-2. **Attempt registry with traceability.** Goal: registry with a replaceable interface (MLflow, SQLite/JSONL or other, with the alternatives), cycles and suggestions. Acceptance criteria: all fields of section 7 saved and reread; exact duplicates rejected; failures retrievable with the reason; queries for list, metric series, detail, suggestions and linked cycles.
+2. **Attempt registry with traceability.** Goal: registry with a replaceable interface (SQLite chosen over MLflow and JSONL, with the alternatives evaluated), execution records, cycles and suggestions. Acceptance criteria: all fields of section 7 saved and reread; exact duplicates (fingerprint including the code hash) rejected; failures retrievable by `failure_kind` with the reason; queries for list, metric series, detail, suggestions and linked cycles.
 3. **Evaluation engine with frozen split.** Goal: metric, validation and holdout split, threshold, hash. Acceptance criteria: run blocked if the hash changes; same seed, same split; holdout not accessible to the generated code and every read logged; threshold applied.
 4. **Kaggle client with fake.** Goal: download, rules, submission, score, daily limit. Acceptance criteria: all tests use the fake and no network; submission format validated; limit respected; credentials absent from the logs.
 5. **Headless Claude adapter with fake.** Goal: call Claude Code non-interactively and read its outcome. Acceptance criteria: fake that simulates responses, malformed responses and rate limit; consumption recorded; no test calls Claude and no network.
 6. **Execution sandbox.** Goal: run the generated code with reduced permissions. Acceptance criteria: timeout applied; writing to protected files impossible and diff touching them rejected; no access to credentials and holdout.
-7. **State machine of the autonomous cycle.** Goal: plan, baseline, N iterations, early stop and resume. Acceptance criteria: happy path with fake model and user; default of 10 configurable iterations; stop after K iterations without improvement; errors recorded as `failed` with failure cap; resume from the saved state.
+7. **State machine of the autonomous cycle.** Goal: plan, baseline, N iterations, early stop and resume. Acceptance criteria: happy path with fake model and user; default of 10 configurable iterations; stop after K iterations without improvement; code errors fixed inside the attempt up to the fix-retry cap, then the attempt is closed as `failed` with `code_error`, and a cap on consecutive failed attempts; resume from the saved state.
 8. **End-to-end pipeline generator linked to the attempt.** Goal: produce the executable pipeline (and N variants on request). Acceptance criteria: a single command; seeds and dependencies declared; no notebook; reference recorded in the attempt; replay that reproduces the metric.
 9. **Budget and stop.** Goal: limits and stop criteria. Acceptance criteria: every limit blocks the cycle; stagnation detected; rate limit handled with simulated wait.
 10. **Final report and review with suggestions and new cycles.** Goal: short report, holdout evaluation, acceptance or suggestions. Acceptance criteria: the report contains best attempt, result on the test holdout, what worked and what did not; a suggestion is recorded and starts a cycle from the best model and the history.
@@ -401,7 +408,7 @@ Rejected alternative: a single large implementation ticket, because it is not re
 - The public leaderboard can be poorly informative; the protocol tries not to depend on it.
 - The test of the document checks structure and keywords, not quality: human review remains necessary.
 
-**Starting-point libraries still to be confirmed:** pandas, scikit-learn, LightGBM and MLflow. Each will be confirmed or replaced in the ticket that uses it.
+**Starting-point libraries still to be confirmed:** pandas, scikit-learn and LightGBM. MLflow was not adopted for the registry (section 7) and remains only an optional future view. Each will be confirmed or replaced in the ticket that uses it.
 
 **Questions for the human**
 
@@ -409,7 +416,7 @@ Rejected alternative: a single large implementation ticket, because it is not re
 2. How much subscription quota is acceptable per competition?
 3. How many submissions per day are you willing to use, and what reserve to keep?
 4. Is a web interface for consulting the attempts acceptable, with plan approval and review outside the web?
-5. Is it acceptable for execution errors to be fixed automatically with a cap on consecutive failed attempts, and which cap?
+5. Is it acceptable for code errors to be fixed automatically inside the same attempt, with a cap of fix retries per attempt (now 3) and a cap on consecutive attempts closed as failed, and which caps?
 6. Are external data or pre-trained models allowed when the competition permits them?
 7. Which default values for the number of iterations N (now 10) and for K of the early stop?
 8. Do you want several pipelines per cycle and which variants to keep (for example the best one and a simpler one)?

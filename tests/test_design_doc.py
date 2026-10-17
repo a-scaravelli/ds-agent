@@ -287,3 +287,57 @@ def test_only_documentation_no_new_packages():
     pkg = ROOT / "src" / "kaggle_agent"
     subs = {p.name for p in pkg.iterdir() if (p / "__init__.py").is_file()}
     assert "pipeline" not in subs and "web" not in subs
+
+
+# --- Attempt registry with traceability (ticket 2 of section 15) ---
+
+
+def test_code_fixes_happen_inside_the_attempt(sections):
+    s2 = sections[2].lower()
+    assert "is a new recorded attempt" not in s2 and "the fix is a new" not in s2
+    assert "3 fix retries" in s2 and "configurable" in s2
+    assert "`failure_kind = code_error`" in s2
+    assert "do not consume one of the n iterations" in s2
+    s7 = sections[7].lower()
+    assert "on an execution record it only means that this run crashed" in s7
+    assert "still failed after the cap of fix retries" in s7
+    assert "refuses to close an attempt as `code_error` before the cap" in s7
+    assert "open point" in s7 and "inconclusive" in s7 and "rejected proposals" in s7
+    s11 = sections[11].lower()
+    assert "closed as failed" in s11 and "fix retries per attempt" in s11
+
+
+def test_registry_section_describes_failure_kind_and_executions(sections):
+    s7 = sections[7]
+    for kind in ("code_error", "hypothesis_falsified", "timeout", "below_threshold"):
+        assert f"`{kind}`" in s7, kind
+    low = s7.lower()
+    assert "required when the outcome is not `succeeded` and absent when it is `succeeded`" in low
+    assert "hash of normalized configuration, code, data and protocol" in low
+    assert "execution record" in low and "linked to the attempt by its id" in low
+    assert "outcome of the attempt is the outcome of its last execution" in low
+    assert "list failures by `failure_kind`" in low
+
+
+def test_storage_choice_documented_against_criteria(sections):
+    s7 = sections[7]
+    low = s7.lower()
+    assert "none is decided now" not in low
+    assert "sqlite" in low and "source of truth" in low and "`registry`" in low
+    for alternative in ("mlflow", "jsonl", "both"):
+        assert alternative in low, alternative
+    for criterion in ("no network", "maintain", "reproducible"):
+        assert criterion in low, criterion
+    assert "mlflow" not in " ".join(
+        __import__("tomllib").loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+        .get("optional-dependencies", {}).get("dev", [])
+    ).lower()
+    s15 = sections[15].lower()
+    assert "failure_kind" in s15 and "execution records" in s15
+    assert "mlflow was not adopted" in sections[16].lower()
+    assert "fix retries" in sections[16].lower()
+
+
+def test_section_13_translation_fixed(sections):
+    assert "a polished graphic design right away" in sections[13]
+    assert "a polished chart right away" not in DESIGN.read_text(encoding="utf-8")

@@ -2,275 +2,243 @@
  "cases": {
   "1": [
    {
-    "file": "tests/test_proposals_plan.py",
-    "name": "test_missing_item_rejected"
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_all_section_7_fields_saved_and_reread"
    }
   ],
   "2": [
    {
-    "file": "tests/test_proposals_plan.py",
-    "name": "test_empty_or_wrong_type_rejected"
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_traceability_survives_restart"
    }
   ],
   "3": [
    {
-    "file": "tests/test_proposals_plan.py",
-    "name": "test_plan_over_word_limit_rejected"
+    "file": "tests/test_registry_records.py",
+    "name": "test_execution_record_is_separate_type_linked_by_id"
    }
   ],
   "4": [
    {
-    "file": "tests/test_proposals_attempt.py",
-    "name": "test_missing_what_changed_rejected"
+    "file": "tests/test_registry_records.py",
+    "name": "test_failure_kind_required_unless_succeeded"
    }
   ],
   "5": [
    {
-    "file": "tests/test_proposals_attempt.py",
-    "name": "test_other_required_fields_and_exploratory_rule"
+    "file": "tests/test_registry_records.py",
+    "name": "test_failure_kind_values_and_reason"
    }
   ],
   "6": [
    {
-    "file": "tests/test_proposals_plan.py",
-    "name": "test_plan_json_roundtrip_identical"
+    "file": "tests/test_registry_records.py",
+    "name": "test_invalid_execution_data_rejected"
    }
   ],
   "7": [
    {
-    "file": "tests/test_proposals_attempt.py",
-    "name": "test_attempt_roundtrip_identical"
+    "file": "tests/test_registry_records.py",
+    "name": "test_records_serialization_round_trip"
    }
   ],
   "8": [
    {
-    "file": "tests/test_proposals_suggestion.py",
-    "name": "test_suggestion_roundtrip_identical"
+    "file": "tests/test_registry_fingerprint.py",
+    "name": "test_fingerprint_is_deterministic_on_normalized_config"
    }
   ],
   "9": [
    {
-    "file": "tests/test_proposals_plan.py",
-    "name": "test_plan_example_from_design_is_valid"
-   },
-   {
-    "file": "tests/test_proposals_plan.py",
-    "name": "test_plan_example_matches_design_block"
+    "file": "tests/test_registry_fingerprint.py",
+    "name": "test_fingerprint_includes_code_data_protocol_and_config"
    }
   ],
   "10": [
    {
-    "file": "tests/test_proposals_attempt.py",
-    "name": "test_attempt_example_from_design_is_valid"
-   },
-   {
-    "file": "tests/test_proposals_attempt.py",
-    "name": "test_attempt_example_matches_design_block"
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_duplicate_rejected_pointing_to_existing"
    }
   ],
   "11": [
    {
-    "file": "tests/test_proposals_suggestion.py",
-    "name": "test_suggestion_validation"
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_duplicate_checked_against_all_outcomes_and_cycles"
    }
   ],
   "12": [
    {
-    "file": "tests/test_proposals_plan.py",
-    "name": "test_plan_unknown_keys_and_bad_json_rejected"
-   },
-   {
-    "file": "tests/test_proposals_attempt.py",
-    "name": "test_attempt_unknown_keys_and_bad_json_rejected"
-   },
-   {
-    "file": "tests/test_proposals_suggestion.py",
-    "name": "test_suggestion_unknown_keys_and_bad_json_rejected"
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_same_config_different_code_is_accepted"
    }
   ],
   "13": [
    {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_proposals_imports_nothing_from_later_tickets"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_proposals_uses_no_network_modules"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_no_functions_or_classes_outside_proposals"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_no_third_party_imports"
-   },
-   {
-    "file": "tests/test_package_import.py",
-    "name": "test_package_import_and_version"
-   },
-   {
-    "file": "tests/test_package_import.py",
-    "name": "test_subpackage_imports"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_pyproject_no_runtime_dependencies_or_modeling_libs"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_only_documentation_no_new_packages"
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_fix_retries_are_executions_not_attempts"
    }
   ],
   "14": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_fix_retry_cap_is_three_and_configurable"
+   },
+   {
+    "file": "tests/test_registry_records.py",
+    "name": "test_cycle_parameters_validated"
+   }
+  ],
+  "15": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_cap_exceeded_closes_failed_with_code_error"
+   }
+  ],
+  "16": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_close_before_cap_refused_for_code_error"
+   }
+  ],
+  "17": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_attempt_without_executions_cannot_be_closed"
+   }
+  ],
+  "18": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_fix_retry_only_after_code_crash"
+   },
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_fix_retry_accepted_after_code_error"
+   }
+  ],
+  "19": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_open_attempt_has_no_outcome_and_is_excluded"
+   }
+  ],
+  "20": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_failures_by_failure_kind"
+   }
+  ],
+  "21": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_list_attempts_filters_and_order"
+   }
+  ],
+  "22": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_metric_series_per_iteration"
+   }
+  ],
+  "23": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_attempt_detail_and_unknown_id"
+   }
+  ],
+  "24": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_attempt_referential_integrity"
+   }
+  ],
+  "25": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_cycle_saved_reread_and_state_updated"
+   }
+  ],
+  "26": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_suggestion_saved_with_spawned_cycles"
+   }
+  ],
+  "27": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_suggestion_queries_and_integrity"
+   }
+  ],
+  "28": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_storage_is_a_replaceable_interface"
+   }
+  ],
+  "29": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_rejected_operations_leave_registry_unchanged"
+   }
+  ],
+  "30": [
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_registry_imports_only_stdlib_proposals_and_itself"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_no_functions_or_classes_outside_proposals_and_registry"
+   }
+  ],
+  "31": [
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_code_fixes_happen_inside_the_attempt"
+   }
+  ],
+  "32": [
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_registry_section_describes_failure_kind_and_executions"
+   }
+  ],
+  "33": [
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_storage_choice_documented_against_criteria"
+   },
+   {
+    "file": "tests/test_repo_language.py",
+    "name": "test_process_memory_entry_for_registry_ticket"
+   }
+  ],
+  "34": [
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_section_13_translation_fixed"
+   }
+  ],
+  "35": [
+   {
+    "file": "tests/test_repo_language.py",
+    "name": "test_readme_cites_registry_api"
+   },
+   {
+    "file": "tests/test_repo_language.py",
+    "name": "test_repo_text_has_no_italian_function_words"
+   },
    {
     "file": "tests/test_repo_language.py",
     "name": "test_code_identifiers_are_english"
    },
    {
     "file": "tests/test_repo_language.py",
-    "name": "test_to_dict_keys_and_error_messages_are_english"
+    "name": "test_process_memory_entry_for_registry_ticket"
    }
   ],
-  "15": [
-   {
-    "file": "tests/test_repo_language.py",
-    "name": "test_repo_text_has_no_italian_function_words"
-   }
-  ],
-  "16": [
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_design_has_all_16_sections_in_order"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_sections_have_concrete_content"
-   }
-  ],
-  "17": [
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_decision_sections_have_rejected_alternatives"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_design_prescribes_no_fixed_metrics_or_techniques"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_metric_and_protocol_are_frozen"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_stack_is_non_binding_starting_point"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_subpackages_cited_in_section_14"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_readme_states_purpose_and_links_design"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_implementation_plan_tickets_have_criteria_and_fakes"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_credentials_and_evaluation_protection"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_predict_optimize_as_extension_point"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_short_initial_plan_with_five_items"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_plan_is_single_control_point"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_split_validation_and_holdout"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_baseline_precedes_loop"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_loop_ten_configurable_iterations"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_early_stop_after_k_iterations"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_short_final_report"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_review_with_suggestions_and_new_cycle"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_deliverable_end_to_end_pipeline"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_pipeline_single_command_and_reproducible"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_pipeline_linked_to_attempt"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_attempt_traceability_fields"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_web_list_and_chart"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_web_detail_and_suggestions_without_reading_code"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_graphic_design_deferred"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_ticket_sequence_consistency_and_no_per_step_approval"
-   }
-  ],
-  "18": [
-   {
-    "file": "tests/test_repo_language.py",
-    "name": "test_italian_field_names_absent"
-   },
-   {
-    "file": "tests/test_repo_language.py",
-    "name": "test_english_field_names_present_in_design_and_readme"
-   }
-  ],
-  "19": [
-   {
-    "file": "tests/test_repo_language.py",
-    "name": "test_process_memory_records_english_convention"
-   },
-   {
-    "file": "tests/test_repo_language.py",
-    "name": "test_readme_cites_public_api"
-   }
-  ],
-  "20": [
+  "36": [
    {
     "file": "tests/test_test_map.py",
     "name": "test_test_map_entries_exist"

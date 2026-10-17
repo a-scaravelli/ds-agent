@@ -159,3 +159,24 @@ def test_readme_cites_public_api():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     for name in ("ShortPlan", "Attempt", "Suggestion", "what_changed", "MAX_PLAN_WORDS"):
         assert name in readme, name
+
+
+def test_readme_cites_registry_api():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for name in (
+        "SqliteRegistry", "Registry", "ExecutionRecord", "failure_kind", "compute_fingerprint",
+        "DuplicateAttemptError", "close_attempt", "list_failures", "metric_series",
+    ):
+        assert name in readme, name
+
+
+def test_process_memory_entry_for_registry_ticket():
+    low = MEMORY.read_text(encoding="utf-8")
+    if "Ticket #9" not in low:
+        pytest.skip("process memory is updated by the later documentation phase")
+    entry = low.split("Ticket #9", 1)[1]
+    for label in ("Giro", "Data", "Cosa è stato fatto", "Decisioni", "Tentativi scartati", "Test"):
+        assert f"**{label}**" in entry, label
+    lowered = entry.lower()
+    for word in ("sqlite", "mlflow", "jsonl", "no network", "maintenance", "reproducib"):
+        assert word in lowered, word
