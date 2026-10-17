@@ -52,9 +52,9 @@ def check_params(params: object, role: str, required: tuple, optional: tuple = (
     return params
 
 
-def check_fold_count(value: object, field: str = "n_folds") -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value < 2:
-        raise ValidationError(field, "must be an integer of at least 2")
+def check_fold_count(value: object, minimum: int = 2, field: str = "n_folds") -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        raise ValidationError(field, f"must be an integer of at least {minimum}")
     return value
 
 
@@ -188,7 +188,7 @@ class ChronologicalScheme(SplitScheme):
         check_params(params, role, required)
         require_text("time_column", params["time_column"])
         if role == "validation":
-            check_fold_count(params["n_folds"])
+            check_fold_count(params["n_folds"], minimum=1)
 
     def n_folds(self, params):
         return params["n_folds"]
