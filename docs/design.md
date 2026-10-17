@@ -190,13 +190,13 @@ Rejected alternatives:
 
 The registry (`registry` subpackage) is the memory of the agent and the source of data for the web interface (section 13). For each attempt it saves:
 
-- hypothesis and rationale in natural language;
+- `hypothesis` and `rationale` in natural language, with the `evidence` and the `exploratory` mark;
 - originating attempt (`parent_id`) and what changes with respect to it (`what_changed`);
 - complete configuration, seed, code hash, data hash, hash of the frozen protocol;
 - metrics per partition, mean and dispersion;
 - duration and resources;
 - outcome: `succeeded`, `failed`, `inconclusive`, with the **reason** (traceback, hypothesis falsified, improvement below threshold);
-- artifacts: code and diff, predictions, charts, pipeline reference (the linked pipeline, section 13);
+- `artifacts`: code and diff, predictions, charts, pipeline reference (the linked pipeline, section 13);
 - conclusion of the analysis: what was learned.
 
 **Cycle and suggestions.** A cycle has an identifier, approved plan, parameters (N, K) and state. A user suggestion has text, origin cycle and the cycles spawned from it. A new cycle restarts from the best model and the history, and the suggestion stays recorded together with the cycles it generated.
