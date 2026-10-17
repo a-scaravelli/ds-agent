@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "kaggle-agent"
 version = "0.1.0"
-description = "Agente data science per competizioni Kaggle tabellari (design e scheletro)"
+description = "Data science agent for tabular Kaggle competitions (design and skeleton)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []

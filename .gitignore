@@ -5,13 +5,13 @@ __pycache__/
 .pytest_cache/
 build/
 dist/
-# dati
+# data
 data/
-# artefatti di tracking
+# tracking artifacts
 mlruns/
 mlartifacts/
 runs/
-# credenziali
+# credentials
 kaggle.json
 .env
 .env.*
