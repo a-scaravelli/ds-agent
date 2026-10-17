@@ -2,128 +2,278 @@
  "cases": {
   "1": [
    {
-    "file": "tests/test_design_doc.py",
-    "name": "test_piano_iniziale_breve_con_cinque_voci"
+    "file": "tests/test_proposals_plan.py",
+    "name": "test_missing_item_rejected"
    }
   ],
   "2": [
    {
-    "file": "tests/test_design_doc.py",
-    "name": "test_piano_unico_punto_di_controllo"
+    "file": "tests/test_proposals_plan.py",
+    "name": "test_empty_or_wrong_type_rejected"
    }
   ],
   "3": [
    {
-    "file": "tests/test_design_doc.py",
-    "name": "test_split_validation_e_holdout"
+    "file": "tests/test_proposals_plan.py",
+    "name": "test_plan_over_word_limit_rejected"
    }
   ],
   "4": [
    {
-    "file": "tests/test_design_doc.py",
-    "name": "test_baseline_precede_il_loop"
+    "file": "tests/test_proposals_attempt.py",
+    "name": "test_missing_what_changed_rejected"
    }
   ],
   "5": [
    {
-    "file": "tests/test_design_doc.py",
-    "name": "test_loop_dieci_iterazioni_configurabili"
+    "file": "tests/test_proposals_attempt.py",
+    "name": "test_other_required_fields_and_exploratory_rule"
    }
   ],
   "6": [
    {
-    "file": "tests/test_design_doc.py",
-    "name": "test_stop_anticipato_dopo_k_iterazioni"
+    "file": "tests/test_proposals_plan.py",
+    "name": "test_plan_json_roundtrip_identical"
    }
   ],
   "7": [
    {
-    "file": "tests/test_design_doc.py",
-    "name": "test_report_finale_breve"
+    "file": "tests/test_proposals_attempt.py",
+    "name": "test_attempt_roundtrip_identical"
    }
   ],
   "8": [
    {
-    "file": "tests/test_design_doc.py",
-    "name": "test_revisione_con_suggerimenti_e_nuovo_ciclo"
+    "file": "tests/test_proposals_suggestion.py",
+    "name": "test_suggestion_roundtrip_identical"
    }
   ],
   "9": [
    {
-    "file": "tests/test_design_doc.py",
-    "name": "test_deliverable_pipeline_end_to_end"
+    "file": "tests/test_proposals_plan.py",
+    "name": "test_plan_example_from_design_is_valid"
+   },
+   {
+    "file": "tests/test_proposals_plan.py",
+    "name": "test_plan_example_matches_design_block"
    }
   ],
   "10": [
    {
-    "file": "tests/test_design_doc.py",
-    "name": "test_pipeline_un_comando_e_riproducibile"
+    "file": "tests/test_proposals_attempt.py",
+    "name": "test_attempt_example_from_design_is_valid"
+   },
+   {
+    "file": "tests/test_proposals_attempt.py",
+    "name": "test_attempt_example_matches_design_block"
    }
   ],
   "11": [
    {
-    "file": "tests/test_design_doc.py",
-    "name": "test_pipeline_collegata_al_tentativo"
+    "file": "tests/test_proposals_suggestion.py",
+    "name": "test_suggestion_validation"
    }
   ],
   "12": [
    {
-    "file": "tests/test_design_doc.py",
-    "name": "test_campi_di_tracciabilita_del_tentativo"
+    "file": "tests/test_proposals_plan.py",
+    "name": "test_plan_unknown_keys_and_bad_json_rejected"
+   },
+   {
+    "file": "tests/test_proposals_attempt.py",
+    "name": "test_attempt_unknown_keys_and_bad_json_rejected"
+   },
+   {
+    "file": "tests/test_proposals_suggestion.py",
+    "name": "test_suggestion_unknown_keys_and_bad_json_rejected"
    }
   ],
   "13": [
    {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_proposals_imports_nothing_from_later_tickets"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_proposals_uses_no_network_modules"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_no_functions_or_classes_outside_proposals"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_no_third_party_imports"
+   },
+   {
+    "file": "tests/test_package_import.py",
+    "name": "test_package_import_and_version"
+   },
+   {
+    "file": "tests/test_package_import.py",
+    "name": "test_subpackage_imports"
+   },
+   {
     "file": "tests/test_design_doc.py",
-    "name": "test_web_lista_e_grafico"
+    "name": "test_pyproject_no_runtime_dependencies_or_modeling_libs"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_only_documentation_no_new_packages"
    }
   ],
   "14": [
    {
-    "file": "tests/test_design_doc.py",
-    "name": "test_web_dettaglio_suggerimenti_senza_leggere_codice"
+    "file": "tests/test_repo_language.py",
+    "name": "test_code_identifiers_are_english"
+   },
+   {
+    "file": "tests/test_repo_language.py",
+    "name": "test_to_dict_keys_and_error_messages_are_english"
    }
   ],
   "15": [
    {
-    "file": "tests/test_design_doc.py",
-    "name": "test_design_grafico_rinviato"
+    "file": "tests/test_repo_language.py",
+    "name": "test_repo_text_has_no_italian_function_words"
    }
   ],
   "16": [
    {
     "file": "tests/test_design_doc.py",
-    "name": "test_design_ha_tutte_le_16_sezioni_in_ordine"
+    "name": "test_design_has_all_16_sections_in_order"
    },
    {
     "file": "tests/test_design_doc.py",
-    "name": "test_piano_di_implementazione_ticket_con_criteri_e_fake"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_sottopacchetti_citati_nella_sezione_14"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_coerenza_sequenza_ticket_e_assenza_approvazione_a_ogni_passo"
+    "name": "test_sections_have_concrete_content"
    }
   ],
   "17": [
    {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_nessuna_funzione_o_classe"
-   },
-   {
-    "file": "tests/test_package_import.py",
-    "name": "test_import_pacchetto_e_versione"
+    "file": "tests/test_design_doc.py",
+    "name": "test_decision_sections_have_rejected_alternatives"
    },
    {
     "file": "tests/test_design_doc.py",
-    "name": "test_solo_documentazione_senza_nuovi_pacchetti"
+    "name": "test_design_prescribes_no_fixed_metrics_or_techniques"
    },
    {
     "file": "tests/test_design_doc.py",
-    "name": "test_pyproject_senza_dipendenze_di_runtime_ne_modellazione"
+    "name": "test_metric_and_protocol_are_frozen"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_stack_is_non_binding_starting_point"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_subpackages_cited_in_section_14"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_readme_states_purpose_and_links_design"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_implementation_plan_tickets_have_criteria_and_fakes"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_credentials_and_evaluation_protection"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_predict_optimize_as_extension_point"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_short_initial_plan_with_five_items"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_plan_is_single_control_point"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_split_validation_and_holdout"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_baseline_precedes_loop"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_loop_ten_configurable_iterations"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_early_stop_after_k_iterations"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_short_final_report"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_review_with_suggestions_and_new_cycle"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_deliverable_end_to_end_pipeline"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_pipeline_single_command_and_reproducible"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_pipeline_linked_to_attempt"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_attempt_traceability_fields"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_web_list_and_chart"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_web_detail_and_suggestions_without_reading_code"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_graphic_design_deferred"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_ticket_sequence_consistency_and_no_per_step_approval"
+   }
+  ],
+  "18": [
+   {
+    "file": "tests/test_repo_language.py",
+    "name": "test_italian_field_names_absent"
+   },
+   {
+    "file": "tests/test_repo_language.py",
+    "name": "test_english_field_names_present_in_design_and_readme"
+   }
+  ],
+  "19": [
+   {
+    "file": "tests/test_repo_language.py",
+    "name": "test_process_memory_records_english_convention"
+   },
+   {
+    "file": "tests/test_repo_language.py",
+    "name": "test_readme_cites_public_api"
+   }
+  ],
+  "20": [
+   {
+    "file": "tests/test_test_map.py",
+    "name": "test_test_map_entries_exist"
    }
   ]
  }

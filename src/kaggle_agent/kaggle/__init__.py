@@ -1,1 +1,1 @@
-"""Integrazione con Kaggle: download, regole, submission, punteggio."""
+"""Kaggle integration: download, rules, submission, score."""

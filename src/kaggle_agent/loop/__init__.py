@@ -1,1 +1,1 @@
-"""Ciclo di lavoro e macchina a stati (proponi, approva, esegui, analizza)."""
+"""Work cycle and state machine (propose, validate, execute, analyze)."""

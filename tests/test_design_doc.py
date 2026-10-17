@@ -1,4 +1,4 @@
-"""Verifica struttura e contenuto di docs/design.md (nessuna rete)."""
+"""Check structure and content of docs/design.md (no network)."""
 
 import re
 from pathlib import Path
@@ -9,29 +9,29 @@ ROOT = Path(__file__).resolve().parent.parent
 DESIGN = ROOT / "docs" / "design.md"
 
 SECTION_TITLES = {
-    1: "Obiettivi e non-obiettivi",
-    2: "Ciclo di lavoro",
-    3: "Fasi del lavoro",
-    4: "Formato di una proposta",
-    5: "Scelta della metrica e del protocollo di valutazione",
-    6: "Miglioramento reale, rumore e overfitting",
-    7: "Registro degli esperimenti",
-    8: "Ruoli: modello e codice deterministico",
-    9: "Analisi degli errori",
-    10: "Integrazione con Kaggle",
-    11: "Criteri di stop e budget",
-    12: "Riproducibilità",
-    13: "Interazione con l'umano",
-    14: "Architettura e struttura della repo",
-    15: "Piano di implementazione",
-    16: "Rischi aperti e domande per l'umano",
+    1: "Goals and non-goals",
+    2: "Work cycle",
+    3: "Work phases",
+    4: "Proposal format",
+    5: "Choice of the metric and the evaluation protocol",
+    6: "Real improvement, noise and overfitting",
+    7: "Experiment registry",
+    8: "Roles: model and deterministic code",
+    9: "Error analysis",
+    10: "Kaggle integration",
+    11: "Stop criteria and budget",
+    12: "Reproducibility",
+    13: "Human interaction",
+    14: "Architecture and repository structure",
+    15: "Implementation plan",
+    16: "Open risks and questions for the human",
 }
 DECISION_SECTIONS = [2, 5, 6, 7, 8, 10, 11, 14]
 MIN_WORDS = 80
 
 
 def parse_sections(text: str) -> list[tuple[int, str, str]]:
-    """Restituisce (numero, titolo, corpo) per ogni header `## N. Titolo`."""
+    """Return (number, title, body) for each `## N. Title` header."""
     parts = re.split(r"^## (\d+)\. (.+)$", text, flags=re.M)
     return [
         (int(parts[i]), parts[i + 1].strip(), parts[i + 2])
@@ -45,60 +45,60 @@ def sections() -> dict[int, str]:
     return {n: body for n, _, body in parse_sections(DESIGN.read_text(encoding="utf-8"))}
 
 
-def test_design_ha_tutte_le_16_sezioni_in_ordine():
+def test_design_has_all_16_sections_in_order():
     parsed = parse_sections(DESIGN.read_text(encoding="utf-8"))
     assert [n for n, _, _ in parsed] == list(range(1, 17))
     assert {n: t for n, t, _ in parsed} == SECTION_TITLES
 
 
-def test_sezioni_con_contenuto_concreto():
+def test_sections_have_concrete_content():
     for n, _, body in parse_sections(DESIGN.read_text(encoding="utf-8")):
-        assert len(body.split()) >= MIN_WORDS, f"sezione {n} troppo corta"
+        assert len(body.split()) >= MIN_WORDS, f"section {n} too short"
         assert not re.search(r"\b(TODO|TBD|FIXME|lorem ipsum)\b", body, re.I), n
 
 
-def test_sezioni_decisionali_hanno_alternative_scartate(sections):
+def test_decision_sections_have_rejected_alternatives(sections):
     for n in DECISION_SECTIONS:
         low = sections[n].lower()
-        assert "alternativ" in low and "scartat" in low, f"sezione {n}"
+        assert "alternative" in low and "rejected" in low, f"section {n}"
 
 
 PRESCRIPTIVE = [
-    r"la metrica (è|sarà) (sempre )?[A-Z]{2,}",
-    r"si usa sempre",
+    r"the metric (is|will be) (always )?[A-Z]{2,}",
+    r"always uses",
     r"\b\d+-?fold\b",
-    r"\bsempre\s+\d+\b",
-    r"si usa(no)? (sempre )?(lightgbm|xgboost|catboost)",
+    r"\balways\s+\d+\b",
+    r"uses (always )?(lightgbm|xgboost|catboost)",
 ]
 
 
-def test_design_non_prescrive_metriche_o_tecniche_fisse(sections):
+def test_design_prescribes_no_fixed_metrics_or_techniques(sections):
     text = sections[5] + sections[6]
     for pattern in PRESCRIPTIVE:
         assert not re.search(pattern, text, re.I if "lightgbm" in pattern else 0), pattern
     low = text.lower()
-    assert "giustific" in low and "derivazione" in low
-    assert "non fissa" in sections[5].lower()
+    assert "justif" in low and "derivation" in low
+    assert "does not fix" in sections[5].lower()
 
 
-def test_metrica_e_protocollo_congelati(sections):
+def test_metric_and_protocol_are_frozen(sections):
     low = sections[5].lower()
-    assert "congel" in low and "hash" in low
-    assert "proposta esplicita" in low and "approvata" in low
+    assert "frozen" in low and "hash" in low
+    assert "explicit proposal" in low and "approved" in low
 
 
-def test_stack_punto_di_partenza_non_vincolante(sections):
+def test_stack_is_non_binding_starting_point(sections):
     for n in (1, 15):
         low = sections[n].lower()
-        assert "punto di partenza" in low, n
-        assert "non vincolante" in low or "non un vincolo" in low, n
+        assert "starting point" in low, n
+        assert "not binding" in low or "not a constraint" in low, n
     low1 = sections[1].lower()
-    for criterio in ("senza gpu", "a pagamento", "senza rete", "manutenzione"):
-        assert criterio in low1, criterio
+    for criterion in ("without gpu", "paid", "without network", "maintenance"):
+        assert criterion in low1, criterion
     assert "alternative" in sections[15].lower()
 
 
-def test_pyproject_senza_dipendenze_di_runtime_ne_modellazione():
+def test_pyproject_no_runtime_dependencies_or_modeling_libs():
     import tomllib
 
     data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
@@ -111,7 +111,7 @@ def test_pyproject_senza_dipendenze_di_runtime_ne_modellazione():
         assert lib not in declared
 
 
-def test_sottopacchetti_citati_nella_sezione_14(sections):
+def test_subpackages_cited_in_section_14(sections):
     pkg = ROOT / "src" / "kaggle_agent"
     subs = [p.name for p in pkg.iterdir() if (p / "__init__.py").is_file()]
     assert subs
@@ -119,171 +119,171 @@ def test_sottopacchetti_citati_nella_sezione_14(sections):
         assert f"`{name}`" in sections[14], name
 
 
-def test_readme_con_scopo_e_rimando_al_design():
+def test_readme_states_purpose_and_links_design():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "docs/design.md" in text
     assert "Kaggle" in text and "data scientist" in text
 
 
-def test_piano_di_implementazione_ticket_con_criteri_e_fake(sections):
+def test_implementation_plan_tickets_have_criteria_and_fakes(sections):
     body = sections[15]
     tickets = re.findall(r"^\d+\. \*\*.+$", body, flags=re.M)
     assert len(tickets) >= 10
     for t in tickets:
-        assert "Obiettivo:" in t and "Criteri di accettazione:" in t, t[:50]
+        assert "Goal:" in t and "Acceptance criteria:" in t, t[:50]
     low = body.lower()
-    assert "senza rete" in low
+    assert "without network" in low
     assert "fake" in low and "kaggle" in low and "claude" in low
-    assert "simulazion" in low
+    assert "simulation" in low
 
 
-def test_credenziali_e_protezione_valutazione(sections):
+def test_credentials_and_evaluation_protection(sections):
     s10 = sections[10].lower()
-    assert "credenziali" in s10 and "kaggle.json" in s10 and "600" in s10
-    assert ".gitignore" in s10 and "contesto del modello" in s10
+    assert "credentials" in s10 and "kaggle.json" in s10 and "600" in s10
+    assert ".gitignore" in s10 and "model context" in s10
     s8 = sections[8].lower()
-    assert "sola lettura" in s8 and "hash" in s8 and "holdout" in s8 and "sandbox" in s8
+    assert "read-only" in s8 and "hash" in s8 and "holdout" in s8 and "sandbox" in s8
 
 
-def test_visione_predict_optimize_come_punto_di_estensione(sections):
+def test_predict_optimize_as_extension_point(sections):
     low = sections[14].lower()
     assert "predict + optimize" in low
-    assert "uplift" in low and "allocazione" in low
-    assert "punto di estensione" in low
-    assert "non è progettata" in low
+    assert "uplift" in low and "allocation" in low
+    assert "extension point" in low
+    assert "is not designed" in low
 
 
-# --- Piano breve, ciclo autonomo, tracciabilità (ticket #7) ---
+# --- Short plan, autonomous cycle, traceability (ticket #7) ---
 
 
 def _all(sections, *nums):
     return " ".join(sections[n] for n in nums).lower()
 
 
-def test_piano_iniziale_breve_con_cinque_voci(sections):
+def test_short_initial_plan_with_five_items(sections):
     low = _all(sections, 2, 3, 4)
-    assert "una pagina" in low and "2 minuti" in low
-    for voce in ("metrica e perché", "schema di validazione", "feature engineering", "modelli da provare", "baseline"):
-        assert voce in sections[4].lower(), voce
+    assert "one page" in low and "2 minutes" in low
+    for item in ("metric and why", "validation scheme", "feature engineering", "models to try", "baseline"):
+        assert item in sections[4].lower(), item
 
 
-def test_piano_unico_punto_di_controllo(sections):
+def test_plan_is_single_control_point(sections):
     s2 = sections[2]
-    assert len(re.findall(r"`AWAITING_[A-Z_]+`", s2.split("Percorso felice")[0])) == 2
+    assert len(re.findall(r"`AWAITING_[A-Z_]+`", s2.split("Happy path")[0])) == 2
     assert "`AWAITING_PLAN_APPROVAL`" in s2 and "`AWAITING_APPROVAL`" not in s2
-    assert "unico punto di controllo" in s2.lower()
+    assert "single point of control" in s2.lower()
     s5 = sections[5].lower()
-    assert "contenuta nel piano" in s5 and "sostituisce l'approvazione separata" in s5
-    assert "non convalida i singoli passaggi" in sections[8].lower()
+    assert "contained in the initial plan" in s5 and "replaces the separate approval" in s5
+    assert "does not validate the individual steps" in sections[8].lower()
 
 
-def test_split_validation_e_holdout(sections):
+def test_split_validation_and_holdout(sections):
     low = _all(sections, 5, 6, 8)
-    assert "validation set" in low and "guida le iterazioni" in low
-    assert "mai usato per decidere" in low or "non è usato per decidere" in low
-    assert "ogni lettura è registrata" in low
-    assert "a fine ciclo" in low
+    assert "validation set" in low and "drives the iterations" in low
+    assert "never used to decide" in low or "is not used to decide" in low
+    assert "every read is logged" in low
+    assert "at the end of the cycle" in low
 
 
-def test_baseline_precede_il_loop(sections):
+def test_baseline_precedes_loop(sections):
     s2 = sections[2]
     assert "`BASELINE`" in s2
     assert s2.index("`SPLITTING`") < s2.index("`BASELINE`") < s2.index("`ITERATING`")
-    assert "primo modello addestrato e valutato" in s2.lower()
+    assert "first model trained and evaluated" in s2.lower()
 
 
-def test_loop_dieci_iterazioni_configurabili(sections):
+def test_loop_ten_configurable_iterations(sections):
     low = _all(sections, 2, 11)
-    assert "10 di default" in low or "default 10" in low
-    assert "configurabil" in low
-    for voce in ("metrica", "errori", "ipotesi", "feature engineering", "modello", "iperparametri", "pulizia dei dati", "nuovo tentativo"):
-        assert voce in sections[2].lower(), voce
+    assert "10 by default" in low or "default 10" in low
+    assert "configurable" in low
+    for item in ("metric", "errors", "hypothesis", "feature engineering", "model", "hyperparameters", "data cleaning", "new attempt"):
+        assert item in sections[2].lower(), item
 
 
-def test_stop_anticipato_dopo_k_iterazioni(sections):
+def test_early_stop_after_k_iterations(sections):
     low = sections[11].lower()
-    assert "k iterazioni" in low and "configurabile" in low
-    assert "automaticamente" in low and "report finale" in low
+    assert "k consecutive iterations" in low and "configurable" in low
+    assert "automatically" in low and "final report" in low
 
 
-def test_report_finale_breve(sections):
+def test_short_final_report(sections):
     low = sections[13].lower()
-    assert "report finale breve" in low
-    for voce in ("miglior tentativo", "test holdout", "cosa ha funzionato e cosa no"):
-        assert voce in low, voce
+    assert "short final report" in low
+    for item in ("best attempt", "test holdout", "what worked and what did not"):
+        assert item in low, item
 
 
-def test_revisione_con_suggerimenti_e_nuovo_ciclo(sections):
+def test_review_with_suggestions_and_new_cycle(sections):
     low = _all(sections, 2, 7, 13)
-    assert "accetta" in low and "suggerimenti" in low
-    assert "nuovo ciclo" in low and "stato esistente" in low
-    assert "miglior modello e dallo storico" in sections[7].lower()
-    assert "cicli nati da esso" in sections[7].lower()
+    assert "accepts" in low and "suggestions" in low
+    assert "new cycle" in low and "existing state" in low
+    assert "best model and the history" in sections[7].lower()
+    assert "cycles spawned from it" in sections[7].lower()
 
 
-def test_deliverable_pipeline_end_to_end(sections):
+def test_deliverable_end_to_end_pipeline(sections):
     low = sections[13].lower()
-    assert "pipeline python end-to-end" in low
-    for voce in ("caricamento dei dati", "preprocessing", "feature engineering", "training", "valutazione", "predizione", "submission"):
-        assert voce in low, voce
-    assert "n pipeline" in low and "alternativa più semplice" in low
+    assert "end-to-end python pipeline" in low
+    for item in ("data loading", "preprocessing", "feature engineering", "training", "evaluation", "prediction", "submission"):
+        assert item in low, item
+    assert "n pipelines" in low and "simpler alternative" in low
 
 
-def test_pipeline_un_comando_e_riproducibile(sections):
+def test_pipeline_single_command_and_reproducible(sections):
     for n in (12, 13):
         low = sections[n].lower()
-        assert "un solo comando" in low, n
-        assert "seed fissati" in low and "dipendenze dichiarate" in low, n
-        assert "notebook" in low and "stato in memoria" in low, n
+        assert "single command" in low, n
+        assert "fixed seeds" in low and "declared dependencies" in low, n
+        assert "notebook" in low and "in-memory state" in low, n
 
 
-def test_pipeline_collegata_al_tentativo(sections):
-    assert "riferimento alla pipeline" in sections[7].lower()
+def test_pipeline_linked_to_attempt(sections):
+    assert "pipeline reference" in sections[7].lower()
     low = sections[13].lower()
-    assert "dal tentativo alla pipeline" in low and "link alla pipeline" in low
+    assert "from the attempt to the corresponding pipeline" in low and "link to the pipeline" in low
 
 
-def test_campi_di_tracciabilita_del_tentativo(sections):
+def test_attempt_traceability_fields(sections):
     low = sections[7].lower()
-    for campo in ("ipotesi", "motivazione", "parent_id", "cosa_cambia", "configurazione", "metriche", "durata", "esito", "artefatti"):
-        assert campo in low, campo
-    for esito in ("succeeded", "failed", "inconclusive"):
-        assert esito in low
-    assert "`cosa_cambia`" in sections[4]
+    for field in ("hypothesis", "rationale", "parent_id", "what_changed", "configuration", "metrics", "duration", "outcome", "artifacts"):
+        assert field in low, field
+    for outcome in ("succeeded", "failed", "inconclusive"):
+        assert outcome in low
+    assert "`what_changed`" in sections[4]
 
 
-def test_web_lista_e_grafico(sections):
+def test_web_list_and_chart(sections):
     low = sections[13].lower()
-    assert "lista/timeline dei tentativi" in low
-    assert "grafico della metrica per iterazione" in low and "evidenziato" in low
+    assert "list/timeline of attempts" in low
+    assert "chart of the metric per iteration" in low and "highlighted" in low
 
 
-def test_web_dettaglio_suggerimenti_senza_leggere_codice(sections):
+def test_web_detail_and_suggestions_without_reading_code(sections):
     low = sections[13].lower()
-    assert "motivazione in linguaggio naturale" in low
-    assert "suggerimenti dell'utente" in low and "cicli nati da ciascuno" in low
-    assert "senza leggere codice" in low
+    assert "rationale in natural language" in low
+    assert "user suggestions" in low and "cycles spawned from each" in low
+    assert "without reading code" in low
 
 
-def test_design_grafico_rinviato(sections):
-    assert "rinviato a un ticket successivo" in sections[13].lower()
+def test_graphic_design_deferred(sections):
+    assert "deferred to a later ticket" in sections[13].lower()
     s15 = sections[15]
     tickets = " ".join(re.findall(r"^\d+\. \*\*.+$", s15, flags=re.M)).lower()
-    assert "design grafico" not in tickets
-    assert "fuori da questo piano" in s15.lower()
+    assert "graphic design" not in tickets
+    assert "outside this plan" in s15.lower()
 
 
-def test_coerenza_sequenza_ticket_e_assenza_approvazione_a_ogni_passo(sections):
+def test_ticket_sequence_consistency_and_no_per_step_approval(sections):
     s15 = sections[15].lower()
-    for parola in ("ciclo autonomo", "pipeline", "tracciabilità", "interfaccia web"):
-        assert parola in s15, parola
+    for word in ("autonomous cycle", "pipeline", "traceability", "web interface"):
+        assert word in s15, word
     text = DESIGN.read_text(encoding="utf-8").lower()
-    for vietato in ("approvazione a ogni passo", "awaiting_approval", "`proposing`", "l'umano vede il diff"):
-        assert vietato not in text, vietato
-    assert "invio reale a kaggle non fa parte del ciclo autonomo" in sections[10].lower()
+    for forbidden in ("approval at every step", "awaiting_approval", "`proposing`", "the human sees the diff"):
+        assert forbidden not in text, forbidden
+    assert "actual submission to kaggle is not part of the autonomous cycle" in sections[10].lower()
 
 
-def test_solo_documentazione_senza_nuovi_pacchetti():
+def test_only_documentation_no_new_packages():
     pkg = ROOT / "src" / "kaggle_agent"
     subs = {p.name for p in pkg.iterdir() if (p / "__init__.py").is_file()}
     assert "pipeline" not in subs and "web" not in subs

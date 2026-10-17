@@ -1,1 +1,1 @@
-"""Adattatore verso Claude Code headless."""
+"""Adapter for headless Claude Code."""
