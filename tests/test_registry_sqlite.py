@@ -487,8 +487,9 @@ def test_ticket_2_sqlite_file_is_migrated(tmp_path):
     )
     db.commit()
     db.close()
-    for _ in range(2):  # the migration is idempotent
-        with SqliteRegistry(path) as r:
-            assert r.get_cycle("OLD") == cycle
-            assert r.get_cycle("OLD").protocol_hash is None
-            r.set_protocol_hash("OLD", "h")
+    with SqliteRegistry(path) as r:
+        assert r.get_cycle("OLD") == cycle
+        assert r.get_cycle("OLD").protocol_hash is None
+        r.set_protocol_hash("OLD", "h")
+    with SqliteRegistry(path) as r:  # the migration is idempotent
+        assert r.get_cycle("OLD").protocol_hash == "h"
