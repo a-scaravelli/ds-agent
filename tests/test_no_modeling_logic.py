@@ -1,4 +1,4 @@
-"""Only the proposals data model has code; the rest is docstrings and stdlib."""
+"""Only the proposals and registry packages have code; the rest is docstrings and stdlib."""
 
 import ast
 import sys
@@ -6,6 +6,7 @@ from pathlib import Path
 
 SRC = Path(__file__).resolve().parent.parent / "src" / "kaggle_agent"
 PROPOSALS = SRC / "proposals"
+REGISTRY = SRC / "registry"
 LATER_TICKETS = {"registry", "evaluation", "kaggle", "llm"}
 NETWORK_MODULES = {
     "socket", "ssl", "http", "urllib", "ftplib", "smtplib", "xmlrpc",
@@ -39,9 +40,9 @@ def test_no_third_party_imports():
             assert top in stdlib or top in {"kaggle_agent", "<relative>"}, f"{path}: {top}"
 
 
-def test_no_functions_or_classes_outside_proposals():
+def test_no_functions_or_classes_outside_proposals_and_registry():
     for path in _modules():
-        if PROPOSALS in path.parents:
+        if PROPOSALS in path.parents or REGISTRY in path.parents:
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -72,3 +73,21 @@ def test_proposals_uses_no_network_modules():
     for path in sorted(PROPOSALS.glob("*.py")):
         for top, full in _imports(path):
             assert top not in NETWORK_MODULES, f"{path}: {full}"
+
+
+def test_registry_imports_only_stdlib_proposals_and_itself():
+    stdlib = set(sys.stdlib_module_names)
+    forbidden = LATER_TICKETS | {"loop", "sandbox", "review", "budget"}
+    for path in sorted(REGISTRY.glob("*.py")):
+        for top, full in _imports(path):
+            assert top in stdlib or top in {"kaggle_agent", "<relative>"}, f"{path}: {full}"
+            assert top not in NETWORK_MODULES, f"{path}: {full}"
+            if top == "kaggle_agent":
+                parts = full.split(".")
+                assert len(parts) > 1 and parts[1] in {"proposals", "registry"}, f"{path}: {full}"
+            if top == "<relative>":
+                assert full.lstrip(".").split(".")[0] not in forbidden - {"registry"}, f"{path}: {full}"
+    import tomllib
+
+    pyproject = tomllib.loads((SRC.parent.parent / "pyproject.toml").read_text(encoding="utf-8"))
+    assert pyproject["project"]["dependencies"] == []
