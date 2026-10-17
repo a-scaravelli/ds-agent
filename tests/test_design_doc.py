@@ -151,3 +151,139 @@ def test_visione_predict_optimize_come_punto_di_estensione(sections):
     assert "uplift" in low and "allocazione" in low
     assert "punto di estensione" in low
     assert "non è progettata" in low
+
+
+# --- Piano breve, ciclo autonomo, tracciabilità (ticket #7) ---
+
+
+def _all(sections, *nums):
+    return " ".join(sections[n] for n in nums).lower()
+
+
+def test_piano_iniziale_breve_con_cinque_voci(sections):
+    low = _all(sections, 2, 3, 4)
+    assert "una pagina" in low and "2 minuti" in low
+    for voce in ("metrica e perché", "schema di validazione", "feature engineering", "modelli da provare", "baseline"):
+        assert voce in sections[4].lower(), voce
+
+
+def test_piano_unico_punto_di_controllo(sections):
+    s2 = sections[2]
+    assert len(re.findall(r"`AWAITING_[A-Z_]+`", s2.split("Percorso felice")[0])) == 2
+    assert "`AWAITING_PLAN_APPROVAL`" in s2 and "`AWAITING_APPROVAL`" not in s2
+    assert "unico punto di controllo" in s2.lower()
+    s5 = sections[5].lower()
+    assert "contenuta nel piano" in s5 and "sostituisce l'approvazione separata" in s5
+    assert "non convalida i singoli passaggi" in sections[8].lower()
+
+
+def test_split_validation_e_holdout(sections):
+    low = _all(sections, 5, 6, 8)
+    assert "validation set" in low and "guida le iterazioni" in low
+    assert "mai usato per decidere" in low or "non è usato per decidere" in low
+    assert "ogni lettura è registrata" in low
+    assert "a fine ciclo" in low
+
+
+def test_baseline_precede_il_loop(sections):
+    s2 = sections[2]
+    assert "`BASELINE`" in s2
+    assert s2.index("`SPLITTING`") < s2.index("`BASELINE`") < s2.index("`ITERATING`")
+    assert "primo modello addestrato e valutato" in s2.lower()
+
+
+def test_loop_dieci_iterazioni_configurabili(sections):
+    low = _all(sections, 2, 11)
+    assert "10 di default" in low or "default 10" in low
+    assert "configurabil" in low
+    for voce in ("metrica", "errori", "ipotesi", "feature engineering", "modello", "iperparametri", "pulizia dei dati", "nuovo tentativo"):
+        assert voce in sections[2].lower(), voce
+
+
+def test_stop_anticipato_dopo_k_iterazioni(sections):
+    low = sections[11].lower()
+    assert "k iterazioni" in low and "configurabile" in low
+    assert "automaticamente" in low and "report finale" in low
+
+
+def test_report_finale_breve(sections):
+    low = sections[13].lower()
+    assert "report finale breve" in low
+    for voce in ("miglior tentativo", "test holdout", "cosa ha funzionato e cosa no"):
+        assert voce in low, voce
+
+
+def test_revisione_con_suggerimenti_e_nuovo_ciclo(sections):
+    low = _all(sections, 2, 7, 13)
+    assert "accetta" in low and "suggerimenti" in low
+    assert "nuovo ciclo" in low and "stato esistente" in low
+    assert "miglior modello e dallo storico" in sections[7].lower()
+    assert "cicli nati da esso" in sections[7].lower()
+
+
+def test_deliverable_pipeline_end_to_end(sections):
+    low = sections[13].lower()
+    assert "pipeline python end-to-end" in low
+    for voce in ("caricamento dei dati", "preprocessing", "feature engineering", "training", "valutazione", "predizione", "submission"):
+        assert voce in low, voce
+    assert "n pipeline" in low and "alternativa più semplice" in low
+
+
+def test_pipeline_un_comando_e_riproducibile(sections):
+    for n in (12, 13):
+        low = sections[n].lower()
+        assert "un solo comando" in low, n
+        assert "seed fissati" in low and "dipendenze dichiarate" in low, n
+        assert "notebook" in low and "stato in memoria" in low, n
+
+
+def test_pipeline_collegata_al_tentativo(sections):
+    assert "riferimento alla pipeline" in sections[7].lower()
+    low = sections[13].lower()
+    assert "dal tentativo alla pipeline" in low and "link alla pipeline" in low
+
+
+def test_campi_di_tracciabilita_del_tentativo(sections):
+    low = sections[7].lower()
+    for campo in ("ipotesi", "motivazione", "parent_id", "cosa_cambia", "configurazione", "metriche", "durata", "esito", "artefatti"):
+        assert campo in low, campo
+    for esito in ("succeeded", "failed", "inconclusive"):
+        assert esito in low
+    assert "`cosa_cambia`" in sections[4]
+
+
+def test_web_lista_e_grafico(sections):
+    low = sections[13].lower()
+    assert "lista/timeline dei tentativi" in low
+    assert "grafico della metrica per iterazione" in low and "evidenziato" in low
+
+
+def test_web_dettaglio_suggerimenti_senza_leggere_codice(sections):
+    low = sections[13].lower()
+    assert "motivazione in linguaggio naturale" in low
+    assert "suggerimenti dell'utente" in low and "cicli nati da ciascuno" in low
+    assert "senza leggere codice" in low
+
+
+def test_design_grafico_rinviato(sections):
+    assert "rinviato a un ticket successivo" in sections[13].lower()
+    s15 = sections[15]
+    tickets = " ".join(re.findall(r"^\d+\. \*\*.+$", s15, flags=re.M)).lower()
+    assert "design grafico" not in tickets
+    assert "fuori da questo piano" in s15.lower()
+
+
+def test_coerenza_sequenza_ticket_e_assenza_approvazione_a_ogni_passo(sections):
+    s15 = sections[15].lower()
+    for parola in ("ciclo autonomo", "pipeline", "tracciabilità", "interfaccia web"):
+        assert parola in s15, parola
+    text = DESIGN.read_text(encoding="utf-8").lower()
+    for vietato in ("approvazione a ogni passo", "awaiting_approval", "`proposing`", "l'umano vede il diff"):
+        assert vietato not in text, vietato
+    assert "invio reale a kaggle non fa parte del ciclo autonomo" in sections[10].lower()
+
+
+def test_solo_documentazione_senza_nuovi_pacchetti():
+    pkg = ROOT / "src" / "kaggle_agent"
+    subs = {p.name for p in pkg.iterdir() if (p / "__init__.py").is_file()}
+    assert "pipeline" not in subs and "web" not in subs
