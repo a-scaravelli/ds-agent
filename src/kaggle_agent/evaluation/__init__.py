@@ -1,1 +1,1 @@
-"""Metrica e protocollo di valutazione congelati, codice fisso non modificabile dal modello."""
+"""Frozen metric and evaluation protocol, fixed code the model cannot modify."""

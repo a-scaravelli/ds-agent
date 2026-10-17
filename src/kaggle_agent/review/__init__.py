@@ -1,1 +1,1 @@
-"""Interfaccia di revisione umana: sintesi, evidenze, feedback."""
+"""Human review interface: summary, evidence, feedback."""

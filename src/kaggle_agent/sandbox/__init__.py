@@ -1,1 +1,1 @@
-"""Esecuzione isolata del codice generato dal modello."""
+"""Isolated execution of model-generated code."""

@@ -1,1 +1,1 @@
-"""Registro degli esperimenti, deduplicazione e memoria dei fallimenti."""
+"""Experiment registry, deduplication and memory of failures."""
