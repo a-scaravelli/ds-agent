@@ -32,7 +32,7 @@ Python 3.12, pandas, scikit-learn, LightGBM and local MLflow are a **starting po
 4. low maintenance cost: widespread library, stable API, few transitive dependencies;
 5. reproducibility: pinned versions and deterministic behavior for the same seed.
 
-Rejected alternative: fixing the complete stack now in the design. Rejected because we do not yet know what will really be needed (for example whether pandas is enough or a faster alternative is worth it) and because a choice made with no code to write would be without evidence. For the same reason `pyproject.toml` declares no runtime dependencies.
+Rejected alternative: fixing the complete stack now in the design. Rejected because we do not yet know what will really be needed (for example whether pandas is enough or a faster alternative is worth it) and because a choice made with no code to write would be without evidence. For the same reason the first tickets declared no runtime dependencies; each library enters `pyproject.toml` with a pinned version in the ticket that needs it. So far the evaluation ticket confirmed pandas, numpy and scikit-learn (section 5).
 
 ## 2. Work cycle
 
@@ -159,7 +159,20 @@ The design does not fix the metric, the validation scheme or the techniques. It 
 
 **Split.** After the approval the code separates the data into a validation set, which drives the iterations, and a test holdout, which is never used to decide and is evaluated only at the end of the cycle (section 6). This avoids overfitting on the validation set.
 
-**Freezing.** With the approval of the plan the code computes a hash of the protocol (definition of the metric, partition scheme with seed, threshold, holdout, version of the evaluation code) and saves it in the registry. Every attempt checks the hash before starting; a different hash blocks the run. The protocol stays frozen for the whole cycle: a change during the cycle is not allowed. If the evidence shows that it is inadequate, the agent says so in the final report with an explicit proposal, motivated by the evidence. If the user approved it in the review, it applies to the next cycle; the earlier results are marked as not comparable and the registry keeps both versions.
+**Protocol.** The plan stays human-readable text. Next to it the agent proposes a `Protocol` (in `evaluation`), a separate immutable record with the metric name and parameters, the direction, the target column, the partition scheme and its parameters for the validation folds and for the holdout, the holdout share, the seed, the number of repetitions and the factor `k` of the significance threshold (section 6). Every field is mandatory: there is no default metric, direction or scheme, and a protocol that leaves one out is rejected. Metrics and partition schemes are identified by name in two extensible registries in the fixed code of `evaluation` (the model cannot pass its own function). The building blocks are random partitions with optional stratification, partitions by group and chronological partitions; they are tools, not choices. Each metric declares its natural direction; the protocol states the direction explicitly and the code only checks that the two agree (a custom metric with a non-conventional direction is registered as a separate metric). The protocol must yield at least two validation partitions (repetitions times folds), otherwise the dispersion of the baseline is undefined.
+
+**Repetitions.** Every repetition has its own partitions when the scheme is random or by group. A deterministic scheme (the chronological one) gives the same folds in every repetition and only the seed passed to the candidate changes; the dispersion of the baseline then measures the noise of the model seed. The seeds of the repetitions are derived from the seed of the protocol.
+
+**Freezing.** With the approval of the plan the code computes a hash of the protocol (definition of the metric, partition scheme with seed, threshold, holdout) together with the evaluation code, and saves it on the cycle in the registry. The evaluation code is covered by the SHA-256 of the source files of the `evaluation` package, computed at runtime, so nobody has to bump a version constant; the flip side is that any edit of the package, even a reformat, invalidates the frozen protocols of open cycles. The versions of the libraries are not part of the hash (they are pinned and do not change inside a cycle); they are recorded in the resources of every execution. Every attempt recomputes the hash and compares it with the one stored on the cycle before starting, and before every holdout read; a different hash blocks the run, and a cycle without a frozen hash cannot be evaluated. The protocol stays frozen for the whole cycle: a change during the cycle is not allowed. If the evidence shows that it is inadequate, the agent says so in the final report with an explicit proposal, motivated by the evidence. If the user approved it in the review, it applies to the next cycle; the earlier results are marked as not comparable and the registry keeps both versions.
+
+**Library decision (evaluation ticket).** Data enter the engine as pandas DataFrames, and pandas, numpy and scikit-learn are runtime dependencies pinned with `==`. They are judged on the criteria of section 1: they run on a Mac without GPU (1), are free (2), work offline and need no simulation in tests (3), are widespread with a stable API (4), and give deterministic results for the same seed (5). The package is the only code allowed to import them; `proposals` and `registry` stay on the standard library.
+
+Rejected alternatives for this decision:
+
+- *Pure Python for metrics and partitions*: rejected because reimplementing them is error-prone (ties, stratification, edge cases) and gives no benefit on the criteria.
+- *polars or pyarrow instead of pandas*: rejected because they are further from the stack the generated code and Kaggle notebooks use, with no need shown by the data sizes in scope.
+- *scipy alone*: rejected because it offers statistics but no ready-made partitioning and metric building blocks.
+- *Adding LightGBM or MLflow now*: out of this ticket; the engine needs no model library (candidates are supplied by the caller) and MLflow was not adopted for the registry.
 
 Rejected alternatives:
 
@@ -172,10 +185,10 @@ Rejected alternatives:
 
 An increase in the score is not an improvement until it passes the following checks, all in the fixed code of `evaluation`.
 
-- **Noise across seeds and partitions.** Every comparison reports the variation across repetitions (different seeds, different partitions). The baseline is measured several times to estimate its noise. The improvement is considered real only if it exceeds the significance threshold defined in the protocol (section 5), for example relative to the estimated dispersion; the exact form of the threshold is decided by the agent for that problem and approved with the plan.
+- **Noise across seeds and partitions.** Every comparison reports the variation across repetitions (different seeds, different partitions). The baseline is measured several times to estimate its noise. The improvement is considered real only if it exceeds the significance threshold defined in the protocol (section 5). The engine implements one parametric form: in a paired comparison on the same partitions, the mean difference, oriented by the direction of the metric, must exceed `k` times the dispersion of the baseline, where the dispersion is the sample standard deviation across all its partitions (repetitions times folds). The agent proposes `k` for the problem with the plan, and it is frozen in the protocol; the engine has no default. With a deterministic scheme and several repetitions the folds are identical and only the seed of the candidate changes, so the dispersion of the baseline captures the noise of the model seed; if the candidate ignores the seed the dispersion is zero and any positive improvement passes, which is why the agent justifies the repetitions in the plan.
 - **Paired comparisons.** Two candidates are compared on the same partitions, to reduce the variance of the difference.
-- **Overfitting of the validation set.** Every attempt adapts the choice a little to the validation set. For this reason the registry counts how many comparisons have been made and the threshold can be raised as their number grows. The hyperparameter search happens inside the inner validation, not on the reference partition.
-- **Untouched holdout.** The test holdout is not accessible to the model or to the generated code and is not used to decide. It is evaluated only once at the end of the cycle on the best attempt (and possibly on the variants requested by the user); every read is logged and does not influence the decisions. If the score on the holdout is much worse, the improvement is suspect and the report says so. With cycles repeated after the suggestions the risk of overfitting also on the holdout grows: the design records it as an open risk (section 16).
+- **Overfitting of the validation set.** Every attempt adapts the choice a little to the validation set. For this reason the registry counts how many comparisons have been made in the cycle (every comparison is stored with candidate, reference, difference, threshold and outcome). Raising the threshold with that count is not implemented yet: the count is recorded so the rule can be added later. The hyperparameter search happens inside the inner validation, not on the reference partition.
+- **Untouched holdout.** The test holdout is not accessible to the model or to the generated code and is not used to decide. The cycle has one holdout session at the end of the cycle, in which the best attempt and the variants requested by the user (section 13) are evaluated together. Every read is logged in the registry before the data is returned, an attempt is read at most once per session, no read is possible after the session is closed and the session cannot be reopened in the same cycle. A failed evaluation still consumes the session, because its read is already logged. The reads do not influence the decisions. The guarantee of this design is one of interface and log: the split object exposes only development data and the holdout is reachable through a single accessor. Real isolation from generated code arrives with the sandbox (ticket 6); inside one Python process the accessor cannot prevent a determined reader. If the score on the holdout is much worse, the improvement is suspect and the report says so. With cycles repeated after the suggestions the risk of overfitting also on the holdout grows: the design records it as an open risk (section 16).
 - **Early stop.** K consecutive iterations without real improvement, that is above the significance threshold, stop the cycle (section 11).
 - **Overfitting of the public leaderboard.** The public score covers a part of the test, often small. It does not drive development decisions: it serves as a consistency check with the validation. The number of submissions is limited (section 10).
 - **Leakage diagnosis.** A very large jump is treated as suspect and produces a verification attempt before it is accepted.
@@ -186,6 +199,7 @@ Rejected alternatives:
 - *A classical statistical test on a single run*: rejected because the partitions are not independent and the test would overestimate certainty; the empirical variation across repetitions is preferred.
 - *No threshold, every increase is accepted*: rejected because it accumulates overfitting of the validation set.
 - *Evaluating the holdout at every iteration*: rejected because it would turn it into a second validation set.
+- *Raising the threshold with the number of comparisons right away*: postponed; the count is recorded so the rule can be added later.
 
 ## 7. Experiment registry
 
@@ -193,7 +207,7 @@ The registry (`registry` subpackage) is the memory of the agent and the source o
 
 - `hypothesis` and `rationale` in natural language, with the `evidence` and the `exploratory` mark;
 - originating attempt (`parent_id`) and what changes with respect to it (`what_changed`);
-- complete configuration, seed, code hash, data hash, hash of the frozen protocol;
+- complete configuration, seed, code hash, data hash, hash of the frozen protocol (the same hash is stored once on the cycle at approval);
 - metrics per partition, mean and dispersion;
 - duration and resources;
 - outcome: `succeeded`, `failed`, `inconclusive`, with the free-text **reason** (traceback, hypothesis falsified, improvement below threshold) and a structured `failure_kind`;
@@ -206,7 +220,9 @@ The registry (`registry` subpackage) is the memory of the agent and the source o
 
 Known open point: an iteration recorded as `inconclusive` after repeated rejected proposals (section 2) has no execution and no fitting `failure_kind`, so it cannot be represented by an execution record. It is settled in the loop ticket.
 
-**Cycle and suggestions.** A cycle has an identifier, approved plan, parameters (N, K, cap of fix retries) and state. A user suggestion has text, origin cycle and the cycles spawned from it. A new cycle restarts from the best model and the history, and the suggestion stays recorded together with the cycles it generated.
+**Evaluation records.** For the evaluation engine (section 6) the registry also stores, per cycle: the frozen protocol hash; the holdout session (opened and closed times; at most one per cycle, never reopened); the log of holdout reads (attempt, number of rows, time), accepted only while the session is open; and the paired comparisons with their count. These are append-only and the rules about who may read or compare are applied by the engine, not by the registry. SQLite files created before this change are migrated by adding the hash column.
+
+**Cycle and suggestions.** A cycle has an identifier, approved plan, parameters (N, K, cap of fix retries), state and, once approved, the frozen protocol hash. A user suggestion has text, origin cycle and the cycles spawned from it. A new cycle restarts from the best model and the history, and the suggestion stays recorded together with the cycles it generated.
 
 **Required queries.** The registry must support the queries of the web interface: list of attempts, series of the metric per iteration, detail of an attempt, suggestions and linked cycles.
 
@@ -357,7 +373,7 @@ Existing subpackages under `src/kaggle_agent/`:
 
 - `loop`: state machine (section 2);
 - `proposals`: schema and validation of plan, attempts and suggestions (sections 4 and 7);
-- `evaluation`: metric, split, threshold, holdout, hash (sections 5 and 6);
+- `evaluation`: protocol, registries of metrics and partition schemes, frozen split, holdout accessor and session, threshold and paired comparison, evaluation engine, hash of protocol and code (sections 5 and 6); the only package that imports pandas, numpy and scikit-learn;
 - `registry`: registry of attempts, execution records, cycles and suggestions behind a replaceable interface, with a SQLite implementation, fingerprint and deduplication (section 7);
 - `kaggle`: client and fake (section 10);
 - `llm`: adapter for headless Claude Code, with fake;
@@ -379,7 +395,7 @@ Sequence of successive tickets. Principle: each ticket that introduces a depende
 
 1. **Data model of plan, attempt and suggestion.** Goal: schema and validation of the short plan (five items, length limit), of the attempt and of the suggestion. Acceptance criteria: incomplete or overlong plans rejected; attempts without `what_changed` rejected; serialization and rereading identical; examples of section 4 valid.
 2. **Attempt registry with traceability.** Goal: registry with a replaceable interface (SQLite chosen over MLflow and JSONL, with the alternatives evaluated), execution records, cycles and suggestions. Acceptance criteria: all fields of section 7 saved and reread; exact duplicates (fingerprint including the code hash) rejected; failures retrievable by `failure_kind` with the reason; queries for list, metric series, detail, suggestions and linked cycles.
-3. **Evaluation engine with frozen split.** Goal: metric, validation and holdout split, threshold, hash. Acceptance criteria: run blocked if the hash changes; same seed, same split; holdout not accessible to the generated code and every read logged; threshold applied.
+3. **Evaluation engine with frozen split.** Goal: a `Protocol` proposed with the plan and frozen at approval, metric and partition scheme chosen by name from extensible registries (none is a default), validation and holdout split, threshold `k` times the baseline dispersion, holdout session, hash of protocol and evaluation code stored on the cycle; pandas, numpy and scikit-learn confirmed as pinned runtime dependencies. Acceptance criteria: run blocked if the hash changes (protocol or evaluation code); same seed, same split; protocols without metric, direction or scheme rejected; deterministic schemes accept repetitions and only the candidate seed changes; holdout reachable only through an accessor that logs every read in the registry, one session per cycle, failed evaluation consuming it, and the limit that real isolation comes with the sandbox; threshold applied on paired comparisons and comparisons counted without raising the threshold yet; tests with fake candidates, without network.
 4. **Kaggle client with fake.** Goal: download, rules, submission, score, daily limit. Acceptance criteria: all tests use the fake and no network; submission format validated; limit respected; credentials absent from the logs.
 5. **Headless Claude adapter with fake.** Goal: call Claude Code non-interactively and read its outcome. Acceptance criteria: fake that simulates responses, malformed responses and rate limit; consumption recorded; no test calls Claude and no network.
 6. **Execution sandbox.** Goal: run the generated code with reduced permissions. Acceptance criteria: timeout applied; writing to protected files impossible and diff touching them rejected; no access to credentials and holdout.
@@ -400,6 +416,8 @@ Rejected alternative: a single large implementation ticket, because it is not re
 
 - The behavior of headless Claude Code with the subscription (limits, rate limit, tool permissions, long autonomous cycles) cannot be verified in this environment without network; it must be confirmed in the adapter ticket.
 - Divergence of an autonomous cycle: without intermediate controls the cycle can go in useless directions; mitigations are the iteration cap, the early stop, the cap on consecutive failures and traceability.
+- Isolation of the holdout: until the sandbox exists, the protection of the holdout is an interface and a log, not a barrier against code in the same process.
+- The hash covers the bytes of the `evaluation` sources, so any edit of the package invalidates the frozen protocols of open cycles, and a change of library versions in the middle of a cycle is recorded but not blocked.
 - Overfitting on the holdout: the holdout is read at the end of every cycle, so with repeated cycles it grows. The design logs every read but does not solve it (for example with a new holdout): open point.
 - Quality of the short plan: a poor or wrong plan, approved in a hurry, conditions the whole cycle.
 - Cost in subscription quota per autonomous cycle, unknown.
@@ -408,7 +426,7 @@ Rejected alternative: a single large implementation ticket, because it is not re
 - The public leaderboard can be poorly informative; the protocol tries not to depend on it.
 - The test of the document checks structure and keywords, not quality: human review remains necessary.
 
-**Starting-point libraries still to be confirmed:** pandas, scikit-learn and LightGBM. MLflow was not adopted for the registry (section 7) and remains only an optional future view. Each will be confirmed or replaced in the ticket that uses it.
+**Starting-point libraries:** pandas, numpy and scikit-learn were confirmed in the evaluation ticket (section 5) and are pinned in `pyproject.toml`. LightGBM is still to be confirmed in the ticket that uses it. MLflow was not adopted for the registry (section 7) and remains only an optional future view.
 
 **Questions for the human**
 

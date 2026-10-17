@@ -98,14 +98,17 @@ def test_stack_is_non_binding_starting_point(sections):
     assert "alternative" in sections[15].lower()
 
 
-def test_pyproject_no_runtime_dependencies_or_modeling_libs():
+def test_pyproject_runtime_dependencies_are_the_three_confirmed_libraries():
     import tomllib
 
     data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     project = data["project"]
-    assert project.get("dependencies", []) == []
+    names = sorted(d.split("==")[0] for d in project["dependencies"])
+    assert names == ["numpy", "pandas", "scikit-learn"]
     declared = " ".join(
-        d.lower() for deps in project.get("optional-dependencies", {}).values() for d in deps
+        d.lower()
+        for deps in project.get("optional-dependencies", {}).values()
+        for d in deps
     )
     for lib in ("pandas", "scikit-learn", "lightgbm", "mlflow", "numpy"):
         assert lib not in declared
@@ -341,3 +344,46 @@ def test_storage_choice_documented_against_criteria(sections):
 def test_section_13_translation_fixed(sections):
     assert "a polished graphic design right away" in sections[13]
     assert "a polished chart right away" not in DESIGN.read_text(encoding="utf-8")
+
+
+def test_library_decision_documented_in_design(sections):
+    low = sections[5].lower()
+    for word in ("pandas", "numpy", "scikit-learn", "pure python", "polars", "scipy", "section 1"):
+        assert word in low, word
+    assert "criteria" in low and "rejected alternatives" in low
+    memory = ROOT / ".asl" / "process-memory.md"
+    text = memory.read_text(encoding="utf-8")
+    if "Implement ticket 3" not in text:
+        pytest.skip("process memory is updated by the later documentation phase")
+    entry = text.split("Implement ticket 3", 1)[1].lower()
+    for word in ("pandas", "numpy", "scikit-learn", "polars", "scipy"):
+        assert word in entry, word
+
+
+def test_section_6_describes_one_holdout_session_per_cycle(sections):
+    low = sections[6].lower()
+    assert "one holdout session" in low
+    assert "best attempt" in low and "variants requested by the user" in low
+    assert "every read is logged" in low
+    assert "no read is possible after the session is closed" in low
+    assert "failed evaluation still consumes the session" in low
+    assert "evaluated only once" not in low and "only one evaluation" not in low
+
+
+def test_sections_5_and_6_document_deterministic_repetitions(sections):
+    for number in (5, 6):
+        low = sections[number].lower()
+        assert "deterministic" in low and "only the seed" in low, number
+    assert "noise of the model seed" in sections[5].lower()
+    assert "noise of the model seed" in sections[6].lower()
+
+
+def test_holdout_isolation_limit_documented():
+    from kaggle_agent.evaluation import split
+
+    design = DESIGN.read_text(encoding="utf-8").lower()
+    readme = (ROOT / "README.md").read_text(encoding="utf-8").lower()
+    doc = split.__doc__.lower()
+    for text in (design, readme, doc):
+        assert "sandbox" in text and "ticket 6" in text
+        assert "interface" in text and "log" in text

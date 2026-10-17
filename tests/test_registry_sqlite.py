@@ -414,3 +414,82 @@ def test_rejected_operations_leave_registry_unchanged(reg):
         reg.close_attempt("A2", "")
     assert _counts(reg) == before
     assert reg.add_attempt("C1", make_attempt("A3"), "fp-A3") == 3
+
+
+def test_protocol_hash_written_once_and_persisted(tmp_path):
+    path = tmp_path / "r.db"
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1"))
+        assert r.get_cycle("C1").protocol_hash is None
+        r.set_protocol_hash("C1", "h1")
+        r.set_protocol_hash("C1", "h1")
+        with pytest.raises(RegistryError):
+            r.set_protocol_hash("C1", "h2")
+        with pytest.raises(NotFoundError):
+            r.set_protocol_hash("nope", "h")
+    with SqliteRegistry(path) as r:
+        assert r.get_cycle("C1").protocol_hash == "h1"
+
+
+def test_holdout_session_rules_and_log(reg):
+    from kaggle_agent.registry import HoldoutRead
+
+    new_attempt(reg, "A1")
+    assert reg.get_holdout_session("C1") is None
+    with pytest.raises(RegistryError):
+        reg.add_holdout_read(HoldoutRead("C1", "A1", 5, "t"))
+    with pytest.raises(RegistryError):
+        reg.close_holdout_session("C1", "t")
+    reg.open_holdout_session("C1", "t0")
+    with pytest.raises(RegistryError):
+        reg.open_holdout_session("C1", "t0b")
+    reg.add_holdout_read(HoldoutRead("C1", "A1", 5, "t1"))
+    with pytest.raises(NotFoundError):
+        reg.add_holdout_read(HoldoutRead("C1", "ghost", 5, "t1"))
+    reg.close_holdout_session("C1", "t2")
+    assert not reg.get_holdout_session("C1").is_open
+    with pytest.raises(RegistryError):
+        reg.close_holdout_session("C1", "t3")
+    with pytest.raises(RegistryError):
+        reg.open_holdout_session("C1", "t4")
+    with pytest.raises(RegistryError):
+        reg.add_holdout_read(HoldoutRead("C1", "A1", 5, "t5"))
+    assert [(r.attempt_id, r.rows) for r in reg.list_holdout_reads("C1")] == [("A1", 5)]
+
+
+def test_comparisons_stored_and_counted(reg):
+    from kaggle_agent.registry import ComparisonRecord
+
+    new_attempt(reg, "A1")
+    new_attempt(reg, "A2")
+    assert reg.count_comparisons("C1") == 0
+    reg.add_comparison(ComparisonRecord("C1", "A2", "A1", 0.5, 0.2, True))
+    reg.add_comparison(ComparisonRecord("C1", "A1", "A2", -0.5, 0.2, False))
+    with pytest.raises(NotFoundError):
+        reg.add_comparison(ComparisonRecord("C1", "A9", "A1", 0.5, 0.2, True))
+    assert reg.count_comparisons("C1") == 2
+    assert [c.is_real for c in reg.list_comparisons("C1")] == [True, False]
+
+
+def test_ticket_2_sqlite_file_is_migrated(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "old.db"
+    db = sqlite3.connect(path)
+    db.executescript(
+        "CREATE TABLE cycles (id TEXT PRIMARY KEY, plan TEXT NOT NULL, iterations INTEGER NOT NULL,"
+        " stagnation_k INTEGER NOT NULL, max_fix_retries INTEGER NOT NULL, state TEXT NOT NULL);"
+    )
+    cycle = make_cycle("OLD")
+    db.execute(
+        "INSERT INTO cycles VALUES (?, ?, ?, ?, ?, ?)",
+        (cycle.id, cycle.plan.to_json(), 10, 3, 3, "ITERATING"),
+    )
+    db.commit()
+    db.close()
+    with SqliteRegistry(path) as r:
+        assert r.get_cycle("OLD") == cycle
+        assert r.get_cycle("OLD").protocol_hash is None
+        r.set_protocol_hash("OLD", "h")
+    with SqliteRegistry(path) as r:  # the migration is idempotent
+        assert r.get_cycle("OLD").protocol_hash == "h"

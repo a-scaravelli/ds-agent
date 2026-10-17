@@ -180,3 +180,13 @@ def test_process_memory_entry_for_registry_ticket():
     lowered = entry.lower()
     for word in ("sqlite", "mlflow", "jsonl", "no network", "maintenance", "reproducib"):
         assert word in lowered, word
+
+
+def test_readme_cites_evaluation_api():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for name in (
+        "Protocol", "EvaluationEngine", "METRICS", "SCHEMES", "register_metric",
+        "register_scheme", "ProtocolHashMismatchError", "holdout_session", "threshold_k",
+        "pandas", "numpy", "scikit-learn",
+    ):
+        assert name in readme, name
