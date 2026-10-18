@@ -3,32 +3,42 @@
   "1": [
    {
     "file": "tests/test_kaggle_real.py",
-    "name": "test_placeholder_carries_the_installed_version"
+    "name": "test_mixed_case_pages_fill_description_evaluation_rules_and_data_description"
    }
   ],
   "2": [
    {
     "file": "tests/test_kaggle_real.py",
-    "name": "test_response_processor_runs_on_a_canned_response"
+    "name": "test_pages_are_listed_once_and_without_page_name"
    }
   ],
   "3": [
    {
     "file": "tests/test_kaggle_real.py",
-    "name": "test_only_version_and_benchmarks_are_read_from_the_package_object"
+    "name": "test_every_page_is_kept_in_the_pages_mapping"
+   },
+   {
+    "file": "tests/test_kaggle_fake.py",
+    "name": "test_competition_info_has_data_description_and_every_page"
    }
   ],
   "4": [
    {
     "file": "tests/test_kaggle_real.py",
-    "name": "test_sanitized_error_names_the_function_and_type"
+    "name": "test_missing_required_page_raises_naming_it_and_the_available_names"
    },
    {
     "file": "tests/test_kaggle_real.py",
-    "name": "test_library_errors_map_to_sanitized_kaggle_errors"
+    "name": "test_missing_data_description_is_an_empty_string"
    }
   ],
   "5": [
+   {
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_page_names_are_normalized_across_case_and_separators"
+   }
+  ],
+  "6": [
    {
     "file": "tests/test_repo_language.py",
     "name": "test_readme_cites_kaggle_client"
@@ -38,18 +48,14 @@
     "name": "test_test_map_entries_exist"
    }
   ],
-  "6": [
+  "7": [
    {
     "file": "tests/test_kaggle_real.py",
-    "name": "test_package_and_adapter_import_without_the_library"
+    "name": "test_responses_map_to_model_types"
    },
    {
     "file": "tests/test_kaggle_real.py",
-    "name": "test_loading_the_api_class_does_not_authenticate"
-   },
-   {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_secret_is_not_placed_in_the_environment"
+    "name": "test_library_errors_map_to_sanitized_kaggle_errors"
    }
   ]
  }

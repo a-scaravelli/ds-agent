@@ -171,3 +171,19 @@ def test_fake_has_no_client_state_beyond_its_configuration():
     assert SAMPLE_CSV  # the sample submission is the single source of the spec
     spec = client.get_submission_spec("comp")
     assert spec.columns == ("id", "target") and spec.expected_ids == ("a", "b", "c")
+
+
+def test_competition_info_has_data_description_and_every_page():
+    client, _ = make_fake(
+        description="D", rules="R", evaluation="E",
+        data_description="DD", extra_pages={"Frequently Asked Questions": "FAQ"},
+    )
+    info = client.get_competition_info("comp")
+    assert info.data_description == "DD"
+    assert dict(info.pages) == {
+        "description": "D", "rules": "R", "evaluation": "E",
+        "data-description": "DD", "Frequently Asked Questions": "FAQ",
+    }
+    plain, _ = make_fake()
+    assert plain.get_competition_info("comp").data_description == ""
+    assert "data-description" not in plain.get_competition_info("comp").pages

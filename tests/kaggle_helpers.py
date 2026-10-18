@@ -86,6 +86,19 @@ def zip_bytes(files):
     return buffer.getvalue()
 
 
+TITANIC_PAGE_NAMES = (
+    "rules",
+    "Description",
+    "Evaluation",
+    "data-description",
+    "Frequently Asked Questions",
+)
+
+
+def make_pages(names=TITANIC_PAGE_NAMES):
+    return [SimpleNamespace(name=n, content=f"text of {n}") for n in names]
+
+
 class StubApi:
     """Mimics the used surface of ``KaggleApi`` with canned responses; no network."""
 
@@ -115,6 +128,8 @@ class StubApi:
             ),
         ]
         self.submit_ref = 77
+        self.pages = make_pages()
+        self.page_name_args = []
 
     def authenticate(self):
         self.authenticate_calls += 1
@@ -132,8 +147,8 @@ class StubApi:
 
     def competition_list_pages(self, competition, page_name=None):
         self._enter("competition_list_pages")
-        texts = {"description": "desc", "rules": "rules", "evaluation": "eval"}
-        return [SimpleNamespace(name=page_name, content=texts[page_name])]
+        self.page_name_args.append(page_name)
+        return [p for p in self.pages if page_name is None or p.name == page_name]
 
     def competition_list_files(self, competition, page_token=None, page_size=20):
         self._enter("competition_list_files")

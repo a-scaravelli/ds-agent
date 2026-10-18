@@ -9,7 +9,7 @@ import csv
 import hashlib
 import io
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -44,6 +44,8 @@ class FakeCompetition:
     sample_submission: str
     daily_limit: int
     rules_accepted: bool = True
+    data_description: str = ""
+    extra_pages: dict[str, str] = field(default_factory=dict)
     score_script: Sequence[ScoreStep] = (None, 0.5)
 
 
@@ -101,7 +103,17 @@ class FakeKaggleClient(KaggleClient):
     def get_competition_info(self, competition: str) -> CompetitionInfo:
         self.calls.append(("get_competition_info", competition))
         comp = self._competition(competition)
-        return CompetitionInfo(comp.description, comp.rules, comp.evaluation)
+        pages = {
+            "description": comp.description,
+            "rules": comp.rules,
+            "evaluation": comp.evaluation,
+        }
+        if comp.data_description:
+            pages["data-description"] = comp.data_description
+        pages.update(comp.extra_pages)
+        return CompetitionInfo(
+            comp.description, comp.rules, comp.evaluation, comp.data_description, pages
+        )
 
     def get_submission_spec(self, competition: str) -> SubmissionSpec:
         self.calls.append(("get_submission_spec", competition))

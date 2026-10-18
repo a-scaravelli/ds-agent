@@ -76,7 +76,12 @@ class KaggleClient(ABC):
 
     @abstractmethod
     def get_competition_info(self, competition: str) -> CompetitionInfo:
-        """Description, rules page and evaluation page as text."""
+        """Description, rules, evaluation and data description as text, plus every page by name.
+
+        Raises ``KaggleError`` if a required page (description, rules,
+        evaluation) is missing; ``data_description`` is empty when the
+        competition has no such page.
+        """
 
     @abstractmethod
     def get_submission_spec(self, competition: str) -> SubmissionSpec:

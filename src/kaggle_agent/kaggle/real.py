@@ -29,6 +29,11 @@ only by the benchmark-task methods, which this adapter never calls); the other
 bound by ``with ... as kaggle``. The placeholder therefore carries only
 ``__version__``, read from the installed distribution metadata. This depends on the internals of the pinned version and must be
 rechecked, with the source-scan test, whenever the pin changes.
+
+Page names are not consistently lowercase: the smoke test found 'rules',
+'Description', 'Evaluation', 'data-description' and 'Frequently Asked
+Questions' for titanic. The adapter lists the pages once and matches the names
+case-insensitively, with spaces, hyphens and underscores treated alike.
 """
 
 import csv
@@ -36,6 +41,7 @@ import importlib
 import importlib.metadata
 import importlib.util
 import logging
+import re
 import sys
 import tempfile
 import time as _time
@@ -107,6 +113,35 @@ def _status_code(exc: Exception) -> int | None:
 
 def _as_utc(value: datetime) -> datetime:
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
+def _normalize_page_name(name: str) -> str:
+    """Lowercase, strip and collapse runs of spaces, hyphens and underscores into one hyphen."""
+    return re.sub(r"[\s_-]+", "-", name.strip().lower()).strip("-")
+
+
+def _info_from_pages(competition: str, pages) -> CompetitionInfo:
+    """Build the info from the library's page objects; names are matched after normalization."""
+    by_name: dict[str, str] = {}
+    index: dict[str, str] = {}
+    for page in pages:
+        content = page.content or ""
+        by_name[page.name] = content
+        index.setdefault(_normalize_page_name(page.name), content)  # first one wins
+    missing = [name for name in ("description", "rules", "evaluation") if name not in index]
+    if missing:
+        available = ", ".join(repr(n) for n in sorted(by_name))
+        raise KaggleError(
+            f"competition '{competition}' has no '{missing[0]}' page; "
+            f"available pages: {available or 'none'}"
+        )
+    return CompetitionInfo(
+        description=index["description"],
+        rules=index["rules"],
+        evaluation=index["evaluation"],
+        data_description=index.get("data-description", ""),
+        pages=by_name,
+    )
 
 
 class RealKaggleClient(KaggleClient):
@@ -198,19 +233,9 @@ class RealKaggleClient(KaggleClient):
                 names.append(out.relative_to(root).as_posix())
         return names
 
-    def _page(self, competition: str, name: str) -> str:
-        pages = self._call(competition, self._api.competition_list_pages, competition, page_name=name)
-        for page in pages or []:
-            if page.name == name:
-                return page.content or ""
-        return ""
-
     def get_competition_info(self, competition: str) -> CompetitionInfo:
-        return CompetitionInfo(
-            description=self._page(competition, "description"),
-            rules=self._page(competition, "rules"),
-            evaluation=self._page(competition, "evaluation"),
-        )
+        pages = self._call(competition, self._api.competition_list_pages, competition)
+        return _info_from_pages(competition, pages or [])
 
     def get_submission_spec(self, competition: str) -> SubmissionSpec:
         listing = self._call(

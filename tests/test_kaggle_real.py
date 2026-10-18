@@ -23,7 +23,14 @@ from kaggle_agent.kaggle import (
 )
 from kaggle_agent.kaggle import real
 from kaggle_agent.kaggle.real import RealKaggleClient
-from kaggle_helpers import SECRET, HttpError, StubApi, write_submission
+from kaggle_helpers import (
+    SECRET,
+    TITANIC_PAGE_NAMES,
+    HttpError,
+    StubApi,
+    make_pages,
+    write_submission,
+)
 
 CREDS = Credentials("env", token=SECRET)
 
@@ -120,7 +127,10 @@ def test_responses_map_to_model_types(tmp_path):
     assert (tmp_path / "d" / "train.csv").is_file()
     assert not list((tmp_path / "d").glob("*.zip"))
     info = client.get_competition_info("comp")
-    assert (info.description, info.rules, info.evaluation) == ("desc", "rules", "eval")
+    assert info.description == "text of Description"
+    assert info.rules == "text of rules"
+    assert info.evaluation == "text of Evaluation"
+    assert info.data_description == "text of data-description"
     spec = client.get_submission_spec("comp")
     assert spec.columns == ("id", "target") and spec.expected_ids == ("a", "b", "c")
     api.num_today, api.num_allowed_now = 1, 3
@@ -256,3 +266,71 @@ def test_sanitized_error_names_the_function_and_type(tmp_path):
         client.daily_limit("comp")
     assert "competition_get_submission_limits: RuntimeError" in str(info.value)
     assert SECRET not in str(info.value)
+
+
+# -- page names (second bug found by the manual smoke test) --------------------
+
+
+def test_mixed_case_pages_fill_description_evaluation_rules_and_data_description():
+    client, _ = make_real()
+    info = client.get_competition_info("titanic")
+    assert info.description == "text of Description"
+    assert info.evaluation == "text of Evaluation"
+    assert info.rules == "text of rules"
+    assert info.data_description == "text of data-description"
+    assert all((info.description, info.evaluation, info.rules, info.data_description))
+
+
+def test_pages_are_listed_once_and_without_page_name():
+    client, api = make_real()
+    client.get_competition_info("titanic")
+    assert api.calls.count("competition_list_pages") == 1
+    assert api.page_name_args == [None]
+
+
+def test_every_page_is_kept_in_the_pages_mapping():
+    client, _ = make_real()
+    info = client.get_competition_info("titanic")
+    assert dict(info.pages) == {name: f"text of {name}" for name in TITANIC_PAGE_NAMES}
+    assert "Frequently Asked Questions" in info.pages
+    with pytest.raises(TypeError):
+        info.pages["new"] = "x"
+
+
+@pytest.mark.parametrize("missing", ["rules", "Description", "Evaluation"])
+def test_missing_required_page_raises_naming_it_and_the_available_names(missing):
+    client, api = make_real()
+    names = [n for n in TITANIC_PAGE_NAMES if n != missing]
+    api.pages = make_pages(names)
+    with pytest.raises(KaggleError) as info:
+        client.get_competition_info("titanic")
+    message = str(info.value)
+    assert f"'{missing.lower()}'" in message
+    listed = ", ".join(repr(n) for n in sorted(names))
+    assert listed in message
+    assert "text of" not in message and SECRET not in message
+
+
+def test_missing_data_description_is_an_empty_string():
+    client, api = make_real()
+    api.pages = make_pages([n for n in TITANIC_PAGE_NAMES if n != "data-description"])
+    info = client.get_competition_info("titanic")
+    assert info.data_description == ""
+    assert "data-description" not in info.pages
+
+
+def test_page_names_are_normalized_across_case_and_separators():
+    pages = [
+        SimpleNamespace(name="Data Description", content="first"),
+        SimpleNamespace(name="data_description", content="second"),
+        SimpleNamespace(name=" EVALUATION ", content="eval"),
+        SimpleNamespace(name="Rules", content="rules"),
+        SimpleNamespace(name="description", content=None),
+    ]
+    info = real._info_from_pages("comp", pages)
+    assert info.data_description == "first"
+    assert info.evaluation == "eval" and info.rules == "rules"
+    assert info.description == ""
+    assert info.pages["Data Description"] == "first"
+    assert info.pages["data_description"] == "second"
+    assert real._normalize_page_name("Data  Description") == real._normalize_page_name("data-description")

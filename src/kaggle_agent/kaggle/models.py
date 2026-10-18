@@ -1,8 +1,10 @@
 """Value types returned by the Kaggle client (design section 10). Standard library only."""
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from types import MappingProxyType
 
 
 @dataclass(frozen=True)
@@ -39,11 +41,20 @@ class DownloadResult:
 
 @dataclass(frozen=True)
 class CompetitionInfo:
-    """Description, rules page and evaluation page, as text for the model to summarize."""
+    """Description, rules, evaluation and data description as text for the model to summarize.
+
+    ``pages`` maps every page name, as Kaggle returns it, to its content, so
+    pages such as the FAQ are not lost.
+    """
 
     description: str
     rules: str
     evaluation: str
+    data_description: str
+    pages: Mapping[str, str]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "pages", MappingProxyType(dict(self.pages)))
 
 
 @dataclass(frozen=True)
