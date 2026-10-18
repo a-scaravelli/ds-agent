@@ -101,3 +101,26 @@ def test_cycle_parameters_validated():
         with pytest.raises(ValidationError) as exc:
             make_cycle(**kwargs)
         assert exc.value.field == field
+
+
+def test_cycle_protocol_hash_optional_and_serialized():
+    assert make_cycle().protocol_hash is None
+    cycle = make_cycle(protocol_hash="abc")
+    assert Cycle.from_json(cycle.to_json()) == cycle
+    assert cycle.to_dict()["protocol_hash"] == "abc"
+    with pytest.raises(ValidationError):
+        make_cycle(protocol_hash="")
+
+
+def test_holdout_and_comparison_records_validated():
+    from kaggle_agent.registry import ComparisonRecord, HoldoutRead, HoldoutSession
+
+    assert HoldoutSession("C1", "t0").is_open
+    assert not HoldoutSession("C1", "t0", "t1").is_open
+    assert HoldoutRead("C1", "A1", 10, "t").rows == 10
+    with pytest.raises(ValidationError):
+        HoldoutRead("C1", "A1", -1, "t")
+    with pytest.raises(ValidationError):
+        ComparisonRecord("C1", "A1", "A0", 0.1, -1.0, True)
+    with pytest.raises(ValidationError):
+        ComparisonRecord("C1", "A1", "A0", 0.1, 0.0, "yes")

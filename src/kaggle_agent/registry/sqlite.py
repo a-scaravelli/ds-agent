@@ -14,7 +14,15 @@ from .interface import (
     MetricPoint,
     Registry,
 )
-from .records import FAILURE_KINDS, OUTCOMES, Cycle, ExecutionRecord
+from .records import (
+    FAILURE_KINDS,
+    OUTCOMES,
+    ComparisonRecord,
+    Cycle,
+    ExecutionRecord,
+    HoldoutRead,
+    HoldoutSession,
+)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS cycles (
@@ -23,7 +31,8 @@ CREATE TABLE IF NOT EXISTS cycles (
     iterations INTEGER NOT NULL,
     stagnation_k INTEGER NOT NULL,
     max_fix_retries INTEGER NOT NULL,
-    state TEXT NOT NULL
+    state TEXT NOT NULL,
+    protocol_hash TEXT
 );
 CREATE TABLE IF NOT EXISTS attempts (
     id TEXT PRIMARY KEY,
@@ -56,6 +65,25 @@ CREATE TABLE IF NOT EXISTS suggestion_cycles (
     position INTEGER NOT NULL,
     PRIMARY KEY (suggestion_id, cycle_id)
 );
+CREATE TABLE IF NOT EXISTS holdout_sessions (
+    cycle_id TEXT PRIMARY KEY REFERENCES cycles(id),
+    opened_at TEXT NOT NULL,
+    closed_at TEXT
+);
+CREATE TABLE IF NOT EXISTS holdout_reads (
+    cycle_id TEXT NOT NULL REFERENCES cycles(id),
+    attempt_id TEXT NOT NULL REFERENCES attempts(id),
+    rows INTEGER NOT NULL,
+    read_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS comparisons (
+    cycle_id TEXT NOT NULL REFERENCES cycles(id),
+    candidate_attempt_id TEXT NOT NULL REFERENCES attempts(id),
+    reference_attempt_id TEXT NOT NULL REFERENCES attempts(id),
+    difference REAL NOT NULL,
+    threshold REAL NOT NULL,
+    is_real INTEGER NOT NULL
+);
 """
 
 # the last execution of every attempt, joined to the attempt row
@@ -73,6 +101,13 @@ class SqliteRegistry(Registry):
         self._db = sqlite3.connect(str(path), isolation_level=None)
         self._db.execute("PRAGMA foreign_keys = ON")
         self._db.executescript(_SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Add columns introduced after the first schema to files created earlier."""
+        columns = [r[1] for r in self._db.execute("PRAGMA table_info(cycles)")]
+        if "protocol_hash" not in columns:
+            self._db.execute("ALTER TABLE cycles ADD COLUMN protocol_hash TEXT")
 
     def close(self) -> None:
         self._db.close()
@@ -100,8 +135,8 @@ class SqliteRegistry(Registry):
 
     def _require_cycle_row(self, cycle_id: str):
         row = self._one(
-            "SELECT id, plan, iterations, stagnation_k, max_fix_retries, state "
-            "FROM cycles WHERE id = ?",
+            "SELECT id, plan, iterations, stagnation_k, max_fix_retries, state, "
+            "protocol_hash FROM cycles WHERE id = ?",
             (cycle_id,),
         )
         if row is None:
@@ -117,6 +152,7 @@ class SqliteRegistry(Registry):
             stagnation_k=row[3],
             max_fix_retries=row[4],
             state=row[5],
+            protocol_hash=row[6],
         )
 
     def _require_attempt_row(self, attempt_id: str):
@@ -143,7 +179,8 @@ class SqliteRegistry(Registry):
             if self._one("SELECT 1 FROM cycles WHERE id = ?", (cycle.id,)):
                 raise RegistryError(f"cycle {cycle.id!r} already exists")
             self._db.execute(
-                "INSERT INTO cycles VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO cycles (id, plan, iterations, stagnation_k, max_fix_retries, "
+                "state, protocol_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     cycle.id,
                     cycle.plan.to_json(),
@@ -151,6 +188,7 @@ class SqliteRegistry(Registry):
                     cycle.stagnation_k,
                     cycle.max_fix_retries,
                     cycle.state,
+                    cycle.protocol_hash,
                 ),
             )
 
@@ -162,6 +200,16 @@ class SqliteRegistry(Registry):
         with self._transaction():
             self._require_cycle_row(cycle_id)
             self._db.execute("UPDATE cycles SET state = ? WHERE id = ?", (state, cycle_id))
+
+    def set_protocol_hash(self, cycle_id: str, protocol_hash: str) -> None:
+        require_text("protocol_hash", protocol_hash)
+        with self._transaction():
+            current = self._require_cycle_row(cycle_id)[6]
+            if current is not None and current != protocol_hash:
+                raise RegistryError(f"cycle {cycle_id!r} already has a different protocol hash")
+            self._db.execute(
+                "UPDATE cycles SET protocol_hash = ? WHERE id = ?", (protocol_hash, cycle_id)
+            )
 
     # -- attempts ----------------------------------------------------------
 
@@ -403,3 +451,96 @@ class SqliteRegistry(Registry):
     def cycles_of_suggestion(self, suggestion_id: str) -> list[Cycle]:
         suggestion = self.get_suggestion(suggestion_id)
         return [self.get_cycle(c) for c in suggestion.spawned_cycles]
+
+    # -- holdout sessions and comparisons ------------------------------------
+
+    def open_holdout_session(self, cycle_id: str, opened_at: str) -> None:
+        session = HoldoutSession(cycle_id, opened_at)
+        with self._transaction():
+            self._require_cycle_row(cycle_id)
+            if self._one("SELECT 1 FROM holdout_sessions WHERE cycle_id = ?", (cycle_id,)):
+                raise RegistryError(f"cycle {cycle_id!r} already had its holdout session")
+            self._db.execute(
+                "INSERT INTO holdout_sessions (cycle_id, opened_at) VALUES (?, ?)",
+                (session.cycle_id, session.opened_at),
+            )
+
+    def close_holdout_session(self, cycle_id: str, closed_at: str) -> None:
+        require_text("closed_at", closed_at)
+        with self._transaction():
+            self._require_cycle_row(cycle_id)
+            row = self._one(
+                "SELECT closed_at FROM holdout_sessions WHERE cycle_id = ?", (cycle_id,)
+            )
+            if row is None:
+                raise RegistryError(f"cycle {cycle_id!r} has no holdout session")
+            if row[0] is not None:
+                raise RegistryError(f"holdout session of cycle {cycle_id!r} is already closed")
+            self._db.execute(
+                "UPDATE holdout_sessions SET closed_at = ? WHERE cycle_id = ?",
+                (closed_at, cycle_id),
+            )
+
+    def get_holdout_session(self, cycle_id: str) -> HoldoutSession | None:
+        self._require_cycle_row(cycle_id)
+        row = self._one(
+            "SELECT cycle_id, opened_at, closed_at FROM holdout_sessions WHERE cycle_id = ?",
+            (cycle_id,),
+        )
+        return None if row is None else HoldoutSession(*row)
+
+    def add_holdout_read(self, read: HoldoutRead) -> None:
+        with self._transaction():
+            self._require_cycle_row(read.cycle_id)
+            self._require_attempt_row(read.attempt_id)
+            row = self._one(
+                "SELECT closed_at FROM holdout_sessions WHERE cycle_id = ?", (read.cycle_id,)
+            )
+            if row is None or row[0] is not None:
+                raise RegistryError(
+                    f"cycle {read.cycle_id!r} has no open holdout session: read refused"
+                )
+            self._db.execute(
+                "INSERT INTO holdout_reads (cycle_id, attempt_id, rows, read_at) "
+                "VALUES (?, ?, ?, ?)",
+                (read.cycle_id, read.attempt_id, read.rows, read.read_at),
+            )
+
+    def list_holdout_reads(self, cycle_id: str) -> list[HoldoutRead]:
+        self._require_cycle_row(cycle_id)
+        rows = self._db.execute(
+            "SELECT cycle_id, attempt_id, rows, read_at FROM holdout_reads "
+            "WHERE cycle_id = ? ORDER BY rowid",
+            (cycle_id,),
+        ).fetchall()
+        return [HoldoutRead(*r) for r in rows]
+
+    def add_comparison(self, comparison: ComparisonRecord) -> None:
+        with self._transaction():
+            self._require_cycle_row(comparison.cycle_id)
+            self._require_attempt_row(comparison.candidate_attempt_id)
+            self._require_attempt_row(comparison.reference_attempt_id)
+            self._db.execute(
+                "INSERT INTO comparisons VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    comparison.cycle_id,
+                    comparison.candidate_attempt_id,
+                    comparison.reference_attempt_id,
+                    comparison.difference,
+                    comparison.threshold,
+                    int(comparison.is_real),
+                ),
+            )
+
+    def list_comparisons(self, cycle_id: str) -> list[ComparisonRecord]:
+        self._require_cycle_row(cycle_id)
+        rows = self._db.execute(
+            "SELECT cycle_id, candidate_attempt_id, reference_attempt_id, difference, "
+            "threshold, is_real FROM comparisons WHERE cycle_id = ? ORDER BY rowid",
+            (cycle_id,),
+        ).fetchall()
+        return [ComparisonRecord(*r[:5], bool(r[5])) for r in rows]
+
+    def count_comparisons(self, cycle_id: str) -> int:
+        self._require_cycle_row(cycle_id)
+        return self._one("SELECT COUNT(*) FROM comparisons WHERE cycle_id = ?", (cycle_id,))[0]

@@ -73,6 +73,25 @@ registry.close_attempt("A1", "the feature helps")
 print(registry.metric_series("C1", "validation"))
 ```
 
+## Evaluation engine
+
+Runtime stack: pandas, numpy and scikit-learn, pinned with `==` in `pyproject.toml` (choice and rejected alternatives in section 5 of the design). Only `evaluation` imports them.
+
+The agent proposes a `Protocol` next to the plan. Metric, direction, partition schemes, seed, repetitions, `threshold_k` and holdout share are all mandatory; metrics and schemes are chosen by name from the registries `METRICS` and `SCHEMES` (extend with `register_metric` and `register_scheme`). `EvaluationEngine.freeze()` stores the protocol hash (protocol plus SHA-256 of the `evaluation` sources) on the cycle; every evaluation and holdout read recomputes it and raises `ProtocolHashMismatchError` on a mismatch.
+
+```python
+engine = EvaluationEngine(registry, "C1", protocol)  # protocol built explicitly
+engine.freeze()  # at approval
+kwargs = dict(config=config, code_hash="c", data_hash="d")
+base = engine.evaluate_validation(baseline_candidate, frame, attempt_id="A0", execution_id="A0-1", **kwargs)
+new = engine.evaluate_validation(candidate, frame, attempt_id="A1", execution_id="A1-1", **kwargs)
+comparison = engine.compare("A1", "A0", new.scores, base.scores, base.scores)
+with engine.holdout_session(frame) as session:  # one session per cycle
+    session.evaluate_holdout(candidate, "A1")
+```
+
+A candidate implements `fit_predict(x_train, y_train, x_valid, seed)`. The engine does not persist executions: `result.execution` goes to `Registry.add_execution` (the loop ticket does that).
+
 ## Deliverable and traceability
 
 The output of every cycle is an end-to-end Python pipeline that runs with a single command and is reproducible (or several pipelines, to compare variants), linked to the attempt it comes from. Every attempt records hypothesis and rationale, originating attempt and what changed, configuration, metrics, duration, outcome and artifacts; a web interface (list/timeline, metric chart, detail, suggestions and cycles) makes them consultable without reading code. The polished graphic design is deferred to a later ticket.
@@ -90,12 +109,14 @@ The tests do not use the network.
 ## Structure
 
 - `docs/design.md`: design in 16 sections (cycle, frozen evaluation, registry, Kaggle, ticket plan).
-- `src/kaggle_agent/`: package with the subpackages `loop`, `proposals` (data model), `evaluation`, `registry` (attempt registry), `kaggle`, `llm`, `sandbox`, `review`, `budget`; all but `proposals` and `registry` are empty.
-- `tests/`: check the 16 sections of the design, the data model and its examples, the language convention, the test map, that the package imports, and the registry behavior (deduplication, fix retries, queries, persistence), and that outside `proposals` and `registry` there is no logic or third-party dependency.
+- `src/kaggle_agent/`: package with the subpackages `proposals` (data model), `registry` (attempt registry), `evaluation` (protocol, split, holdout, threshold), `loop`, `kaggle`, `llm`, `sandbox`, `review`, `budget`; `evaluation` holds the evaluation engine; `loop`, `kaggle`, `llm`, `sandbox`, `review` and `budget` are still empty.
+- `tests/`: check the 16 sections of the design, the data model and its examples, the language convention, the test map, that the package imports, and the registry behavior (deduplication, fix retries, queries, persistence), the evaluation engine (protocol, schemes, split, holdout session, threshold, hash), and that third-party libraries are imported only by `evaluation`.
 
 ## Known limits
 
-- There is still no runnable command of the agent: only the data model and the registry exist.
+- There is still no runnable command of the agent: only the data model, the registry and the evaluation engine exist.
+- The holdout guarantee is one of interface and log (one session per cycle, every read logged in the registry). Real isolation from generated code arrives with the sandbox (ticket 6).
+- The hash covers the bytes of the `evaluation` sources: any edit of the package invalidates the frozen protocols of open cycles. Library versions are outside the hash and recorded in `resources`. Raising the threshold with the number of comparisons is not implemented; the count is only recorded.
 - The registry is meant for a single process; multi-process access is not tested. The cycle `state` is free text until the `loop` ticket, and an iteration recorded `inconclusive` after repeated rejected proposals cannot be represented yet (open point in section 7 of the design). The semantic level of deduplication (section 7) is left to the loop ticket.
 - The tests on the design check structure and keywords, not the quality of the content. The language test is a heuristic (Italian function words and identifiers), not a proof that every sentence is English.
 - The word count of the plan (split on whitespace) is a simple proxy for "one page". `id` and `phase` have no format constraints yet: they belong to the registry and loop tickets.
