@@ -367,6 +367,32 @@
     "file": "tests/test_test_map.py",
     "name": "test_test_map_entries_exist"
    }
+  ],
+  "39": [
+   {
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_placeholder_carries_the_installed_version"
+   }
+  ],
+  "40": [
+   {
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_response_processor_runs_on_a_canned_response"
+   },
+   {
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_only_version_and_benchmarks_are_read_from_the_package_object"
+   }
+  ],
+  "41": [
+   {
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_sanitized_error_names_the_function_and_type"
+   },
+   {
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_library_errors_map_to_sanitized_kaggle_errors"
+   }
   ]
  }
 }

@@ -134,6 +134,8 @@ print(final.status, final.public_score)  # complete 0.8
 
 This is not run by pytest and needs your account and network: the automated tests never contact Kaggle. It is the only real check of the adapter.
 
+The first run of this smoke test found a bug that the stub-based tests could not catch: `AttributeError: module 'kaggle' has no attribute '__version__'` after the HTTP response (reproduced with `kaggle==2.2.4`). The fix and its regression test are in `kaggle/real.py` and `tests/test_kaggle_real.py`.
+
 1. Generate a token on the account page, save it to `~/.kaggle/access_token` and run `chmod 600 ~/.kaggle/access_token` (or export `KAGGLE_API_TOKEN`).
 2. Choose a competition and accept its rules by hand on the website.
 3. Read-only checks (no submission): run the following from the repository.
@@ -173,6 +175,7 @@ The tests do not use the network.
 
 ## Known limits
 
+- The placeholder import in `load_api_class()` depends on the internals of the pinned `kaggle` version (it skips the package `__init__` and supplies only `__version__`). Recheck it, together with the source-scan test in `tests/test_kaggle_real.py`, whenever the pin in `pyproject.toml` changes.
 - There is still no runnable command of the agent: only the data model, the registry, the evaluation engine and the Kaggle client exist.
 - The real Kaggle adapter is checked only by the manual smoke test: its mapping of responses is tested against a stub built from the source of the official package, and the exact error for unaccepted rules is to be confirmed by hand. The policy of when a submission is worthwhile and the reserve for the last hours are not implemented (loop and review tickets); the key-like-string check of the artifacts belongs to the tickets that save artifacts. The official package has several transitive dependencies that are not pinned individually.
 - The holdout guarantee is one of interface and log (one session per cycle, every read logged in the registry). Real isolation from generated code arrives with the sandbox (ticket 6).

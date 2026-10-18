@@ -1,9 +1,12 @@
 """The real adapter, exercised through a stub in place of the library: no network."""
 
 import importlib
+import ast
+import importlib.metadata
 import importlib.util
 import os
 import sys
+from types import SimpleNamespace
 from datetime import timezone
 
 import pytest
@@ -146,7 +149,12 @@ def test_library_errors_map_to_sanitized_kaggle_errors(tmp_path):
     api.errors["competition_submissions"] = HttpError(401, SECRET)
     with pytest.raises(KaggleError) as unauthorized:
         client.get_submission("comp", "77")
-    for error in (info, info404, other, unauthorized):
+    api.errors["competition_submissions"] = HttpError(500, SECRET)
+    with pytest.raises(KaggleError) as server:
+        client.get_submission("comp", "77")
+    assert "competition_get_submission_limits: RuntimeError" in str(other.value)
+    assert "competition_submissions: HTTP 500" in str(server.value)
+    for error in (info, info404, other, unauthorized, server):
         assert SECRET not in str(error.value)
         assert error.value.__cause__ is None and error.value.__suppress_context__
 
@@ -173,3 +181,78 @@ def test_unconfirmed_submission_is_an_error(tmp_path):
     api.submit_ref = 0
     with pytest.raises(KaggleError):
         client.submit("comp", write_submission(tmp_path / "s.csv"), "m")
+
+
+def _needs_library():
+    if importlib.util.find_spec("kaggle") is None:
+        pytest.skip("the kaggle library is not installed")
+
+
+def test_placeholder_carries_the_installed_version(clean_library_modules):
+    _needs_library()
+    cls = real.load_api_class()
+    module = sys.modules[real._API_MODULE]
+    assert module.kaggle.__version__ == importlib.metadata.version("kaggle")
+    assert "kaggle" not in sys.modules
+    assert cls._authenticated is False
+
+
+def test_response_processor_runs_on_a_canned_response(clean_library_modules, capsys):
+    _needs_library()
+    cls = real.load_api_class()
+    installed = importlib.metadata.version("kaggle")
+    api = SimpleNamespace(already_printed_version_warning=False)
+    for headers in ({"X-Kaggle-APIVersion": installed}, {}):
+        cls._check_response_version(api, SimpleNamespace(headers=headers))
+        assert capsys.readouterr().out == ""
+        assert api.already_printed_version_warning is False
+    cls._check_response_version(api, SimpleNamespace(headers={"X-Kaggle-APIVersion": "999.0.0"}))
+    assert "version" in capsys.readouterr().out.lower()
+    assert api.already_printed_version_warning is True
+
+
+def _global_kaggle_attributes(tree):
+    found = set()
+
+    def rebinds(func):
+        return any(
+            isinstance(n, ast.Name) and n.id == "kaggle" and isinstance(n.ctx, ast.Store)
+            for n in ast.walk(func)
+        )
+
+    def visit(node):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and rebinds(node):
+            return
+        if (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "kaggle"
+        ):
+            found.add(node.attr)
+        for child in ast.iter_child_nodes(node):
+            visit(child)
+
+    visit(tree)
+    return found
+
+
+def test_only_version_and_benchmarks_are_read_from_the_package_object():
+    _needs_library()
+    root = importlib.util.find_spec("kaggle").submodule_search_locations[0]
+    source = os.path.join(root, "api", "kaggle_api_extended.py")
+    with open(source, encoding="utf-8") as handle:
+        tree = ast.parse(handle.read())
+    # "benchmarks" is used only by the benchmark-task methods, which the adapter never calls
+    assert _global_kaggle_attributes(tree) == {"__version__", "benchmarks"}, (
+        "the pinned kaggle version reads other attributes of the package object: "
+        "update the placeholder in kaggle/real.py"
+    )
+
+
+def test_sanitized_error_names_the_function_and_type(tmp_path):
+    client, api = make_real()
+    api.errors["competition_get_submission_limits"] = RuntimeError(SECRET)
+    with pytest.raises(KaggleError) as info:
+        client.daily_limit("comp")
+    assert "competition_get_submission_limits: RuntimeError" in str(info.value)
+    assert SECRET not in str(info.value)

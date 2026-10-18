@@ -15,10 +15,25 @@ modified, so child processes (the future sandbox) do not inherit the secret.
 Library errors are mapped to ``KaggleError`` subclasses with sanitized
 messages: the text of the library exception is never copied, because it may
 quote a token.
+
+Skipping the package ``__init__`` has a cost: ``kaggle_api_extended.py`` does
+``import kaggle`` (line 59 in the pinned ``kaggle==2.2.4``), so the module
+global ``kaggle`` is the placeholder, and the library reads
+``kaggle.__version__`` from it in ``_check_response_version`` (about lines 8431
+and 9122), the response processor that runs on every HTTP response. Without
+that attribute every real call failed after the response arrived. This was
+found by the manual smoke test. In 2.2.4 the only attributes read from the package
+object are ``__version__`` and ``kaggle.benchmarks.*`` (lines ~9443-9940, used
+only by the benchmark-task methods, which this adapter never calls); the other
+``kaggle.xxx`` hits are strings, imports or a local variable named ``kaggle``
+bound by ``with ... as kaggle``. The placeholder therefore carries only
+``__version__``, read from the installed distribution metadata. This depends on the internals of the pinned version and must be
+rechecked, with the source-scan test, whenever the pin changes.
 """
 
 import csv
 import importlib
+import importlib.metadata
 import importlib.util
 import logging
 import sys
@@ -70,6 +85,10 @@ def load_api_class():
             # package __init__ (which would authenticate and call the network)
             placeholder = types.ModuleType("kaggle")
             placeholder.__path__ = list(spec.submodule_search_locations)
+            # the only attribute the library reads from the package object;
+            # a missing distribution raises PackageNotFoundError, a
+            # ModuleNotFoundError, reported below as "not installed"
+            placeholder.__version__ = importlib.metadata.version("kaggle")
             sys.modules["kaggle"] = placeholder
             try:
                 module = importlib.import_module(_API_MODULE)
@@ -133,8 +152,9 @@ class RealKaggleClient(KaggleClient):
                 raise RulesNotAcceptedError(competition) from None
             if status == 401:
                 raise KaggleError("Kaggle rejected the credentials (HTTP 401)") from None
+            name = getattr(function, "__name__", "call")
             detail = f"HTTP {status}" if status else type(exc).__name__
-            raise KaggleError(f"Kaggle request failed ({detail})") from None
+            raise KaggleError(f"Kaggle request failed ({name}: {detail})") from None
 
     # -- reads ---------------------------------------------------------------
 
