@@ -22,6 +22,8 @@ from .records import (
     ExecutionRecord,
     HoldoutRead,
     HoldoutSession,
+    SubmissionEntry,
+    _finite,
 )
 
 _SCHEMA = """
@@ -83,6 +85,18 @@ CREATE TABLE IF NOT EXISTS comparisons (
     difference REAL NOT NULL,
     threshold REAL NOT NULL,
     is_real INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS submissions (
+    cycle_id TEXT NOT NULL REFERENCES cycles(id),
+    competition TEXT NOT NULL,
+    submission_id TEXT NOT NULL,
+    file_sha256 TEXT NOT NULL,
+    message TEXT NOT NULL,
+    submitted_at TEXT NOT NULL,
+    status TEXT NOT NULL,
+    public_score REAL,
+    completed_at TEXT,
+    PRIMARY KEY (competition, submission_id)
 );
 """
 
@@ -544,3 +558,71 @@ class SqliteRegistry(Registry):
     def count_comparisons(self, cycle_id: str) -> int:
         self._require_cycle_row(cycle_id)
         return self._one("SELECT COUNT(*) FROM comparisons WHERE cycle_id = ?", (cycle_id,))[0]
+
+    # -- submissions to Kaggle ------------------------------------------------
+
+    def add_submission(self, entry: SubmissionEntry) -> None:
+        with self._transaction():
+            self._require_cycle_row(entry.cycle_id)
+            if self._one(
+                "SELECT 1 FROM submissions WHERE competition = ? AND submission_id = ?",
+                (entry.competition, entry.submission_id),
+            ):
+                raise RegistryError(
+                    f"submission {entry.submission_id} of {entry.competition} already recorded"
+                )
+            self._db.execute(
+                "INSERT INTO submissions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    entry.cycle_id,
+                    entry.competition,
+                    entry.submission_id,
+                    entry.file_sha256,
+                    entry.message,
+                    entry.submitted_at,
+                    entry.status,
+                    entry.public_score,
+                    entry.completed_at,
+                ),
+            )
+
+    def update_submission_score(
+        self,
+        competition: str,
+        submission_id: str,
+        status: str,
+        public_score: float | None,
+        completed_at: str,
+    ) -> None:
+        require_text("status", status)
+        require_text("completed_at", completed_at)
+        if status == "pending":
+            raise RegistryError("a pending submission has no result to record")
+        if public_score is not None:
+            public_score = _finite("public_score", public_score)
+        with self._transaction():
+            row = self._one(
+                "SELECT completed_at FROM submissions WHERE competition = ? AND submission_id = ?",
+                (competition, submission_id),
+            )
+            if row is None:
+                raise NotFoundError(f"unknown submission {submission_id} of {competition}")
+            if row[0] is not None:
+                raise RegistryError(
+                    f"score of submission {submission_id} of {competition} already recorded"
+                )
+            self._db.execute(
+                "UPDATE submissions SET status = ?, public_score = ?, completed_at = ? "
+                "WHERE competition = ? AND submission_id = ?",
+                (status, public_score, completed_at, competition, submission_id),
+            )
+
+    def list_submissions(self, cycle_id: str) -> list[SubmissionEntry]:
+        self._require_cycle_row(cycle_id)
+        rows = self._db.execute(
+            "SELECT cycle_id, competition, submission_id, file_sha256, message, "
+            "submitted_at, status, public_score, completed_at FROM submissions "
+            "WHERE cycle_id = ? ORDER BY rowid",
+            (cycle_id,),
+        ).fetchall()
+        return [SubmissionEntry(*row) for row in rows]

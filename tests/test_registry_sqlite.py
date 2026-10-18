@@ -493,3 +493,65 @@ def test_ticket_2_sqlite_file_is_migrated(tmp_path):
         r.set_protocol_hash("OLD", "h")
     with SqliteRegistry(path) as r:  # the migration is idempotent
         assert r.get_cycle("OLD").protocol_hash == "h"
+
+
+def _entry(**kwargs):
+    from kaggle_agent.registry import SubmissionEntry
+
+    data = {
+        "cycle_id": "C1", "competition": "comp", "submission_id": "s1",
+        "file_sha256": "f" * 64, "message": "msg",
+        "submitted_at": "2026-03-10T12:00:00+00:00", "status": "pending",
+    }
+    return SubmissionEntry(**{**data, **kwargs})
+
+
+def test_submission_entry_store_update_once_and_list(reg):
+    reg.add_submission(_entry())
+    reg.add_submission(_entry(submission_id="s2"))
+    assert [e.submission_id for e in reg.list_submissions("C1")] == ["s1", "s2"]
+    reg.update_submission_score("comp", "s1", "complete", 0.83, "2026-03-10T12:05:00+00:00")
+    first = reg.list_submissions("C1")[0]
+    assert (first.status, first.public_score, first.completed_at) == (
+        "complete", 0.83, "2026-03-10T12:05:00+00:00",
+    )
+    assert first.file_sha256 == "f" * 64 and first.message == "msg"
+    with pytest.raises(RegistryError):
+        reg.update_submission_score("comp", "s1", "complete", 0.9, "later")
+    assert reg.list_submissions("C1")[0].public_score == 0.83
+    reg.update_submission_score("comp", "s2", "error", None, "t")
+    assert reg.list_submissions("C1")[1].public_score is None
+
+
+def test_submission_entry_refusals(reg):
+    with pytest.raises(NotFoundError):
+        reg.add_submission(_entry(cycle_id="nope"))
+    reg.add_submission(_entry())
+    with pytest.raises(RegistryError):
+        reg.add_submission(_entry())  # same competition and submission id
+    with pytest.raises(NotFoundError):
+        reg.update_submission_score("comp", "missing", "complete", 0.5, "t")
+    with pytest.raises(RegistryError):
+        reg.update_submission_score("comp", "s1", "pending", None, "t")
+    with pytest.raises(NotFoundError):
+        reg.list_submissions("nope")
+    assert reg.list_submissions("C1")[0].completed_at is None
+
+
+def test_submission_entries_persist_and_old_files_gain_the_table(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "r.db"
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1"))
+        r.add_submission(_entry())
+        r.update_submission_score("comp", "s1", "complete", 0.7, "t")
+    with SqliteRegistry(path) as r:
+        assert r.list_submissions("C1")[0].public_score == 0.7
+    db = sqlite3.connect(path)
+    db.execute("DROP TABLE submissions")  # a file written before this table existed
+    db.commit()
+    db.close()
+    with SqliteRegistry(path) as r:
+        assert r.get_cycle("C1").id == "C1" and r.list_submissions("C1") == []
+        r.add_submission(_entry())

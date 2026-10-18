@@ -19,6 +19,7 @@ from .records import (
     HoldoutRead,
     HoldoutSession,
     PartitionMetric,
+    SubmissionEntry,
 )
 from .sqlite import SqliteRegistry
 
@@ -41,6 +42,7 @@ __all__ = [
     "Registry",
     "RegistryError",
     "SqliteRegistry",
+    "SubmissionEntry",
     "compute_fingerprint",
     "normalize_config",
 ]
