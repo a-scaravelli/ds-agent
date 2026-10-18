@@ -12,6 +12,7 @@ mlruns/
 mlartifacts/
 runs/
 # credentials
+access_token
 kaggle.json
 .env
 .env.*
