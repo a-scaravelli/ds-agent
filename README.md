@@ -97,7 +97,7 @@ A candidate implements `fit_predict(x_train, y_train, x_valid, seed)`. The engin
 Access to Kaggle sits behind the `KaggleClient` interface. `FakeKaggleClient` is deterministic, in memory and offline, and is what every test uses. `kaggle/real.py` (`RealKaggleClient`) is a thin adapter on the official `kaggle` package, the only module that imports it, and it is never run by pytest. The choice against `kagglehub` and direct HTTP is in section 10 of the design.
 
 - `download(competition, dest_dir=None)`: files into `data/<competition>/` by default (ignored by git), with the SHA-256 and size of each file and a combined `data_hash`.
-- `get_competition_info(competition)`: description, rules page and evaluation page as text. Accepting the rules is a manual step on the competition website: there is no operation for it, and without it the client raises `RulesNotAcceptedError`.
+- `get_competition_info(competition)`: description, rules page, evaluation page and data description as text, plus a read-only `pages` mapping with every page by name as Kaggle returns it (for example the FAQ). Pages are listed once and matched case-insensitively, with spaces, hyphens and underscores treated alike. If a required page (description, rules, evaluation) is missing it raises `KaggleError` naming the page and listing the available page names (never content); `data_description` is an empty string when there is no such page. Accepting the rules is a manual step on the competition website: there is no operation for it, and without it the client raises `RulesNotAcceptedError`.
 - `get_submission_spec`, `daily_limit`, `get_submission` and `wait_for_score(competition, submission_id, timeout, poll_interval)`: score read until it is complete or has failed on the Kaggle side; `ScoreTimeoutError` after the timeout.
 - `submit(competition, file, message)`: a template method of the base class. It always runs `validate_submission` (header and column order, row count, identifier column without gaps, duplicates or unknown ids, no empty prediction, all against the sample submission) and the daily limit check, and only then calls the `_send` hook of the implementation. `SubmissionFormatError` and `DailyLimitReachedError` are raised before anything is sent. The limit is per UTC day and comes from Kaggle in the real client; `DailyLimitGuard` (used by the fake) needs it as a required argument.
 - `record_submission(registry, cycle_id, record)` and `record_score(registry, record)` in `kaggle/recording.py` store the submission and its public score in the registry as a `SubmissionEntry` (the score is accepted once). The client itself never writes to the registry, and the score never changes the evaluation protocol.
@@ -136,6 +136,8 @@ This is not run by pytest and needs your account and network: the automated test
 
 The first run of this smoke test found a bug that the stub-based tests could not catch: `AttributeError: module 'kaggle' has no attribute '__version__'` after the HTTP response (reproduced with `kaggle==2.2.4`). The fix and its regression test are in `kaggle/real.py` and `tests/test_kaggle_real.py`.
 
+The second run found a second bug, again invisible to the stub tests: `get_competition_info('titanic')` returned an empty `description` and `evaluation`. Kaggle's page names are not consistently lowercase (`'rules'`, `'Description'`, `'Evaluation'`, `'data-description'`, `'Frequently Asked Questions'`) and the adapter asked for exact lowercase names. The fix lists the pages once per call and matches names case-insensitively with normalized separators; `data_description` and `pages` were added. The regression tests use a stub with exactly those page names. Rerun the check below to confirm all four fields are filled.
+
 1. Generate a token on the account page, save it to `~/.kaggle/access_token` and run `chmod 600 ~/.kaggle/access_token` (or export `KAGGLE_API_TOKEN`).
 2. Choose a competition and accept its rules by hand on the website.
 3. Read-only checks (no submission): run the following from the repository.
@@ -145,7 +147,10 @@ from kaggle_agent.kaggle.real import RealKaggleClient
 
 client = RealKaggleClient()  # credentials resolved with the lookup order above
 print(client.daily_limit("titanic"))
-print(client.get_competition_info("titanic").evaluation[:200])
+info = client.get_competition_info("titanic")
+print(info.evaluation[:200])
+print(list(info.pages))  # the page names as Kaggle returns them
+print(info.data_description[:200])
 print(client.download("titanic").data_hash)
 ```
 
