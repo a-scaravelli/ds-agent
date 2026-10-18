@@ -98,13 +98,13 @@ def test_stack_is_non_binding_starting_point(sections):
     assert "alternative" in sections[15].lower()
 
 
-def test_pyproject_runtime_dependencies_are_the_three_confirmed_libraries():
+def test_pyproject_runtime_dependencies_are_the_confirmed_libraries():
     import tomllib
 
     data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     project = data["project"]
     names = sorted(d.split("==")[0] for d in project["dependencies"])
-    assert names == ["numpy", "pandas", "scikit-learn"]
+    assert names == ["kaggle", "numpy", "pandas", "scikit-learn"]
     declared = " ".join(
         d.lower()
         for deps in project.get("optional-dependencies", {}).values()
@@ -387,3 +387,54 @@ def test_holdout_isolation_limit_documented():
     for text in (design, readme, doc):
         assert "sandbox" in text and "ticket 6" in text
         assert "interface" in text and "log" in text
+
+
+def test_section_10_credentials_token_and_lookup_order(sections):
+    low = sections[10].lower()
+    for word in ("generate new token", "account page", "access_token", "kaggle_api_token",
+                 "kaggle.json", "600", "kaggle_username", "legacy", "lookup order"):
+        assert word in low, word
+    start = low.index("the lookup order")
+    order = [low.index(w, start) for w in ("`kaggle_api_token`", "`~/.kaggle/access_token`",
+                                           "`kaggle_username`", "`~/.kaggle/kaggle.json`")]
+    assert order == sorted(order)
+    assert "looser than `600`" in low and "raises an error" in low
+    for word in ("model context", "logs", "registry", "sandbox", "only the kaggle client reads"):
+        assert word in low, word
+    assert "environment" in low and "never modified" in low
+
+
+def test_section_10_daily_limit_score_and_key_scan_decisions(sections):
+    low = sections[10].lower()
+    assert "reported by kaggle" in low and "required argument, with no default" in low
+    assert "submissionentry" in low and "recorded in the registry" in low
+    assert "read and recorded together with the submission" in low
+    assert "key-like strings" in low and "tickets that save artifacts" in low
+    assert "decisions of the user" in low and "nothing in the code base calls `submit`" in low
+    assert "explicit action of the user" in low
+
+
+def test_kaggle_access_method_documented_against_criteria(sections):
+    low = sections[10].lower()
+    for word in ("kagglehub", "direct http", "official `kaggle` package", "section 1",
+                 "pinned", "import kaggle", "authenticate"):
+        assert word in low, word
+    memory = ROOT / ".asl" / "process-memory.md"
+    text = memory.read_text(encoding="utf-8")
+    if "Implement ticket 4" not in text:
+        pytest.skip("process memory is updated by the later documentation phase")
+    entry = text.split("Implement ticket 4", 1)[1].lower()
+    for word in ("kagglehub", "direct http", "kaggle_api_token", "access_token", "q1", "q2", "q3", "q4", "q5"):
+        assert word in entry, word
+
+
+def test_gitignore_lists_credentials_files():
+    lines = (ROOT / ".gitignore").read_text(encoding="utf-8").split()
+    for name in ("access_token", "kaggle.json", ".env", ".env.*"):
+        assert name in lines, name
+
+
+def test_design_mentions_kaggle_package_in_stack_and_plan(sections):
+    assert "official `kaggle` package" in sections[1] or "kaggle" in sections[1].lower()
+    assert "SubmissionEntry" in sections[7]
+    assert "manual smoke test" in sections[15].lower()

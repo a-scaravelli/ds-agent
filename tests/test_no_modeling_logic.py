@@ -1,4 +1,4 @@
-"""Only proposals, registry and evaluation have code; the rest is docstrings and stdlib."""
+"""Only proposals, registry, evaluation and kaggle have code; the rest is docstrings and stdlib."""
 
 import ast
 import sys
@@ -8,6 +8,9 @@ SRC = Path(__file__).resolve().parent.parent / "src" / "kaggle_agent"
 PROPOSALS = SRC / "proposals"
 REGISTRY = SRC / "registry"
 EVALUATION = SRC / "evaluation"
+KAGGLE = SRC / "kaggle"
+REAL_ADAPTER = KAGGLE / "real.py"
+KAGGLE_LIBRARY = {"kaggle"}
 THIRD_PARTY = {"pandas", "numpy", "sklearn"}
 LATER_TICKETS = {"registry", "evaluation", "kaggle", "llm"}
 FUTURE_PACKAGES = {"kaggle", "llm", "sandbox", "loop", "review", "budget"}
@@ -36,19 +39,21 @@ def _imports(path):
                 yield "<relative>", "." * node.level + (node.module or "")
 
 
-def test_third_party_imports_only_in_evaluation():
+def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
     stdlib = set(sys.stdlib_module_names)
     for path in _modules():
         allowed = stdlib | {"kaggle_agent", "<relative>"}
         if EVALUATION in path.parents:
             allowed |= THIRD_PARTY
+        if path == REAL_ADAPTER:
+            allowed |= KAGGLE_LIBRARY
         for top, _ in _imports(path):
             assert top in allowed, f"{path}: {top}"
 
 
-def test_no_functions_or_classes_outside_code_packages():
+def test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle():
     for path in _modules():
-        if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION)):
+        if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE)):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -95,13 +100,13 @@ def test_registry_imports_only_stdlib_proposals_and_itself():
                 assert full.lstrip(".").split(".")[0] not in forbidden - {"registry"}, f"{path}: {full}"
 
 
-def test_runtime_dependencies_are_exactly_the_three_pinned_libraries():
+def test_runtime_dependencies_are_the_pinned_libraries():
     import tomllib
 
     pyproject = tomllib.loads((SRC.parent.parent / "pyproject.toml").read_text(encoding="utf-8"))
     deps = pyproject["project"]["dependencies"]
     names = sorted(d.split("==")[0] for d in deps)
-    assert names == ["numpy", "pandas", "scikit-learn"]
+    assert names == ["kaggle", "numpy", "pandas", "scikit-learn"]
     assert all("==" in d and d.split("==")[1][:1].isdigit() for d in deps)
     everything = " ".join(
         deps + [d for group in pyproject["project"].get("optional-dependencies", {}).values() for d in group]
@@ -129,3 +134,47 @@ def test_registry_and_proposals_stay_stdlib_only():
         for path in sorted(package.glob("*.py")):
             for top, full in _imports(path):
                 assert top not in THIRD_PARTY, f"{path}: {full}"
+
+
+def test_registry_never_imports_credentials_or_kaggle():
+    for path in sorted(REGISTRY.glob("*.py")):
+        for top, full in _imports(path):
+            assert "credentials" not in full and "kaggle" not in full.split("."), f"{path}: {full}"
+
+
+def _kaggle_modules():
+    return sorted(KAGGLE.glob("*.py"))
+
+
+def test_only_kaggle_real_adapter_imports_network_or_library():
+    for path in _kaggle_modules():
+        for top, full in _imports(path):
+            if path == REAL_ADAPTER:
+                continue
+            assert top not in NETWORK_MODULES | KAGGLE_LIBRARY | THIRD_PARTY, f"{path}: {full}"
+            assert top in set(sys.stdlib_module_names) | {"kaggle_agent", "<relative>"}, f"{path}: {full}"
+    for top, full in _imports(REAL_ADAPTER):
+        assert top in set(sys.stdlib_module_names) | {"kaggle_agent", "<relative>"}, full
+
+
+def test_kaggle_imports_no_later_ticket_package_and_only_recording_imports_registry():
+    forbidden = {"llm", "sandbox", "loop", "review", "budget", "evaluation"}
+    for path in _kaggle_modules():
+        for top, full in _imports(path):
+            parts = full.lstrip(".").split(".")
+            if top == "kaggle_agent":
+                assert parts[1] not in forbidden, f"{path}: {full}"
+                if parts[1] == "registry":
+                    assert path.name == "recording.py", f"{path}: {full}"
+                else:
+                    assert parts[1] in {"kaggle"}, f"{path}: {full}"
+            if top == "<relative>":
+                assert parts[0] not in forbidden | {"registry"}, f"{path}: {full}"
+
+
+def test_only_kaggle_modules_import_credentials():
+    for path in _modules():
+        if KAGGLE in path.parents:
+            continue
+        for _, full in _imports(path):
+            assert "credentials" not in full.split("."), f"{path}: {full}"
