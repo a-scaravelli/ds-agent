@@ -2,139 +2,43 @@
  "cases": {
   "1": [
    {
-    "file": "tests/test_kaggle_credentials.py",
-    "name": "test_new_token_from_env_variable"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_placeholder_carries_the_installed_version"
    }
   ],
   "2": [
    {
-    "file": "tests/test_kaggle_credentials.py",
-    "name": "test_new_token_from_access_token_file"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_response_processor_runs_on_a_canned_response"
    }
   ],
   "3": [
    {
-    "file": "tests/test_kaggle_credentials.py",
-    "name": "test_legacy_kaggle_json_fallback"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_only_version_and_benchmarks_are_read_from_the_package_object"
    }
   ],
   "4": [
    {
-    "file": "tests/test_kaggle_credentials.py",
-    "name": "test_legacy_environment_variables_are_the_third_source"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_sanitized_error_names_the_function_and_type"
+   },
+   {
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_library_errors_map_to_sanitized_kaggle_errors"
    }
   ],
   "5": [
    {
-    "file": "tests/test_kaggle_credentials.py",
-    "name": "test_lookup_order_and_documentation"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_section_10_credentials_token_and_lookup_order"
-   },
-   {
     "file": "tests/test_repo_language.py",
     "name": "test_readme_cites_kaggle_client"
+   },
+   {
+    "file": "tests/test_test_map.py",
+    "name": "test_test_map_entries_exist"
    }
   ],
   "6": [
-   {
-    "file": "tests/test_kaggle_credentials.py",
-    "name": "test_absent_or_empty_credentials"
-   }
-  ],
-  "7": [
-   {
-    "file": "tests/test_kaggle_credentials.py",
-    "name": "test_files_looser_than_600_are_refused"
-   }
-  ],
-  "8": [
-   {
-    "file": "tests/test_kaggle_credentials.py",
-    "name": "test_malformed_legacy_file_is_not_echoed"
-   }
-  ],
-  "9": [
-   {
-    "file": "tests/test_kaggle_credentials.py",
-    "name": "test_credentials_hide_the_secret"
-   },
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_secret_is_absent_from_logs_and_errors"
-   }
-  ],
-  "10": [
-   {
-    "file": "tests/test_kaggle_recording.py",
-    "name": "test_only_kaggle_modules_import_credentials_and_results_carry_no_secret"
-   },
-   {
-    "file": "tests/test_kaggle_recording.py",
-    "name": "test_secret_is_nowhere_in_the_registry_file"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_only_kaggle_modules_import_credentials"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_registry_never_imports_credentials_or_kaggle"
-   }
-  ],
-  "11": [
-   {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_secret_is_not_placed_in_the_environment"
-   }
-  ],
-  "12": [
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_gitignore_lists_credentials_files"
-   }
-  ],
-  "13": [
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_section_10_credentials_token_and_lookup_order"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_section_10_daily_limit_score_and_key_scan_decisions"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_credentials_and_evaluation_protection"
-   }
-  ],
-  "14": [
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_kaggle_access_method_documented_against_criteria"
-   }
-  ],
-  "15": [
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_third_party_imports_only_in_evaluation_and_kaggle_adapter"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_only_kaggle_real_adapter_imports_network_or_library"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_evaluation_imports_only_allowed_modules"
-   },
-   {
-    "file": "tests/test_kaggle_guards.py",
-    "name": "test_new_tests_import_neither_network_modules_nor_the_library"
-   }
-  ],
-  "16": [
    {
     "file": "tests/test_kaggle_real.py",
     "name": "test_package_and_adapter_import_without_the_library"
@@ -145,253 +49,7 @@
    },
    {
     "file": "tests/test_kaggle_real.py",
-    "name": "test_no_authenticate_before_credentials_are_resolved"
-   }
-  ],
-  "17": [
-   {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_responses_map_to_model_types"
-   },
-   {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_library_errors_map_to_sanitized_kaggle_errors"
-   },
-   {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_legacy_credentials_are_handed_over_as_username_and_key"
-   },
-   {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_resolution_uses_the_documented_lookup"
-   }
-  ],
-  "18": [
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_download_writes_files_with_hashes"
-   },
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_download_defaults_to_data_folder"
-   }
-  ],
-  "19": [
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_unknown_competition"
-   }
-  ],
-  "20": [
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_competition_info_returns_the_three_texts"
-   }
-  ],
-  "21": [
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_rules_not_accepted_is_a_manual_step"
-   }
-  ],
-  "22": [
-   {
-    "file": "tests/test_kaggle_submission.py",
-    "name": "test_valid_submission_is_accepted"
-   }
-  ],
-  "23": [
-   {
-    "file": "tests/test_kaggle_submission.py",
-    "name": "test_invalid_submissions_are_rejected_with_a_reason"
-   },
-   {
-    "file": "tests/test_kaggle_submission.py",
-    "name": "test_empty_and_unreadable_files_are_rejected"
-   }
-  ],
-  "24": [
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_invalid_submission_is_not_sent"
-   }
-  ],
-  "25": [
-   {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_format_and_limit_are_enforced_before_the_library_sends"
-   },
-   {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_unconfirmed_submission_is_an_error"
-   }
-  ],
-  "26": [
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_daily_limit_is_respected"
-   },
-   {
-    "file": "tests/test_kaggle_submission.py",
-    "name": "test_guard_counts_the_current_utc_day"
-   }
-  ],
-  "27": [
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_daily_limit_resets_next_day"
-   }
-  ],
-  "28": [
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_client_knows_limit_and_submissions_left"
-   },
-   {
-    "file": "tests/test_kaggle_submission.py",
-    "name": "test_guard_requires_a_valid_limit"
-   }
-  ],
-  "29": [
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_wait_for_score_polls_until_complete"
-   }
-  ],
-  "30": [
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_wait_for_score_times_out_on_the_injected_clock"
-   }
-  ],
-  "31": [
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_failed_scoring_returns_error_status_without_score"
-   }
-  ],
-  "32": [
-   {
-    "file": "tests/test_kaggle_guards.py",
-    "name": "test_nothing_in_the_source_calls_submit"
-   },
-   {
-    "file": "tests/test_kaggle_guards.py",
-    "name": "test_no_module_outside_kaggle_imports_the_client"
-   },
-   {
-    "file": "tests/test_kaggle_guards.py",
-    "name": "test_only_the_template_method_reaches_the_send_hook"
-   }
-  ],
-  "33": [
-   {
-    "file": "tests/test_kaggle_recording.py",
-    "name": "test_submission_and_score_are_recorded_together"
-   },
-   {
-    "file": "tests/test_kaggle_recording.py",
-    "name": "test_pending_record_cannot_be_recorded_as_a_result"
-   },
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_submission_entry_store_update_once_and_list"
-   },
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_submission_entry_refusals"
-   },
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_submission_entries_persist_and_old_files_gain_the_table"
-   },
-   {
-    "file": "tests/test_registry_records.py",
-    "name": "test_submission_entry_validation_and_no_credential_field"
-   }
-  ],
-  "34": [
-   {
-    "file": "tests/test_kaggle_recording.py",
-    "name": "test_the_score_never_changes_the_protocol"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_kaggle_imports_no_later_ticket_package_and_only_recording_imports_registry"
-   }
-  ],
-  "35": [
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_section_10_daily_limit_score_and_key_scan_decisions"
-   },
-   {
-    "file": "tests/test_kaggle_guards.py",
-    "name": "test_no_key_scanner_in_the_kaggle_package"
-   }
-  ],
-  "36": [
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_kaggle_imports_no_later_ticket_package_and_only_recording_imports_registry"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_registry_and_proposals_stay_stdlib_only"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_runtime_dependencies_are_the_pinned_libraries"
-   },
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_storage_is_a_replaceable_interface"
-   }
-  ],
-  "37": [
-   {
-    "file": "tests/test_repo_language.py",
-    "name": "test_readme_cites_kaggle_client"
-   }
-  ],
-  "38": [
-   {
-    "file": "tests/test_repo_language.py",
-    "name": "test_repo_text_has_no_italian_function_words"
-   },
-   {
-    "file": "tests/test_repo_language.py",
-    "name": "test_code_identifiers_are_english"
-   },
-   {
-    "file": "tests/test_test_map.py",
-    "name": "test_test_map_entries_exist"
-   }
-  ],
-  "39": [
-   {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_placeholder_carries_the_installed_version"
-   }
-  ],
-  "40": [
-   {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_response_processor_runs_on_a_canned_response"
-   },
-   {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_only_version_and_benchmarks_are_read_from_the_package_object"
-   }
-  ],
-  "41": [
-   {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_sanitized_error_names_the_function_and_type"
-   },
-   {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_library_errors_map_to_sanitized_kaggle_errors"
+    "name": "test_secret_is_not_placed_in_the_environment"
    }
   ]
  }
