@@ -12,12 +12,14 @@ from .interface import (
 from .records import (
     DEFAULT_MAX_FIX_RETRIES,
     FAILURE_KINDS,
+    LLM_OUTCOMES,
     OUTCOMES,
     ComparisonRecord,
     Cycle,
     ExecutionRecord,
     HoldoutRead,
     HoldoutSession,
+    LlmCallEntry,
     PartitionMetric,
     SubmissionEntry,
 )
@@ -35,6 +37,8 @@ __all__ = [
     "FailureRecord",
     "HoldoutRead",
     "HoldoutSession",
+    "LLM_OUTCOMES",
+    "LlmCallEntry",
     "MetricPoint",
     "NotFoundError",
     "OUTCOMES",

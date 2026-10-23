@@ -2,60 +2,80 @@
  "cases": {
   "1": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_mixed_case_pages_fill_description_evaluation_rules_and_data_description"
+    "file": "tests/test_llm_structured.py",
+    "name": "test_shortplan_contract_has_types_nonempty_lists_and_word_limit"
    }
   ],
   "2": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_pages_are_listed_once_and_without_page_name"
+    "file": "tests/test_llm_structured.py",
+    "name": "test_attempt_contract_has_required_fields_types_and_evidence_rule"
    }
   ],
   "3": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_every_page_is_kept_in_the_pages_mapping"
-   },
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_competition_info_has_data_description_and_every_page"
+    "file": "tests/test_llm_structured.py",
+    "name": "test_type_without_hints_or_with_unmapped_annotations_still_gets_a_contract"
    }
   ],
   "4": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_missing_required_page_raises_naming_it_and_the_available_names"
+    "file": "tests/test_proposals_plan.py",
+    "name": "test_contract_hints_match_the_validation"
    },
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_missing_data_description_is_an_empty_string"
+    "file": "tests/test_proposals_attempt.py",
+    "name": "test_contract_hints_match_the_validation"
+   },
+   {
+    "file": "tests/test_llm_structured.py",
+    "name": "test_llm_code_does_not_hardcode_the_word_limit"
    }
   ],
   "5": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_page_names_are_normalized_across_case_and_separators"
+    "file": "tests/test_llm_client.py",
+    "name": "test_rejection_reason_is_set_for_invalid_output_and_none_otherwise"
    }
   ],
   "6": [
    {
-    "file": "tests/test_repo_language.py",
-    "name": "test_readme_cites_kaggle_client"
-   },
-   {
-    "file": "tests/test_test_map.py",
-    "name": "test_test_map_entries_exist"
+    "file": "tests/test_llm_client.py",
+    "name": "test_rejection_reason_is_sanitized_for_every_validation_path"
    }
   ],
   "7": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_responses_map_to_model_types"
+    "file": "tests/test_llm_recording.py",
+    "name": "test_rejection_reason_is_stored_and_survives_reopening"
+   }
+  ],
+  "8": [
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_llm_calls_without_rejection_reason_column_is_migrated"
+   }
+  ],
+  "9": [
+   {
+    "file": "tests/test_registry_records.py",
+    "name": "test_llm_call_entry_rejection_reason_validation"
+   }
+  ],
+  "10": [
+   {
+    "file": "tests/test_llm_models.py",
+    "name": "test_call_record_builds_without_rejection_reason"
+   }
+  ],
+  "11": [
+   {
+    "file": "tests/test_repo_language.py",
+    "name": "test_readme_and_memory_record_the_real_smoke_test"
    },
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_library_errors_map_to_sanitized_kaggle_errors"
+    "file": "tests/test_design_doc.py",
+    "name": "test_section_8_documents_rich_contract_and_rejection_reason"
    }
   ]
  }

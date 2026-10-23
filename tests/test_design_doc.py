@@ -438,3 +438,38 @@ def test_design_mentions_kaggle_package_in_stack_and_plan(sections):
     assert "official `kaggle` package" in sections[1] or "kaggle" in sections[1].lower()
     assert "SubmissionEntry" in sections[7]
     assert "manual smoke test" in sections[15].lower()
+
+
+# --- Headless Claude adapter (ticket 5 of section 15) ---
+
+
+def test_section_8_documents_cli_version_flags_and_what_is_not_verified(sections):
+    low = sections[8].lower()
+    for word in ("version", "2.1.296", "--output-format json", "--model", "--tools", "--allowedtools",
+                 "--permission-mode", "--resume", "stdin", "usage", "exit code", "rate limit",
+                 "not verified", "envelope"):
+        assert word in low, word
+
+
+def test_section_8_documents_subscription_only_permissions_retries_and_model(sections):
+    low = sections[8].lower()
+    for word in ("anthropic_api_key", "strips", "warning", "never its value", "claude_code_oauth_token",
+                 "toolpermissions", "dontask", "backoff", "invalidresponseerror", "stateless",
+                 "quotaexhaustederror", "no model name is written", "enforces no budget"):
+        assert word in low, word
+
+
+def test_adapter_is_aligned_across_sections_7_11_14_15_16(sections):
+    assert "llm_calls" in sections[7] and "model" in sections[7].lower()
+    assert "reported by the adapter" in sections[11].lower() and "registry" in sections[11].lower()
+    assert "`llm`" in sections[14] and "recording" in sections[14].lower()
+    assert "headless claude adapter" in sections[15].lower() and "done:" in sections[15].lower()
+    assert "not verified" in sections[16].lower() and "2.1.296" in sections[16]
+
+
+def test_section_8_documents_rich_contract_and_rejection_reason(sections):
+    low = sections[8].lower()
+    for word in ("rich contract", "contract_hints", "any json value", "rejection reason", "rejection_reason",
+                 "claude-sonnet-4-6", "not verified", "rate limit", "oauth"):
+        assert word in low, word
+    assert "rejection_reason" in sections[7] and "rejection_reason" not in sections[1]

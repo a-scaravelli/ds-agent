@@ -3,6 +3,10 @@
 import json
 
 
+# object-level labels the validators use as ``field`` (not a field of any type)
+OBJECT_LABELS = ("plan", "attempt", "suggestion")
+
+
 class ValidationError(ValueError):
     """Raised when plan, attempt or suggestion data is invalid.
 

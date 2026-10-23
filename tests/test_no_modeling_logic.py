@@ -1,4 +1,4 @@
-"""Only proposals, registry, evaluation and kaggle have code; the rest is docstrings and stdlib."""
+"""Only proposals, registry, evaluation, kaggle and llm have code; the rest is docstrings and stdlib."""
 
 import ast
 import sys
@@ -9,6 +9,9 @@ PROPOSALS = SRC / "proposals"
 REGISTRY = SRC / "registry"
 EVALUATION = SRC / "evaluation"
 KAGGLE = SRC / "kaggle"
+LLM = SRC / "llm"
+LLM_REAL = LLM / "real.py"
+TESTS = Path(__file__).resolve().parent
 REAL_ADAPTER = KAGGLE / "real.py"
 KAGGLE_LIBRARY = {"kaggle"}
 THIRD_PARTY = {"pandas", "numpy", "sklearn"}
@@ -51,9 +54,9 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
             assert top in allowed, f"{path}: {top}"
 
 
-def test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle():
+def test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle_llm():
     for path in _modules():
-        if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE)):
+        if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM)):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -178,3 +181,68 @@ def test_only_kaggle_modules_import_credentials():
             continue
         for _, full in _imports(path):
             assert "credentials" not in full.split("."), f"{path}: {full}"
+
+
+def _llm_modules():
+    return sorted(LLM.glob("*.py"))
+
+
+def test_only_llm_real_imports_subprocess_and_llm_uses_no_network_or_third_party():
+    stdlib = set(sys.stdlib_module_names)
+    for path in _llm_modules():
+        for top, full in _imports(path):
+            assert top not in NETWORK_MODULES | THIRD_PARTY | KAGGLE_LIBRARY, f"{path}: {full}"
+            assert top in stdlib | {"kaggle_agent", "<relative>"}, f"{path}: {full}"
+            if top == "subprocess":
+                assert path == LLM_REAL, f"{path}: {full}"
+    for path in _modules():
+        if LLM not in path.parents:
+            assert "subprocess" not in {top for top, _ in _imports(path)}, path
+    for path in sorted(TESTS.glob("*.py")):
+        if path.name != Path(__file__).name:
+            assert "subprocess" not in {top for top, _ in _imports(path)} or path.name in {
+                "llm_helpers.py", "test_llm_real.py",
+            }, path
+
+
+def test_importing_the_llm_package_does_not_import_subprocess_real_module():
+    import kaggle_agent.llm as llm
+
+    assert not hasattr(llm, "RealClaudeClient")
+    imported = {full for _, full in _imports(Path(llm.__file__))}
+    assert not {name for name in imported if "real" in name or "subprocess" in name}
+
+
+def test_llm_imports_no_later_ticket_package_and_only_recording_imports_registry():
+    forbidden = {"loop", "sandbox", "budget", "review", "evaluation", "kaggle"}
+    for path in _llm_modules():
+        for top, full in _imports(path):
+            parts = full.lstrip(".").split(".")
+            assert "credentials" not in parts, f"{path}: {full}"
+            if top == "kaggle_agent":
+                assert parts[1] not in forbidden, f"{path}: {full}"
+                if parts[1] == "registry":
+                    assert path.name == "recording.py", f"{path}: {full}"
+                else:
+                    assert parts[1] in {"llm", "proposals"}, f"{path}: {full}"
+            if top == "<relative>":
+                assert parts[0] not in forbidden | {"registry"}, f"{path}: {full}"
+
+
+def test_llm_has_no_budget_enforcement_or_per_phase_model_policy():
+    text = "\n".join(p.read_text(encoding="utf-8") for p in _llm_modules()).lower()
+    for word in ("max_budget", "budget_exceeded", "token_limit", "max_tokens", "phase_model"):
+        assert word not in text, word
+
+
+def test_no_test_builds_a_real_client_without_a_runner():
+    for path in sorted(TESTS.glob("*.py")):
+        if path.name == Path(__file__).name:
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Call):
+                func = node.func
+                name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", "")
+                if name == "RealClaudeClient":
+                    keys = {k.arg for k in node.keywords}
+                    assert "runner" in keys, f"{path.name}:{node.lineno}"

@@ -28,6 +28,9 @@ Invariants every implementation must keep:
   (competition, submission id). It is append-only except for one update of
   status, score and completion time, accepted once and never with a
   ``pending`` status.
+- An LLM call entry references an existing cycle and is append-only. It
+  holds consumption only (outcome, duration, tokens, model), never a prompt,
+  a response or an access token.
 - A rejected call leaves the registry unchanged.
 """
 
@@ -42,6 +45,7 @@ from .records import (
     ExecutionRecord,
     HoldoutRead,
     HoldoutSession,
+    LlmCallEntry,
     SubmissionEntry,
 )
 
@@ -226,3 +230,11 @@ class Registry(ABC):
     @abstractmethod
     def list_submissions(self, cycle_id: str) -> list[SubmissionEntry]:
         """Submissions of a cycle in insertion order."""
+
+    @abstractmethod
+    def add_llm_call(self, entry: LlmCallEntry) -> None:
+        """Store the consumption of one language model call; the cycle must exist."""
+
+    @abstractmethod
+    def list_llm_calls(self, cycle_id: str) -> list[LlmCallEntry]:
+        """LLM calls of a cycle in insertion order."""
