@@ -77,3 +77,17 @@ def test_unknown_cycle_is_rejected(tmp_path):
     client = FakeLlmClient([Reply(PLAN_JSON)], on_call=functools.partial(record_call, registry, "NOPE"))
     with pytest.raises(Exception):
         client.ask("p", ShortPlan, permissions(tmp_path), "plan")
+
+
+def test_rejection_reason_is_stored_and_survives_reopening(tmp_path):
+    path = str(tmp_path / "r.db")
+    registry = _registry(path)
+    client = FakeLlmClient(
+        [Malformed("nope"), Reply(PLAN_JSON)],
+        on_call=functools.partial(record_call, registry, "C1"),
+    )
+    client.ask("p", ShortPlan, permissions(tmp_path), "plan")
+    before = registry.list_llm_calls("C1")
+    assert before[0].rejection_reason.startswith("plan: invalid JSON") and before[1].rejection_reason is None
+    registry.close()
+    assert SqliteRegistry(path).list_llm_calls("C1") == before

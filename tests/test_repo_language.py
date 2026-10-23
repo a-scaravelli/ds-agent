@@ -228,3 +228,16 @@ def test_process_memory_entry_for_llm_ticket():
     lowered = entry.lower()
     for word in ("llm_calls", "model", "strip", "warning", "claude --version"):
         assert word in lowered, word
+
+
+def test_readme_and_memory_record_the_real_smoke_test():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for word in ("rejection_reason", "contract_hints", "claude-sonnet-4-6", "7113", "7139",
+                 "Rerun the smoke test", "WARNING", "not verified"):
+        assert word in readme, word
+    text = MEMORY.read_text(encoding="utf-8")
+    if "Ticket #12" not in text or "Giro 2" not in text.split("Ticket #12", 1)[1]:
+        pytest.skip("process memory is updated by the later documentation phase")
+    entry = text.split("Ticket #12", 1)[1].lower()
+    for word in ("claude-sonnet-4-6", "rejection_reason", "contract_hints", "rate limit", "quota", "oauth"):
+        assert word in entry, word

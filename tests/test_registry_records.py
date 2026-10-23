@@ -153,3 +153,16 @@ def test_llm_call_entry_validates_and_has_no_secret_fields():
         LlmCallEntry("C1", "plan", "bogus", "t", 1.0)
     with pytest.raises(ValidationError):
         LlmCallEntry("C1", "plan", "ok", "t", float("nan"))
+
+
+def test_llm_call_entry_rejection_reason_validation():
+    from kaggle_agent.registry import LlmCallEntry
+
+    def make(outcome, reason):
+        return LlmCallEntry("C1", "plan", outcome, "t", 1.0, rejection_reason=reason)
+
+    assert make("invalid_output", "models: must not be empty").rejection_reason
+    assert make("ok", None).rejection_reason is None
+    for outcome, reason in (("invalid_output", ""), ("invalid_output", "  "), ("ok", "x: y")):
+        with pytest.raises(ValidationError):
+            make(outcome, reason)

@@ -178,3 +178,67 @@ def test_raw_response_has_no_secret_fields():
     assert set(RawResponse.__dataclass_fields__) == {
         "text", "usage", "session_id", "model", "stripped_variables"
     }
+
+
+def _bad_attempt(**changes):
+    import json
+
+    data = json.loads(ATTEMPT_JSON)
+    for key, value in changes.items():
+        if value is None:
+            data.pop(key)
+        else:
+            data[key] = value
+    return json.dumps(data)
+
+
+def test_rejection_reason_is_set_for_invalid_output_and_none_otherwise(tmp_path):
+    perms = permissions(tmp_path)
+    client = FakeLlmClient(
+        [Reply(_bad_attempt(what_changed=None)), Malformed("nope"), Reply(ATTEMPT_JSON),
+         RateLimited(), Reply(ATTEMPT_JSON), QuotaExhausted()],
+        backoff=BackoffPolicy(max_retries=1, base=0),
+    )
+    client.ask("p", Attempt, perms, "attempt")
+    client.ask("p", Attempt, perms, "attempt")
+    with pytest.raises(QuotaExhaustedError):
+        client.ask("p", Attempt, perms, "attempt")
+    crash = FakeLlmClient([CliCrash()])
+    with pytest.raises(CliFailureError):
+        crash.ask("p", Attempt, perms, "attempt")
+    by_outcome = {}
+    for call in client.call_log() + crash.call_log():
+        by_outcome.setdefault(call.outcome, []).append(call.rejection_reason)
+    assert by_outcome["invalid_output"][0] == "what_changed: is required"
+    assert all(r for r in by_outcome["invalid_output"])
+    for outcome in ("ok", "rate_limited", "quota", "cli_error"):
+        assert set(by_outcome[outcome]) == {None}, outcome
+
+
+def test_rejection_reason_is_sanitized_for_every_validation_path(tmp_path):
+    import json
+
+    from llm_helpers import SECRET_KEY, SECRET_TOKEN
+
+    perms = permissions(tmp_path)
+    leak = f"{SECRET_KEY} {SECRET_TOKEN} invented_key"
+    plan = json.loads(PLAN_JSON)
+    cases = [
+        (Attempt, _bad_attempt(what_changed=None), "what_changed: is required"),
+        (Attempt, _bad_attempt(**{leak: "x"}), "response: unknown key (allowed: "),
+        (ShortPlan, "{" + leak, "plan: invalid JSON: "),
+        (Attempt, "{" + leak, "attempt: invalid JSON: "),
+        (ShortPlan, json.dumps({**plan, "baseline": "w " * 301}), "plan: has "),
+        (ShortPlan, 42, "ShortPlan: the response is not text"),
+    ]
+    for output_type, text, expected in cases:
+        client = FakeLlmClient([Reply(text)], max_validation_retries=0)
+        with pytest.raises(InvalidResponseError):
+            client.ask("p", output_type, perms, "x")
+        reason = client.call_log()[0].rejection_reason
+        assert reason.startswith(expected), (reason, expected)
+        assert len(reason) <= 200
+        if expected == "plan: has ":
+            assert reason.endswith(" words, over the limit of 300")
+        for secret in (SECRET_KEY, SECRET_TOKEN, "invented_key"):
+            assert secret not in reason

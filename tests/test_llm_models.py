@@ -68,3 +68,8 @@ def test_model_defaults_to_none_in_client_and_ask():
     assert inspect.signature(LlmClient.__init__).parameters["model"].default is None
     assert inspect.signature(RealClaudeClient.__init__).parameters["model"].default is None
     assert inspect.signature(LlmClient.ask).parameters["model"].default is None
+
+
+def test_call_record_builds_without_rejection_reason():
+    record = CallRecord("plan", "ok", "t", 1.0, Usage(), 1)
+    assert record.rejection_reason is None

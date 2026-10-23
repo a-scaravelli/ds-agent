@@ -465,3 +465,11 @@ def test_adapter_is_aligned_across_sections_7_11_14_15_16(sections):
     assert "`llm`" in sections[14] and "recording" in sections[14].lower()
     assert "headless claude adapter" in sections[15].lower() and "done:" in sections[15].lower()
     assert "not verified" in sections[16].lower() and "2.1.296" in sections[16]
+
+
+def test_section_8_documents_rich_contract_and_rejection_reason(sections):
+    low = sections[8].lower()
+    for word in ("rich contract", "contract_hints", "any json value", "rejection reason", "rejection_reason",
+                 "claude-sonnet-4-6", "not verified", "rate limit", "oauth"):
+        assert word in low, word
+    assert "rejection_reason" in sections[7] and "rejection_reason" not in sections[1]

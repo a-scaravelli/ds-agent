@@ -108,3 +108,23 @@ def test_attempt_example_matches_design_block():
     attempt = Attempt.from_dict(block)
     assert attempt.parent_id == "T-0009"
     assert attempt.what_changed == T0014["what_changed"]
+
+
+def test_contract_hints_match_the_validation():
+    import dataclasses
+
+    hints = Attempt.contract_hints()
+    names = {f.name for f in dataclasses.fields(Attempt)}
+    assert set(hints) - {"__all__"} == names and "__all__" in hints
+    for name in ("id", "phase", "hypothesis", "rationale", "what_changed", "measure"):
+        with pytest.raises(ValidationError):
+            Attempt.from_dict({**T0014, name: ""})
+    with pytest.raises(ValidationError):
+        Attempt.from_dict({**T0014, "parent_id": T0014["id"]})
+    with pytest.raises(ValidationError):
+        Attempt.from_dict({**T0014, "evidence": [""]})
+    with pytest.raises(ValidationError):
+        Attempt.from_dict({**T0014, "exploratory": "yes"})
+    with pytest.raises(ValidationError):
+        Attempt.from_dict({**T0014, "evidence": []})
+    assert Attempt.from_dict({**T0014, "evidence": [], "exploratory": True})

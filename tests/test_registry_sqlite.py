@@ -607,3 +607,22 @@ def test_llm_calls_persist_and_old_files_gain_the_table(tmp_path):
         assert r.get_cycle("C1").id == "C1" and r.list_llm_calls("C1") == []
         r.add_llm_call(_call())
         assert len(r.list_llm_calls("C1")) == 1
+
+
+def test_llm_calls_without_rejection_reason_column_is_migrated(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "r.db"
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1"))
+        r.add_llm_call(_call())
+    db = sqlite3.connect(path)
+    db.execute("ALTER TABLE llm_calls DROP COLUMN rejection_reason")  # schema of the previous round
+    db.commit()
+    db.close()
+    with SqliteRegistry(path) as r:
+        assert [c.rejection_reason for c in r.list_llm_calls("C1")] == [None]
+        r.add_llm_call(_call(outcome="invalid_output", rejection_reason="models: must not be empty"))
+        assert [c.rejection_reason for c in r.list_llm_calls("C1")] == [None, "models: must not be empty"]
+    with SqliteRegistry(path) as r:  # reopening a migrated file is a no-op
+        assert len(r.list_llm_calls("C1")) == 2
