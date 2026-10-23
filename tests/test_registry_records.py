@@ -124,3 +124,18 @@ def test_holdout_and_comparison_records_validated():
         ComparisonRecord("C1", "A1", "A0", 0.1, -1.0, True)
     with pytest.raises(ValidationError):
         ComparisonRecord("C1", "A1", "A0", 0.1, 0.0, "yes")
+
+
+def test_submission_entry_validation_and_no_credential_field():
+    from kaggle_agent.registry import SubmissionEntry
+
+    entry = SubmissionEntry("C1", "comp", "s1", "h" * 64, "msg", "2026-03-10T12:00:00+00:00", "pending")
+    assert entry.public_score is None and entry.completed_at is None
+    fields = {f.name for f in dataclasses.fields(SubmissionEntry)}
+    assert not {f for f in fields if any(w in f for w in ("token", "key", "secret", "credential"))}
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        entry.status = "complete"
+    for bad in ({"cycle_id": ""}, {"status": " "}, {"public_score": float("nan")}, {"message": None}):
+        data = {**dataclasses.asdict(entry), **bad}
+        with pytest.raises(ValidationError):
+            SubmissionEntry(**data)

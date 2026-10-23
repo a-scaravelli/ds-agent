@@ -190,3 +190,17 @@ def test_readme_cites_evaluation_api():
         "pandas", "numpy", "scikit-learn",
     ):
         assert name in readme, name
+
+
+def test_readme_cites_kaggle_client():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for name in (
+        "KaggleClient", "FakeKaggleClient", "load_credentials", "KAGGLE_API_TOKEN", "access_token",
+        "kaggle.json", "KAGGLE_USERNAME", "validate_submission", "DailyLimitReachedError",
+        "record_submission", "record_score", "SubmissionEntry", "Manual smoke test",
+        "not run by pytest", "explicit action of the user",
+    ):
+        assert name in readme, name
+    order = [readme.index(w) for w in ("`KAGGLE_API_TOKEN`", "`~/.kaggle/access_token`",
+                                       "`KAGGLE_USERNAME`", "`~/.kaggle/kaggle.json`")]
+    assert order == sorted(order)

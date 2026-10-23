@@ -24,6 +24,10 @@ Invariants every implementation must keep:
   closed). A holdout read needs an open session. Reads and comparisons are
   append-only. Which attempt may be read and what is compared is policy of
   the evaluation engine, not of the registry.
+- A submission entry references an existing cycle and is unique per
+  (competition, submission id). It is append-only except for one update of
+  status, score and completion time, accepted once and never with a
+  ``pending`` status.
 - A rejected call leaves the registry unchanged.
 """
 
@@ -32,7 +36,14 @@ from dataclasses import dataclass
 
 from kaggle_agent.proposals import Attempt, Suggestion
 
-from .records import ComparisonRecord, Cycle, ExecutionRecord, HoldoutRead, HoldoutSession
+from .records import (
+    ComparisonRecord,
+    Cycle,
+    ExecutionRecord,
+    HoldoutRead,
+    HoldoutSession,
+    SubmissionEntry,
+)
 
 
 @dataclass(frozen=True)
@@ -196,3 +207,22 @@ class Registry(ABC):
     @abstractmethod
     def count_comparisons(self, cycle_id: str) -> int:
         """Number of comparisons made in a cycle."""
+
+    @abstractmethod
+    def add_submission(self, entry: SubmissionEntry) -> None:
+        """Store a sent submission; the cycle must exist and the submission be new."""
+
+    @abstractmethod
+    def update_submission_score(
+        self,
+        competition: str,
+        submission_id: str,
+        status: str,
+        public_score: float | None,
+        completed_at: str,
+    ) -> None:
+        """Record the end of the scoring, once; a second update or ``pending`` raises."""
+
+    @abstractmethod
+    def list_submissions(self, cycle_id: str) -> list[SubmissionEntry]:
+        """Submissions of a cycle in insertion order."""

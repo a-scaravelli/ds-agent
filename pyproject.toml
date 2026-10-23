@@ -9,6 +9,7 @@ description = "Data science agent for tabular Kaggle competitions (design and sk
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "kaggle==2.2.4",
     "pandas==3.0.6",
     "numpy==2.5.4",
     "scikit-learn==1.9.1",

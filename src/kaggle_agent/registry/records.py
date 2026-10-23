@@ -307,3 +307,36 @@ class ComparisonRecord:
         object.__setattr__(self, "threshold", threshold)
         if not isinstance(self.is_real, bool):
             raise ValidationError("is_real", "must be a boolean")
+
+
+@dataclass(frozen=True)
+class SubmissionEntry:
+    """A submission sent to Kaggle and its public score (design sections 7 and 10).
+
+    Recorded when the submission is sent, with ``status`` as Kaggle reports it
+    (``pending``), and updated once when the scoring ends: ``completed_at``
+    is None until then and ``public_score`` is None unless it completed.
+    No credential field exists: the registry never holds one.
+    """
+
+    cycle_id: str
+    competition: str
+    submission_id: str
+    file_sha256: str
+    message: str
+    submitted_at: str
+    status: str
+    public_score: float | None = None
+    completed_at: str | None = None
+
+    def __post_init__(self) -> None:
+        for name in (
+            "cycle_id", "competition", "submission_id", "file_sha256", "submitted_at", "status",
+        ):
+            require_text(name, getattr(self, name))
+        if not isinstance(self.message, str):
+            raise ValidationError("message", "must be text")
+        if self.public_score is not None:
+            object.__setattr__(self, "public_score", _finite("public_score", self.public_score))
+        if self.completed_at is not None:
+            require_text("completed_at", self.completed_at)

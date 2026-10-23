@@ -6,11 +6,11 @@ Convention: the entire repository is in English (code, documentation, comments, 
 
 ## Current status
 
-Design plus the first pieces of code: the design document is in [docs/design.md](docs/design.md), the `proposals` subpackage of `kaggle_agent` holds the data model of plan, attempt and suggestion (ticket 1 of section 15 of the design) and the `registry` subpackage holds the attempt registry with traceability (ticket 2). The other subpackages are still empty. There is no modeling logic yet.
+Design plus the first pieces of code: the design document is in [docs/design.md](docs/design.md), the `proposals` subpackage of `kaggle_agent` holds the data model of plan, attempt and suggestion (ticket 1 of section 15 of the design) the `registry` subpackage holds the attempt registry with traceability (ticket 2), the `evaluation` subpackage the frozen evaluation engine (ticket 3) and the `kaggle` subpackage the Kaggle client with its fake (ticket 4). The other subpackages are still empty. There is no modeling logic yet.
 
 ## Stack
 
-Python 3.12, pandas, scikit-learn, LightGBM and local MLflow are a starting point, not a constraint: libraries are chosen ticket by ticket, with the criteria of section 1 of the design. For this reason `pyproject.toml` declares no runtime dependencies, and the data model uses only the standard library.
+Python 3.12, pandas, scikit-learn, LightGBM and local MLflow are a starting point, not a constraint: libraries are chosen ticket by ticket, with the criteria of section 1 of the design. The runtime dependencies are pinned with `==` in `pyproject.toml`: pandas, numpy and scikit-learn (only `evaluation` imports them) and the official `kaggle` package (only `kaggle/real.py` imports it). The data model, the registry and the rest of the Kaggle client use only the standard library.
 
 ## Data model (`kaggle_agent.proposals`)
 
@@ -92,6 +92,72 @@ with engine.holdout_session(frame) as session:  # one session per cycle
 
 A candidate implements `fit_predict(x_train, y_train, x_valid, seed)`. The engine does not persist executions: `result.execution` goes to `Registry.add_execution` (the loop ticket does that).
 
+## Kaggle client (`kaggle_agent.kaggle`)
+
+Access to Kaggle sits behind the `KaggleClient` interface. `FakeKaggleClient` is deterministic, in memory and offline, and is what every test uses. `kaggle/real.py` (`RealKaggleClient`) is a thin adapter on the official `kaggle` package, the only module that imports it, and it is never run by pytest. The choice against `kagglehub` and direct HTTP is in section 10 of the design.
+
+- `download(competition, dest_dir=None)`: files into `data/<competition>/` by default (ignored by git), with the SHA-256 and size of each file and a combined `data_hash`.
+- `get_competition_info(competition)`: description, rules page, evaluation page and data description as text, plus a read-only `pages` mapping with every page by name as Kaggle returns it (for example the FAQ). Pages are listed once and matched case-insensitively, with spaces, hyphens and underscores treated alike. If a required page (description, rules, evaluation) is missing it raises `KaggleError` naming the page and listing the available page names (never content); `data_description` is an empty string when there is no such page. Accepting the rules is a manual step on the competition website: there is no operation for it, and without it the client raises `RulesNotAcceptedError`.
+- `get_submission_spec`, `daily_limit`, `get_submission` and `wait_for_score(competition, submission_id, timeout, poll_interval)`: score read until it is complete or has failed on the Kaggle side; `ScoreTimeoutError` after the timeout.
+- `submit(competition, file, message)`: a template method of the base class. It always runs `validate_submission` (header and column order, row count, identifier column without gaps, duplicates or unknown ids, no empty prediction, all against the sample submission) and the daily limit check, and only then calls the `_send` hook of the implementation. `SubmissionFormatError` and `DailyLimitReachedError` are raised before anything is sent. The limit is per UTC day and comes from Kaggle in the real client; `DailyLimitGuard` (used by the fake) needs it as a required argument.
+- `record_submission(registry, cycle_id, record)` and `record_score(registry, record)` in `kaggle/recording.py` store the submission and its public score in the registry as a `SubmissionEntry` (the score is accepted once). The client itself never writes to the registry, and the score never changes the evaluation protocol.
+
+**Credentials.** Generate an API token on your Kaggle account page ("Generate New Token") and keep it outside the repo. `load_credentials()` looks in this order, first match wins:
+
+1. `KAGGLE_API_TOKEN` environment variable;
+2. `~/.kaggle/access_token` (permissions `600`);
+3. legacy `KAGGLE_USERNAME` and `KAGGLE_KEY` environment variables (both);
+4. legacy `~/.kaggle/kaggle.json` (permissions `600`).
+
+An empty value counts as absent. A credentials file readable by group or others raises `InsecureCredentialsError` (`chmod 600` it). `access_token` and `kaggle.json` are in `.gitignore`. Only the Kaggle client reads credentials; they are never logged, never put in an error message, never stored in the registry and never passed to the model or the sandbox. The secret is handed to the library object directly and `os.environ` is not modified.
+
+```python
+from kaggle_agent.kaggle import FakeCompetition, FakeKaggleClient, record_score, record_submission
+
+sample = "id,target\na,0\nb,0\n"
+client = FakeKaggleClient({"demo": FakeCompetition(
+    files={"train.csv": b"id,x,target\na,1,0\nb,2,1\n", "sample_submission.csv": sample.encode()},
+    description="Predict the target.", rules="Rules text.", evaluation="Metric: AUC.",
+    sample_submission=sample, daily_limit=2, score_script=(None, 0.8),
+)})
+print(client.download("demo", "/tmp/demo-data").data_hash)
+print(client.daily_limit("demo"))  # limit 2, used 0, remaining 2
+with open("/tmp/submission.csv", "w") as handle:
+    handle.write("id,target\na,0.3\nb,0.9\n")
+sent = client.submit("demo", "/tmp/submission.csv", "first try")  # validated, then sent
+final = client.wait_for_score("demo", sent.submission_id, timeout=60, poll_interval=5)
+print(final.status, final.public_score)  # complete 0.8
+# with a registry and a cycle: record_submission(registry, "C1", sent); record_score(registry, final)
+```
+
+### Manual smoke test against real Kaggle
+
+This is not run by pytest and needs your account and network: the automated tests never contact Kaggle. It is the only real check of the adapter.
+
+The first run of this smoke test found a bug that the stub-based tests could not catch: `AttributeError: module 'kaggle' has no attribute '__version__'` after the HTTP response (reproduced with `kaggle==2.2.4`). The fix and its regression test are in `kaggle/real.py` and `tests/test_kaggle_real.py`.
+
+The second run found a second bug, again invisible to the stub tests: `get_competition_info('titanic')` returned an empty `description` and `evaluation`. Kaggle's page names are not consistently lowercase (`'rules'`, `'Description'`, `'Evaluation'`, `'data-description'`, `'Frequently Asked Questions'`) and the adapter asked for exact lowercase names. The fix lists the pages once per call and matches names case-insensitively with normalized separators; `data_description` and `pages` were added. The regression tests use a stub with exactly those page names. Rerun the check below to confirm all four fields are filled.
+
+1. Generate a token on the account page, save it to `~/.kaggle/access_token` and run `chmod 600 ~/.kaggle/access_token` (or export `KAGGLE_API_TOKEN`).
+2. Choose a competition and accept its rules by hand on the website.
+3. Read-only checks (no submission): run the following from the repository.
+
+```python
+from kaggle_agent.kaggle.real import RealKaggleClient
+
+client = RealKaggleClient()  # credentials resolved with the lookup order above
+print(client.daily_limit("titanic"))
+info = client.get_competition_info("titanic")
+print(info.evaluation[:200])
+print(list(info.pages))  # the page names as Kaggle returns them
+print(info.data_description[:200])
+print(client.download("titanic").data_hash)
+```
+
+4. Optional and only as an explicit action of the user after the review: a single `client.submit("titanic", "submission.csv", "smoke test")` followed by `wait_for_score`. It uses one of your daily submissions. Nothing in the code base calls `submit` automatically.
+
+Check in particular that a competition whose rules you have not accepted gives `RulesNotAcceptedError`, and that no token appears in any output.
+
 ## Deliverable and traceability
 
 The output of every cycle is an end-to-end Python pipeline that runs with a single command and is reproducible (or several pipelines, to compare variants), linked to the attempt it comes from. Every attempt records hypothesis and rationale, originating attempt and what changed, configuration, metrics, duration, outcome and artifacts; a web interface (list/timeline, metric chart, detail, suggestions and cycles) makes them consultable without reading code. The polished graphic design is deferred to a later ticket.
@@ -109,15 +175,17 @@ The tests do not use the network.
 ## Structure
 
 - `docs/design.md`: design in 16 sections (cycle, frozen evaluation, registry, Kaggle, ticket plan).
-- `src/kaggle_agent/`: package with the subpackages `proposals` (data model), `registry` (attempt registry), `evaluation` (protocol, split, holdout, threshold), `loop`, `kaggle`, `llm`, `sandbox`, `review`, `budget`; `evaluation` holds the evaluation engine; `loop`, `kaggle`, `llm`, `sandbox`, `review` and `budget` are still empty.
-- `tests/`: check the 16 sections of the design, the data model and its examples, the language convention, the test map, that the package imports, and the registry behavior (deduplication, fix retries, queries, persistence), the evaluation engine (protocol, schemes, split, holdout session, threshold, hash), and that third-party libraries are imported only by `evaluation`.
+- `src/kaggle_agent/`: package with the subpackages `proposals` (data model), `registry` (attempt registry), `evaluation` (protocol, split, holdout, threshold), `loop`, `kaggle`, `llm`, `sandbox`, `review`, `budget`; `evaluation` holds the evaluation engine and `kaggle` the Kaggle client (interface, fake, credentials, submission rules, recording, real adapter); `loop`, `llm`, `sandbox`, `review` and `budget` are still empty.
+- `tests/`: check the 16 sections of the design, the data model and its examples, the language convention, the test map, that the package imports, and the registry behavior (deduplication, fix retries, queries, persistence), the evaluation engine (protocol, schemes, split, holdout session, threshold, hash), the Kaggle client on the fake and on a stub of the library, and that third-party libraries are imported only by `evaluation` and by `kaggle/real.py`.
 
 ## Known limits
 
-- There is still no runnable command of the agent: only the data model, the registry and the evaluation engine exist.
+- The placeholder import in `load_api_class()` depends on the internals of the pinned `kaggle` version (it skips the package `__init__` and supplies only `__version__`). Recheck it, together with the source-scan test in `tests/test_kaggle_real.py`, whenever the pin in `pyproject.toml` changes.
+- There is still no runnable command of the agent: only the data model, the registry, the evaluation engine and the Kaggle client exist.
+- The real Kaggle adapter is checked only by the manual smoke test: its mapping of responses is tested against a stub built from the source of the official package, and the exact error for unaccepted rules is to be confirmed by hand. The policy of when a submission is worthwhile and the reserve for the last hours are not implemented (loop and review tickets); the key-like-string check of the artifacts belongs to the tickets that save artifacts. The official package has several transitive dependencies that are not pinned individually.
 - The holdout guarantee is one of interface and log (one session per cycle, every read logged in the registry). Real isolation from generated code arrives with the sandbox (ticket 6).
 - The hash covers the bytes of the `evaluation` sources: any edit of the package invalidates the frozen protocols of open cycles. Library versions are outside the hash and recorded in `resources`. Raising the threshold with the number of comparisons is not implemented; the count is only recorded.
 - The registry is meant for a single process; multi-process access is not tested. The cycle `state` is free text until the `loop` ticket, and an iteration recorded `inconclusive` after repeated rejected proposals cannot be represented yet (open point in section 7 of the design). The semantic level of deduplication (section 7) is left to the loop ticket.
 - The tests on the design check structure and keywords, not the quality of the content. The language test is a heuristic (Italian function words and identifiers), not a proof that every sentence is English.
 - The word count of the plan (split on whitespace) is a simple proxy for "one page". `id` and `phase` have no format constraints yet: they belong to the registry and loop tickets.
-- The test that forbids third-party dependencies will have to be relaxed when the development tickets arrive.
+- The guard on third-party dependencies is relaxed one package at a time: `evaluation` may import pandas, numpy and scikit-learn, and only `kaggle/real.py` may import the official `kaggle` package.

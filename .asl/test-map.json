@@ -2,348 +2,60 @@
  "cases": {
   "1": [
    {
-    "file": "tests/test_evaluation_protocol.py",
-    "name": "test_protocol_is_separate_from_short_plan_and_round_trips"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_mixed_case_pages_fill_description_evaluation_rules_and_data_description"
    }
   ],
   "2": [
    {
-    "file": "tests/test_evaluation_protocol.py",
-    "name": "test_protocol_without_scheme_is_rejected_and_code_has_no_default"
-   },
-   {
-    "file": "tests/test_evaluation_schemes.py",
-    "name": "test_no_scheme_is_registered_as_default_and_determinism_is_declared"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_pages_are_listed_once_and_without_page_name"
    }
   ],
   "3": [
    {
-    "file": "tests/test_evaluation_protocol.py",
-    "name": "test_protocol_without_metric_is_rejected"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_every_page_is_kept_in_the_pages_mapping"
+   },
+   {
+    "file": "tests/test_kaggle_fake.py",
+    "name": "test_competition_info_has_data_description_and_every_page"
    }
   ],
   "4": [
    {
-    "file": "tests/test_evaluation_protocol.py",
-    "name": "test_protocol_without_direction_is_rejected"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_missing_required_page_raises_naming_it_and_the_available_names"
+   },
+   {
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_missing_data_description_is_an_empty_string"
    }
   ],
   "5": [
    {
-    "file": "tests/test_evaluation_metrics.py",
-    "name": "test_each_metric_declares_natural_direction_and_protocol_must_agree"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_page_names_are_normalized_across_case_and_separators"
    }
   ],
   "6": [
    {
-    "file": "tests/test_evaluation_metrics.py",
-    "name": "test_registering_a_metric_requires_a_valid_direction"
-   }
-  ],
-  "7": [
-   {
-    "file": "tests/test_evaluation_metrics.py",
-    "name": "test_metrics_by_name_from_extensible_registry_not_callables"
-   }
-  ],
-  "8": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_metric_is_computed_from_the_protocol_not_hardcoded"
-   }
-  ],
-  "9": [
-   {
-    "file": "tests/test_evaluation_schemes.py",
-    "name": "test_random_scheme_with_and_without_stratification"
-   }
-  ],
-  "10": [
-   {
-    "file": "tests/test_evaluation_schemes.py",
-    "name": "test_group_scheme_never_shares_a_group"
-   }
-  ],
-  "11": [
-   {
-    "file": "tests/test_evaluation_schemes.py",
-    "name": "test_chronological_scheme_validation_and_holdout_are_later"
-   }
-  ],
-  "12": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_deterministic_scheme_repetitions_change_only_the_candidate_seed"
-   },
-   {
-    "file": "tests/test_evaluation_split.py",
-    "name": "test_deterministic_scheme_repetitions_keep_identical_folds"
-   }
-  ],
-  "13": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_baseline_dispersion_captures_model_seed_noise"
-   }
-  ],
-  "14": [
-   {
-    "file": "tests/test_evaluation_schemes.py",
-    "name": "test_scheme_registry_is_extensible_and_checks_names_params_and_columns"
-   }
-  ],
-  "15": [
-   {
-    "file": "tests/test_evaluation_split.py",
-    "name": "test_same_seed_same_split_different_seed_differs"
-   }
-  ],
-  "16": [
-   {
-    "file": "tests/test_evaluation_split.py",
-    "name": "test_random_repetitions_differ_but_are_deterministic"
-   }
-  ],
-  "17": [
-   {
-    "file": "tests/test_evaluation_split.py",
-    "name": "test_split_exposes_only_development_data"
-   }
-  ],
-  "18": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_holdout_read_logged_and_candidate_never_sees_holdout_labels"
-   }
-  ],
-  "19": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_one_session_with_best_attempt_and_requested_variants"
-   }
-  ],
-  "20": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_no_read_after_the_session_is_closed"
-   }
-  ],
-  "21": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_read_without_open_session_refused"
-   },
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_holdout_session_rules_and_log"
-   }
-  ],
-  "22": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_attempt_cannot_be_read_twice_in_a_session"
-   }
-  ],
-  "23": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_failed_evaluation_still_consumes_the_session"
-   }
-  ],
-  "24": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_holdout_does_not_change_validation_decisions"
-   }
-  ],
-  "25": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_run_blocked_when_protocol_differs_from_frozen"
-   }
-  ],
-  "26": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_hash_checked_before_every_holdout_read"
-   }
-  ],
-  "27": [
-   {
-    "file": "tests/test_evaluation_hashing.py",
-    "name": "test_modified_evaluation_code_blocks_the_run"
-   },
-   {
-    "file": "tests/test_evaluation_hashing.py",
-    "name": "test_code_hash_changes_with_py_sources_only"
-   }
-  ],
-  "28": [
-   {
-    "file": "tests/test_evaluation_hashing.py",
-    "name": "test_code_hash_is_computed_at_runtime_not_a_manual_constant"
-   }
-  ],
-  "29": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_library_versions_recorded_in_resources_and_stable_hash"
-   },
-   {
-    "file": "tests/test_evaluation_hashing.py",
-    "name": "test_library_versions_are_outside_the_hash"
-   }
-  ],
-  "30": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_hash_frozen_on_the_cycle_once_and_persisted"
-   },
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_protocol_hash_written_once_and_persisted"
-   }
-  ],
-  "31": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_unfrozen_cycle_is_refused"
-   }
-  ],
-  "32": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_ticket_2_sqlite_file_is_migrated"
-   }
-  ],
-  "33": [
-   {
-    "file": "tests/test_evaluation_threshold.py",
-    "name": "test_threshold_applied_only_strictly_above_k_times_dispersion"
-   }
-  ],
-  "34": [
-   {
-    "file": "tests/test_evaluation_threshold.py",
-    "name": "test_k_comes_from_the_protocol"
-   },
-   {
-    "file": "tests/test_evaluation_protocol.py",
-    "name": "test_threshold_k_missing_or_negative_is_rejected"
-   }
-  ],
-  "35": [
-   {
-    "file": "tests/test_evaluation_threshold.py",
-    "name": "test_paired_on_same_partitions_with_reference_from_caller"
-   }
-  ],
-  "36": [
-   {
-    "file": "tests/test_evaluation_threshold.py",
-    "name": "test_metric_direction_is_respected"
-   }
-  ],
-  "37": [
-   {
-    "file": "tests/test_evaluation_threshold.py",
-    "name": "test_dispersion_is_sample_standard_deviation"
-   },
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_dispersion_of_two_repetitions_by_three_folds_is_reported"
-   },
-   {
-    "file": "tests/test_evaluation_protocol.py",
-    "name": "test_fewer_than_two_partitions_is_rejected"
-   }
-  ],
-  "38": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_comparisons_counted_and_threshold_does_not_grow_with_count"
-   },
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_comparisons_stored_and_counted"
-   }
-  ],
-  "39": [
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_execution_record_fits_the_registry_types"
-   }
-  ],
-  "40": [
-   {
-    "file": "tests/test_evaluation_split.py",
-    "name": "test_input_dataframe_is_not_modified_and_candidates_get_pandas"
-   },
-   {
-    "file": "tests/test_evaluation_engine.py",
-    "name": "test_input_dataframe_unchanged_by_evaluation"
-   }
-  ],
-  "41": [
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_runtime_dependencies_are_exactly_the_three_pinned_libraries"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_third_party_imports_only_in_evaluation"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_pyproject_runtime_dependencies_are_the_three_confirmed_libraries"
-   }
-  ],
-  "42": [
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_evaluation_imports_only_allowed_modules"
-   }
-  ],
-  "43": [
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_library_decision_documented_in_design"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_design_prescribes_no_fixed_metrics_or_techniques"
-   }
-  ],
-  "44": [
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_section_6_describes_one_holdout_session_per_cycle"
-   }
-  ],
-  "45": [
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_sections_5_and_6_document_deterministic_repetitions"
-   }
-  ],
-  "46": [
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_holdout_isolation_limit_documented"
-   }
-  ],
-  "47": [
-   {
     "file": "tests/test_repo_language.py",
-    "name": "test_readme_cites_evaluation_api"
-   },
-   {
-    "file": "tests/test_repo_language.py",
-    "name": "test_repo_text_has_no_italian_function_words"
+    "name": "test_readme_cites_kaggle_client"
    },
    {
     "file": "tests/test_test_map.py",
     "name": "test_test_map_entries_exist"
+   }
+  ],
+  "7": [
+   {
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_responses_map_to_model_types"
+   },
+   {
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_library_errors_map_to_sanitized_kaggle_errors"
    }
   ]
  }
