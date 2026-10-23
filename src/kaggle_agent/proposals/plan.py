@@ -38,6 +38,24 @@ class ShortPlan:
                 "plan", f"has {words} words, over the limit of {MAX_PLAN_WORDS}"
             )
 
+    @classmethod
+    def contract_hints(cls) -> dict[str, str]:
+        """Validation constraints per field, for the JSON contract asked of the model.
+
+        ``__all__`` holds the rules on the whole object.
+        """
+        return {
+            "metric": "non-empty string",
+            "validation": "non-empty string",
+            "baseline": "non-empty string",
+            "feature_engineering": "non-empty list of non-empty strings",
+            "models": "non-empty list of non-empty strings",
+            "__all__": (
+                f"the five items together must stay within {MAX_PLAN_WORDS} "
+                "whitespace-separated words"
+            ),
+        }
+
     def word_count(self) -> int:
         """Number of whitespace-separated words across the five items."""
         parts = [self.metric, self.validation, self.baseline]

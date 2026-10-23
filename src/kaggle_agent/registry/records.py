@@ -348,7 +348,8 @@ class LlmCallEntry:
     """Consumption of one invocation of the language model CLI (design sections 7 and 11).
 
     Holds only what the budget needs to read back after a suspension: no
-    prompt, no response and no access token. Token counts are None when the
+    prompt, no response and no access token. ``rejection_reason`` is the
+    sanitized validation reason of an ``invalid_output`` call. Token counts are None when the
     CLI did not report them; ``model`` is None when it is not known.
     """
 
@@ -361,6 +362,7 @@ class LlmCallEntry:
     output_tokens: int | None = None
     attempt: int = 1
     model: str | None = None
+    rejection_reason: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("cycle_id", "purpose", "started_at"):
@@ -377,3 +379,9 @@ class LlmCallEntry:
         _int("attempt", self.attempt, 1)
         if self.model is not None:
             require_text("model", self.model)
+        if self.rejection_reason is not None:
+            require_text("rejection_reason", self.rejection_reason)
+            if self.outcome != "invalid_output":
+                raise ValidationError(
+                    "rejection_reason", "is only allowed for the invalid_output outcome"
+                )

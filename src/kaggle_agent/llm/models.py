@@ -68,6 +68,8 @@ class CallRecord:
 
     ``model`` is the model the CLI reported, else the one requested, else None.
     ``attempt`` counts invocations inside one ``ask`` (retries included).
+    ``rejection_reason`` is only set for ``invalid_output``: the sanitized
+    'field: reason' of the validation error, never the model's text.
     """
 
     purpose: str
@@ -78,6 +80,7 @@ class CallRecord:
     attempt: int
     model: str | None = None
     stripped_variables: tuple[str, ...] = ()
+    rejection_reason: str | None = None
 
 
 @dataclass(frozen=True)

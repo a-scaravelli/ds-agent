@@ -108,7 +108,8 @@ CREATE TABLE IF NOT EXISTS llm_calls (
     input_tokens INTEGER,
     output_tokens INTEGER,
     attempt INTEGER NOT NULL,
-    model TEXT
+    model TEXT,
+    rejection_reason TEXT
 );
 """
 
@@ -134,6 +135,9 @@ class SqliteRegistry(Registry):
         columns = [r[1] for r in self._db.execute("PRAGMA table_info(cycles)")]
         if "protocol_hash" not in columns:
             self._db.execute("ALTER TABLE cycles ADD COLUMN protocol_hash TEXT")
+        llm_columns = [r[1] for r in self._db.execute("PRAGMA table_info(llm_calls)")]
+        if "rejection_reason" not in llm_columns:
+            self._db.execute("ALTER TABLE llm_calls ADD COLUMN rejection_reason TEXT")
 
     def close(self) -> None:
         self._db.close()
@@ -645,7 +649,9 @@ class SqliteRegistry(Registry):
         with self._transaction():
             self._require_cycle_row(entry.cycle_id)
             self._db.execute(
-                "INSERT INTO llm_calls VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO llm_calls (cycle_id, purpose, outcome, started_at, "
+                "duration_seconds, input_tokens, output_tokens, attempt, model, "
+                "rejection_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     entry.cycle_id,
                     entry.purpose,
@@ -656,6 +662,7 @@ class SqliteRegistry(Registry):
                     entry.output_tokens,
                     entry.attempt,
                     entry.model,
+                    entry.rejection_reason,
                 ),
             )
 
@@ -663,7 +670,7 @@ class SqliteRegistry(Registry):
         self._require_cycle_row(cycle_id)
         rows = self._db.execute(
             "SELECT cycle_id, purpose, outcome, started_at, duration_seconds, "
-            "input_tokens, output_tokens, attempt, model FROM llm_calls "
+            "input_tokens, output_tokens, attempt, model, rejection_reason FROM llm_calls "
             "WHERE cycle_id = ? ORDER BY rowid",
             (cycle_id,),
         ).fetchall()

@@ -22,6 +22,7 @@ def record_call(registry: Registry, cycle_id: str, call: CallRecord) -> LlmCallE
         output_tokens=call.usage.output_tokens,
         attempt=call.attempt,
         model=call.model,
+        rejection_reason=call.rejection_reason,
     )
     registry.add_llm_call(entry)
     return entry

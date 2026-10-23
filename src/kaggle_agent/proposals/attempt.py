@@ -66,6 +66,22 @@ class Attempt:
                 "evidence", "is required unless the attempt is marked exploratory"
             )
 
+    @classmethod
+    def contract_hints(cls) -> dict[str, str]:
+        """Validation constraints per field, for the JSON contract asked of the model.
+
+        ``__all__`` holds the rules on the whole object.
+        """
+        hints = {name: "non-empty string" for name in _REQUIRED_TEXT}
+        hints["parent_id"] = "if present, a non-empty string different from id"
+        for name in ("expected_effect", "estimated_cost"):
+            hints[name] = "if present, a non-empty string"
+        for name in _LISTS:
+            hints[name] = "list of non-empty strings (may be empty)"
+        hints["exploratory"] = "true or false"
+        hints["__all__"] = "if evidence is empty, exploratory must be true"
+        return hints
+
     def to_dict(self) -> dict:
         out = {}
         for name in _FIELDS:

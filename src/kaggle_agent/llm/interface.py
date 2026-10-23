@@ -17,7 +17,9 @@ Invariants every implementation keeps:
   injected ``sleep``; an exhausted quota is raised at once, without waiting.
 - A malformed or invalid answer is retried at most ``max_validation_retries``
   times, passing the validation error back with the original prompt (stateless,
-  no session resume), then ``InvalidResponseError`` is raised.
+  no session resume), then ``InvalidResponseError`` is raised. The reason
+  recorded for a rejected answer is sanitized: field and reason of the
+  ``ValidationError``, no text of the model and no secret.
 - Tools and working directory come only from the ``ToolPermissions`` the
   caller passes; the adapter never widens them.
 - The model is ``None`` (default of the CLI) unless the client or the call
@@ -55,7 +57,7 @@ from .models import (
     Usage,
     summarize,
 )
-from .structured import json_contract, parse_structured
+from .structured import json_contract, parse_structured, sanitize_rejection
 
 
 def _utc_now() -> datetime:
@@ -166,7 +168,7 @@ class LlmClient(ABC):
                 )
             duration = max(self._clock() - started, 0.0)
 
-            def record(outcome: str) -> None:
+            def record(outcome: str, rejection_reason: str | None = None) -> None:
                 reported = raw.model if raw is not None else None
                 call = CallRecord(
                     purpose=purpose,
@@ -177,6 +179,7 @@ class LlmClient(ABC):
                     attempt=len(calls) + 1,
                     model=reported or requested,
                     stripped_variables=raw.stripped_variables if raw is not None else (),
+                    rejection_reason=rejection_reason,
                 )
                 calls.append(call)
                 self._log.append(call)
@@ -201,7 +204,7 @@ class LlmClient(ABC):
             try:
                 value = parse_structured(raw.text, output_type)
             except ValidationError as exc:
-                record(OUTCOME_INVALID_OUTPUT)
+                record(OUTCOME_INVALID_OUTPUT, sanitize_rejection(exc, output_type))
                 if validation_retries >= self._max_validation_retries:
                     raise InvalidResponseError(str(exc), validation_retries + 1) from None
                 validation_retries += 1
