@@ -22,6 +22,7 @@ from .records import (
     ExecutionRecord,
     HoldoutRead,
     HoldoutSession,
+    LlmCallEntry,
     SubmissionEntry,
     _finite,
 )
@@ -97,6 +98,17 @@ CREATE TABLE IF NOT EXISTS submissions (
     public_score REAL,
     completed_at TEXT,
     PRIMARY KEY (competition, submission_id)
+);
+CREATE TABLE IF NOT EXISTS llm_calls (
+    cycle_id TEXT NOT NULL REFERENCES cycles(id),
+    purpose TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    duration_seconds REAL NOT NULL,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    attempt INTEGER NOT NULL,
+    model TEXT
 );
 """
 
@@ -626,3 +638,33 @@ class SqliteRegistry(Registry):
             (cycle_id,),
         ).fetchall()
         return [SubmissionEntry(*row) for row in rows]
+
+    # -- language model calls -------------------------------------------------
+
+    def add_llm_call(self, entry: LlmCallEntry) -> None:
+        with self._transaction():
+            self._require_cycle_row(entry.cycle_id)
+            self._db.execute(
+                "INSERT INTO llm_calls VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    entry.cycle_id,
+                    entry.purpose,
+                    entry.outcome,
+                    entry.started_at,
+                    entry.duration_seconds,
+                    entry.input_tokens,
+                    entry.output_tokens,
+                    entry.attempt,
+                    entry.model,
+                ),
+            )
+
+    def list_llm_calls(self, cycle_id: str) -> list[LlmCallEntry]:
+        self._require_cycle_row(cycle_id)
+        rows = self._db.execute(
+            "SELECT cycle_id, purpose, outcome, started_at, duration_seconds, "
+            "input_tokens, output_tokens, attempt, model FROM llm_calls "
+            "WHERE cycle_id = ? ORDER BY rowid",
+            (cycle_id,),
+        ).fetchall()
+        return [LlmCallEntry(*row) for row in rows]

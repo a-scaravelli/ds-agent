@@ -10,6 +10,7 @@ from kaggle_agent.proposals.errors import check_keys, loads_object, require_text
 OUTCOMES = ("succeeded", "failed", "inconclusive")
 FAILURE_KINDS = ("code_error", "hypothesis_falsified", "timeout", "below_threshold")
 DEFAULT_MAX_FIX_RETRIES = 3
+LLM_OUTCOMES = ("ok", "rate_limited", "quota", "cli_error", "invalid_output")
 
 _METRIC_FIELDS = ("partition", "mean", "dispersion")
 _EXEC_FIELDS = (
@@ -340,3 +341,39 @@ class SubmissionEntry:
             object.__setattr__(self, "public_score", _finite("public_score", self.public_score))
         if self.completed_at is not None:
             require_text("completed_at", self.completed_at)
+
+
+@dataclass(frozen=True)
+class LlmCallEntry:
+    """Consumption of one invocation of the language model CLI (design sections 7 and 11).
+
+    Holds only what the budget needs to read back after a suspension: no
+    prompt, no response and no access token. Token counts are None when the
+    CLI did not report them; ``model`` is None when it is not known.
+    """
+
+    cycle_id: str
+    purpose: str
+    outcome: str
+    started_at: str
+    duration_seconds: float
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    attempt: int = 1
+    model: str | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("cycle_id", "purpose", "started_at"):
+            require_text(name, getattr(self, name))
+        if self.outcome not in LLM_OUTCOMES:
+            raise ValidationError("outcome", f"must be one of {', '.join(LLM_OUTCOMES)}")
+        duration = _finite("duration_seconds", self.duration_seconds)
+        if duration < 0:
+            raise ValidationError("duration_seconds", "must not be negative")
+        object.__setattr__(self, "duration_seconds", duration)
+        for name in ("input_tokens", "output_tokens"):
+            if getattr(self, name) is not None:
+                _int(name, getattr(self, name), 0)
+        _int("attempt", self.attempt, 1)
+        if self.model is not None:
+            require_text("model", self.model)
