@@ -6,11 +6,11 @@ Convention: the entire repository is in English (code, documentation, comments, 
 
 ## Current status
 
-Design plus the first pieces of code: the design document is in [docs/design.md](docs/design.md), the `proposals` subpackage of `kaggle_agent` holds the data model of plan, attempt and suggestion (ticket 1 of section 15 of the design) the `registry` subpackage holds the attempt registry with traceability (ticket 2), the `evaluation` subpackage the frozen evaluation engine (ticket 3) and the `kaggle` subpackage the Kaggle client with its fake (ticket 4). The other subpackages are still empty. There is no modeling logic yet.
+Design plus the first pieces of code: the design document is in [docs/design.md](docs/design.md), the `proposals` subpackage of `kaggle_agent` holds the data model of plan, attempt and suggestion (ticket 1 of section 15 of the design) the `registry` subpackage holds the attempt registry with traceability (ticket 2), the `evaluation` subpackage the frozen evaluation engine (ticket 3) the `kaggle` subpackage the Kaggle client with its fake (ticket 4) and the `llm` subpackage the headless Claude adapter with its fake (ticket 5). The other subpackages are still empty. There is no modeling logic yet.
 
 ## Stack
 
-Python 3.12, pandas, scikit-learn, LightGBM and local MLflow are a starting point, not a constraint: libraries are chosen ticket by ticket, with the criteria of section 1 of the design. The runtime dependencies are pinned with `==` in `pyproject.toml`: pandas, numpy and scikit-learn (only `evaluation` imports them) and the official `kaggle` package (only `kaggle/real.py` imports it). The data model, the registry and the rest of the Kaggle client use only the standard library.
+Python 3.12, pandas, scikit-learn, LightGBM and local MLflow are a starting point, not a constraint: libraries are chosen ticket by ticket, with the criteria of section 1 of the design. The runtime dependencies are pinned with `==` in `pyproject.toml`: pandas, numpy and scikit-learn (only `evaluation` imports them) and the official `kaggle` package (only `kaggle/real.py` imports it). The data model, the registry, the rest of the Kaggle client and the Claude adapter use only the standard library (the adapter spawns the `claude` CLI, which is not a Python dependency).
 
 ## Data model (`kaggle_agent.proposals`)
 
@@ -158,6 +158,54 @@ print(client.download("titanic").data_hash)
 
 Check in particular that a competition whose rules you have not accepted gives `RulesNotAcceptedError`, and that no token appears in any output.
 
+## Claude adapter (`kaggle_agent.llm`)
+
+Headless Claude Code with the user's subscription, never the paid API. `LlmClient.ask(prompt, output_type, permissions, purpose, model=None)` asks the model for a JSON object, validates it with a proposal type (`ShortPlan`, `Attempt`, ...) and returns an `LlmResult` with the validated `value`, the `calls` (one `CallRecord` per CLI invocation) and the `consumption` (`Consumption`: calls, tokens when reported, duration, rate limit events). Details and the verified CLI facts (version 2.1.296) are in section 8 of the design.
+
+- `FakeLlmClient(script)`: deterministic fake used by all tests. The script is a list of steps: `Reply`, `Malformed`, `RateLimited`, `QuotaExhausted` and `CliCrash`. `valid_plan_json()` and `valid_attempt_json()` build valid payloads.
+- `RealClaudeClient`: runs `claude -p --output-format json` with the prompt on stdin. It is not exported by `kaggle_agent.llm`; import it from `kaggle_agent.llm.real`. It strips `ANTHROPIC_API_KEY` (and the other paid-API variables) from the environment of the process and logs a WARNING that names the variable and never its value; the names removed appear in `stripped_variables`. The access token (for example `CLAUDE_CODE_OAUTH_TOKEN`) is never logged, stored or passed on.
+- `ToolPermissions(working_dir, allowed_tools=())`: the explicit, minimal set of tools and the working directory chosen by the caller. The default allows no tool. It is the only interface the sandbox (ticket 6) will need.
+- `model`: optional on the client and on each call; `None` is the default of the CLI. No model name is in the code; the model used by each call is recorded.
+- Errors: `LlmError` and its subclasses `RateLimitError`, `QuotaExhaustedError`, `CliFailureError` and `InvalidResponseError`. An invalid answer is retried a bounded number of times with the validation error passed back; a rate limit is retried with `BackoffPolicy` and an injected sleep; an exhausted quota is raised at once. The client reports consumption and enforces no budget.
+- `record_call(registry, cycle_id, call)` stores a `CallRecord` in the registry (`llm_calls` table, `LlmCallEntry`): outcome, duration, tokens and model, never a prompt, a response or a token.
+
+```python
+import functools
+import tempfile
+
+from kaggle_agent.llm import FakeLlmClient, Reply, ToolPermissions, record_call, valid_plan_json
+from kaggle_agent.proposals import ShortPlan
+
+# with a registry and a cycle: on_call=functools.partial(record_call, registry, "C1")
+client = FakeLlmClient([Reply(valid_plan_json())])
+permissions = ToolPermissions(working_dir=tempfile.gettempdir(), allowed_tools=("Read",))
+result = client.ask("Propose a plan.", ShortPlan, permissions, purpose="plan")
+assert isinstance(result.value, ShortPlan) and result.consumption.calls == 1
+```
+
+### Manual smoke test against the real CLI
+
+Not run by pytest. It uses your Claude subscription quota (a few calls).
+
+1. Install Claude Code and log in with your subscription (`claude` once interactively, or set `CLAUDE_CODE_OAUTH_TOKEN`). Make sure `ANTHROPIC_API_KEY` is not needed: if set, the adapter removes it and warns.
+2. Run, from a Python shell in an empty directory:
+
+```python
+import tempfile
+from kaggle_agent.llm import ToolPermissions
+from kaggle_agent.llm.real import RealClaudeClient
+from kaggle_agent.proposals import ShortPlan
+
+client = RealClaudeClient()   # optional: model="<name or alias>"
+permissions = ToolPermissions(working_dir=tempfile.mkdtemp())   # no tool
+result = client.ask("Propose a short plan for a tabular classification competition.",
+                    ShortPlan, permissions, purpose="smoke")
+print(result.value, result.consumption, result.calls[0].model, result.stripped_variables)
+```
+
+3. Check that the answer is a valid `ShortPlan`, that tokens and the model are reported (if not, they stay `None`), that no token appears in any output, and, with `ANTHROPIC_API_KEY` exported, that a WARNING names it and the call still uses the subscription.
+4. Rate limit and quota messages are not verified: if you hit one, check that it is classified as `RateLimitError` or `QuotaExhaustedError` and report the exact message so the patterns in `llm/real.py` can be fixed.
+
 ## Deliverable and traceability
 
 The output of every cycle is an end-to-end Python pipeline that runs with a single command and is reproducible (or several pipelines, to compare variants), linked to the attempt it comes from. Every attempt records hypothesis and rationale, originating attempt and what changed, configuration, metrics, duration, outcome and artifacts; a web interface (list/timeline, metric chart, detail, suggestions and cycles) makes them consultable without reading code. The polished graphic design is deferred to a later ticket.
@@ -175,13 +223,13 @@ The tests do not use the network.
 ## Structure
 
 - `docs/design.md`: design in 16 sections (cycle, frozen evaluation, registry, Kaggle, ticket plan).
-- `src/kaggle_agent/`: package with the subpackages `proposals` (data model), `registry` (attempt registry), `evaluation` (protocol, split, holdout, threshold), `loop`, `kaggle`, `llm`, `sandbox`, `review`, `budget`; `evaluation` holds the evaluation engine and `kaggle` the Kaggle client (interface, fake, credentials, submission rules, recording, real adapter); `loop`, `llm`, `sandbox`, `review` and `budget` are still empty.
-- `tests/`: check the 16 sections of the design, the data model and its examples, the language convention, the test map, that the package imports, and the registry behavior (deduplication, fix retries, queries, persistence), the evaluation engine (protocol, schemes, split, holdout session, threshold, hash), the Kaggle client on the fake and on a stub of the library, and that third-party libraries are imported only by `evaluation` and by `kaggle/real.py`.
+- `src/kaggle_agent/`: package with the subpackages `proposals` (data model), `registry` (attempt registry), `evaluation` (protocol, split, holdout, threshold), `loop`, `kaggle`, `llm`, `sandbox`, `review`, `budget`; `evaluation` holds the evaluation engine, `kaggle` the Kaggle client (interface, fake, credentials, submission rules, recording, real adapter) and `llm` the Claude adapter (interface, fake, structured output, environment, recording, real adapter); `loop`, `sandbox`, `review` and `budget` are still empty.
+- `tests/`: check the 16 sections of the design, the data model and its examples, the language convention, the test map, that the package imports, and the registry behavior (deduplication, fix retries, queries, persistence), the evaluation engine (protocol, schemes, split, holdout session, threshold, hash), the Kaggle client on the fake and on a stub of the library, the Claude adapter on the fake and on a fake process runner, and that third-party libraries are imported only by `evaluation` and by `kaggle/real.py`.
 
 ## Known limits
 
 - The placeholder import in `load_api_class()` depends on the internals of the pinned `kaggle` version (it skips the package `__init__` and supplies only `__version__`). Recheck it, together with the source-scan test in `tests/test_kaggle_real.py`, whenever the pin in `pyproject.toml` changes.
-- There is still no runnable command of the agent: only the data model, the registry, the evaluation engine and the Kaggle client exist.
+- There is still no runnable command of the agent: only the data model, the registry, the evaluation engine, the Kaggle client and the Claude adapter exist.
 - The real Kaggle adapter is checked only by the manual smoke test: its mapping of responses is tested against a stub built from the source of the official package, and the exact error for unaccepted rules is to be confirmed by hand. The policy of when a submission is worthwhile and the reserve for the last hours are not implemented (loop and review tickets); the key-like-string check of the artifacts belongs to the tickets that save artifacts. The official package has several transitive dependencies that are not pinned individually.
 - The holdout guarantee is one of interface and log (one session per cycle, every read logged in the registry). Real isolation from generated code arrives with the sandbox (ticket 6).
 - The hash covers the bytes of the `evaluation` sources: any edit of the package invalidates the frozen protocols of open cycles. Library versions are outside the hash and recorded in `resources`. Raising the threshold with the number of comparisons is not implemented; the count is only recorded.
@@ -189,3 +237,4 @@ The tests do not use the network.
 - The tests on the design check structure and keywords, not the quality of the content. The language test is a heuristic (Italian function words and identifiers), not a proof that every sentence is English.
 - The word count of the plan (split on whitespace) is a simple proxy for "one page". `id` and `phase` have no format constraints yet: they belong to the registry and loop tickets.
 - The guard on third-party dependencies is relaxed one package at a time: `evaluation` may import pandas, numpy and scikit-learn, and only `kaggle/real.py` may import the official `kaggle` package.
+- The Claude adapter was designed against the CLI help and an error envelope only (the CLI was not logged in when it was written). The envelope of a successful call, the reporting of rate limit and quota, the effect of `CLAUDE_CODE_OAUTH_TOKEN` and whether the model used is reported are *not verified*; the tests use canned envelopes built from those assumptions, so only the manual smoke test can confirm them. Session resume is documented but not used (the validation retry is stateless). The backoff defaults are provisional until the budget ticket, and the WARNING for a stripped variable appears at every call. Tool isolation relies on CLI flags and the working directory until the sandbox exists.

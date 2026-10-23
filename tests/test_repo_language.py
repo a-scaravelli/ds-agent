@@ -204,3 +204,27 @@ def test_readme_cites_kaggle_client():
     order = [readme.index(w) for w in ("`KAGGLE_API_TOKEN`", "`~/.kaggle/access_token`",
                                        "`KAGGLE_USERNAME`", "`~/.kaggle/kaggle.json`")]
     assert order == sorted(order)
+
+
+def test_readme_cites_llm_adapter():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for name in (
+        "LlmClient", "FakeLlmClient", "RealClaudeClient", "ToolPermissions", "BackoffPolicy",
+        "RateLimitError", "QuotaExhaustedError", "InvalidResponseError", "record_call",
+        "LlmCallEntry", "llm_calls", "stripped_variables", "ANTHROPIC_API_KEY",
+        "CLAUDE_CODE_OAUTH_TOKEN", "Manual smoke test against the real CLI", "Not run by pytest",
+        "model", "not verified", "2.1.296",
+    ):
+        assert name in readme, name
+
+
+def test_process_memory_entry_for_llm_ticket():
+    text = MEMORY.read_text(encoding="utf-8")
+    if "Ticket #12" not in text:
+        pytest.skip("process memory is updated by the later documentation phase")
+    entry = text.split("Ticket #12", 1)[1]
+    for label in ("Giro", "Data", "Cosa è stato fatto", "Decisioni", "Tentativi scartati", "Test"):
+        assert f"**{label}**" in entry, label
+    lowered = entry.lower()
+    for word in ("llm_calls", "model", "strip", "warning", "claude --version"):
+        assert word in lowered, word

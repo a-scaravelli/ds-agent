@@ -139,3 +139,17 @@ def test_submission_entry_validation_and_no_credential_field():
         data = {**dataclasses.asdict(entry), **bad}
         with pytest.raises(ValidationError):
             SubmissionEntry(**data)
+
+
+def test_llm_call_entry_validates_and_has_no_secret_fields():
+    from kaggle_agent.registry import LLM_OUTCOMES, LlmCallEntry
+
+    entry = LlmCallEntry("C1", "plan", "ok", "2026-01-01T00:00:00+00:00", 1.0)
+    assert entry.attempt == 1 and entry.model is None and entry.input_tokens is None
+    assert set(LLM_OUTCOMES) == {"ok", "rate_limited", "quota", "cli_error", "invalid_output"}
+    names = {f.name for f in dataclasses.fields(LlmCallEntry)}
+    assert not names & {"prompt", "response", "text", "token", "access_token"}
+    with pytest.raises(ValidationError):
+        LlmCallEntry("C1", "plan", "bogus", "t", 1.0)
+    with pytest.raises(ValidationError):
+        LlmCallEntry("C1", "plan", "ok", "t", float("nan"))

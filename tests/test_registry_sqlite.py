@@ -555,3 +555,55 @@ def test_submission_entries_persist_and_old_files_gain_the_table(tmp_path):
     with SqliteRegistry(path) as r:
         assert r.get_cycle("C1").id == "C1" and r.list_submissions("C1") == []
         r.add_submission(_entry())
+
+
+# -- llm_calls: additive table for the consumption of the language model (case 25) --
+
+def _call(**kwargs):
+    from kaggle_agent.registry import LlmCallEntry
+
+    data = {
+        "cycle_id": "C1", "purpose": "plan", "outcome": "ok", "started_at": "2026-03-10T12:00:00+00:00",
+        "duration_seconds": 2.5, "input_tokens": 10, "output_tokens": 5, "attempt": 1, "model": "m",
+        **kwargs,
+    }
+    return LlmCallEntry(**data)
+
+
+def test_llm_calls_round_trip_in_insertion_order_including_model(reg):
+    first, second = _call(), _call(outcome="rate_limited", input_tokens=None, output_tokens=None,
+                                   attempt=2, model=None)
+    reg.add_llm_call(first)
+    reg.add_llm_call(second)
+    assert reg.list_llm_calls("C1") == [first, second]
+
+
+def test_llm_calls_refusals_leave_the_registry_unchanged(reg):
+    with pytest.raises(NotFoundError):
+        reg.add_llm_call(_call(cycle_id="nope"))
+    with pytest.raises(NotFoundError):
+        reg.list_llm_calls("nope")
+    for bad in ({"outcome": "weird"}, {"input_tokens": -1}, {"output_tokens": -3},
+                {"duration_seconds": -1.0}, {"attempt": 0}, {"purpose": ""}, {"model": ""}):
+        with pytest.raises(ValidationError):
+            _call(**bad)
+    assert reg.list_llm_calls("C1") == []
+
+
+def test_llm_calls_persist_and_old_files_gain_the_table(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "r.db"
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1"))
+        r.add_llm_call(_call())
+    with SqliteRegistry(path) as r:
+        assert r.list_llm_calls("C1") == [_call()]
+    db = sqlite3.connect(path)
+    db.execute("DROP TABLE llm_calls")  # a file written before this table existed
+    db.commit()
+    db.close()
+    with SqliteRegistry(path) as r:
+        assert r.get_cycle("C1").id == "C1" and r.list_llm_calls("C1") == []
+        r.add_llm_call(_call())
+        assert len(r.list_llm_calls("C1")) == 1

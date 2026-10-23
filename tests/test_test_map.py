@@ -10,7 +10,7 @@ TEST_MAP = ROOT / ".asl" / "test-map.json"
 
 def test_test_map_entries_exist():
     cases = json.loads(TEST_MAP.read_text(encoding="utf-8"))["cases"]
-    assert sorted(int(k) for k in cases) == list(range(1, 8))
+    assert sorted(int(k) for k in cases) == list(range(1, 35))
     for case, entries in cases.items():
         assert entries, f"case {case} has no test"
         for entry in entries:
