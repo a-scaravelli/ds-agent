@@ -31,21 +31,31 @@ Invariants every implementation must keep:
 - An LLM call entry references an existing cycle and is append-only. It
   holds consumption only (outcome, duration, tokens, model), never a prompt,
   a response or an access token.
+- Rounds, bundles, reviewer reports, lead guidance and role traces reference
+  records that exist (cycle, round, candidate, bundle, ``llm_calls`` row) and
+  are append-only: the interface has no method that edits or deletes them.
+  The candidates of a round are the attempts stored with its ``round_id``.
+- Lead guidance is stored together with the ``Suggestion`` it creates (same
+  id and text, the cycle of the guidance as origin) in one transaction.
+- A role trace holds no credential and no raw model text: its input and
+  output are typed JSON objects.
 - A rejected call leaves the registry unchanged.
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from kaggle_agent.proposals import Attempt, Suggestion
+from kaggle_agent.proposals import Attempt, Guidance, ReviewerReport, Round, Suggestion
 
 from .records import (
+    BundleRecord,
     ComparisonRecord,
     Cycle,
     ExecutionRecord,
     HoldoutRead,
     HoldoutSession,
     LlmCallEntry,
+    RoleTrace,
     SubmissionEntry,
 )
 
@@ -100,6 +110,25 @@ class FailureRecord:
     reason: str
 
 
+@dataclass(frozen=True)
+class RoundDetail:
+    """A round of a cycle with its candidates (the attempts stored with its id)."""
+
+    round: Round
+    cycle_id: str
+    position: int
+    candidates: tuple[AttemptSummary, ...]
+
+
+@dataclass(frozen=True)
+class RoundMetrics:
+    """Metric points of the candidates of one round that have the partition."""
+
+    round_id: str
+    position: int
+    points: tuple[MetricPoint, ...]
+
+
 class Registry(ABC):
     """Storage of cycles, attempts, execution records and suggestions."""
 
@@ -116,10 +145,18 @@ class Registry(ABC):
         """Persist a new non-empty state of the cycle."""
 
     @abstractmethod
-    def add_attempt(self, cycle_id: str, attempt: Attempt, fingerprint: str) -> int:
+    def add_attempt(
+        self,
+        cycle_id: str,
+        attempt: Attempt,
+        fingerprint: str,
+        round_id: str | None = None,
+    ) -> int:
         """Store a proposal and return its iteration number in the cycle.
 
-        Raises ``NotFoundError`` for an unknown cycle or ``parent_id``,
+        ``round_id``, when given, must be a round of the same cycle; a
+        ``bundle_id`` on the attempt must be a stored bundle.
+        Raises ``NotFoundError`` for an unknown cycle, ``parent_id``, round or bundle,
         ``RegistryError`` for a reused attempt id and ``DuplicateAttemptError``
         when the fingerprint belongs to any earlier attempt.
         """
@@ -232,9 +269,87 @@ class Registry(ABC):
         """Submissions of a cycle in insertion order."""
 
     @abstractmethod
-    def add_llm_call(self, entry: LlmCallEntry) -> None:
-        """Store the consumption of one language model call; the cycle must exist."""
+    def add_llm_call(self, entry: LlmCallEntry) -> int:
+        """Store the consumption of one language model call and return its row id.
+
+        The cycle must exist. The id is what a ``RoleTrace`` links to.
+        """
 
     @abstractmethod
-    def list_llm_calls(self, cycle_id: str) -> list[LlmCallEntry]:
-        """LLM calls of a cycle in insertion order."""
+    def list_llm_calls(self, cycle_id: str, role: str | None = None) -> list[LlmCallEntry]:
+        """LLM calls of a cycle in insertion order, optionally of one role.
+
+        An unknown role raises ``ValidationError``.
+        """
+
+    # -- rounds, bundles, reports, guidance and traces ---------------------------
+
+    @abstractmethod
+    def add_round(self, cycle_id: str, round: Round) -> int:
+        """Store a round and return its position in the cycle (from 1).
+
+        Its candidates must be existing attempts of the cycle without a round;
+        they are assigned to it. Unknown cycle or candidate raises
+        ``NotFoundError``; a reused id or a candidate that has a round
+        raises ``RegistryError``.
+        """
+
+    @abstractmethod
+    def get_round(self, round_id: str) -> Round:
+        """A round with the ids of its candidates; unknown id raises ``NotFoundError``."""
+
+    @abstractmethod
+    def list_rounds_with_candidates(self, cycle_id: str) -> list[RoundDetail]:
+        """The rounds of a cycle in order, each with its candidates in iteration order."""
+
+    @abstractmethod
+    def add_bundle(self, bundle: BundleRecord) -> None:
+        """Store a bundle; the cycle must exist and the id be new."""
+
+    @abstractmethod
+    def get_bundle(self, bundle_id: str) -> BundleRecord:
+        """Return a bundle; unknown id raises ``NotFoundError``."""
+
+    @abstractmethod
+    def list_bundles(self, cycle_id: str) -> list[BundleRecord]:
+        """Bundles of a cycle in insertion order."""
+
+    @abstractmethod
+    def add_reviewer_report(self, report: ReviewerReport) -> None:
+        """Store a report; its round must exist and the id be new."""
+
+    @abstractmethod
+    def list_reviewer_reports(
+        self, cycle_id: str, round_id: str | None = None
+    ) -> list[ReviewerReport]:
+        """Reports of a cycle (or of one of its rounds) in insertion order."""
+
+    @abstractmethod
+    def add_guidance(self, cycle_id: str, guidance: Guidance) -> None:
+        """Store the guidance of the lead and create its ``Suggestion`` atomically.
+
+        The round must belong to the cycle; an id already used by a guidance
+        or a suggestion raises ``RegistryError``. Nothing is written on error.
+        """
+
+    @abstractmethod
+    def list_guidance(self, cycle_id: str) -> list[Guidance]:
+        """Guidance of a cycle in insertion order."""
+
+    @abstractmethod
+    def add_role_trace(self, trace: RoleTrace) -> None:
+        """Store a role trace after checking every reference it holds."""
+
+    @abstractmethod
+    def list_role_traces(
+        self, cycle_id: str, role: str | None = None, round_id: str | None = None
+    ) -> list[RoleTrace]:
+        """Traces of a cycle in insertion order, optionally of a role and a round."""
+
+    @abstractmethod
+    def metric_series_by_round(self, cycle_id: str, partition: str) -> list[RoundMetrics]:
+        """Per round, the metric of its candidates from their last execution with the partition.
+
+        The registry does not pick the best candidate: it does not know the
+        direction of the metric.
+        """

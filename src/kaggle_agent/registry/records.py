@@ -4,7 +4,7 @@ import json
 import math
 from dataclasses import dataclass
 
-from kaggle_agent.proposals import ShortPlan, ValidationError
+from kaggle_agent.proposals import ShortPlan, ValidationError, validate_role
 from kaggle_agent.proposals.errors import check_keys, loads_object, require_text
 
 OUTCOMES = ("succeeded", "failed", "inconclusive")
@@ -37,6 +37,21 @@ _CYCLE_FIELDS = (
     "max_fix_retries",
     "state",
     "protocol_hash",
+    "project_id",
+)
+_BUNDLE_FIELDS = ("id", "cycle_id", "folder_hash", "reference", "schema")
+_TRACE_FIELDS = (
+    "cycle_id",
+    "role",
+    "round_id",
+    "candidate_id",
+    "input_type",
+    "input",
+    "output_type",
+    "output",
+    "outcome",
+    "llm_call_id",
+    "created_at",
 )
 
 
@@ -207,7 +222,8 @@ class Cycle:
 
     ``state`` is free non-empty text: the transitions belong to the loop.
     ``protocol_hash`` is the hash of the frozen evaluation protocol, set once
-    at approval (None until then).
+    at approval (None until then). ``project_id`` names the competition work
+    the cycle belongs to (None for cycles created before projects existed).
     """
 
     id: str
@@ -217,12 +233,15 @@ class Cycle:
     state: str
     max_fix_retries: int = DEFAULT_MAX_FIX_RETRIES
     protocol_hash: str | None = None
+    project_id: str | None = None
 
     def __post_init__(self) -> None:
         require_text("id", self.id)
         require_text("state", self.state)
         if self.protocol_hash is not None:
             require_text("protocol_hash", self.protocol_hash)
+        if self.project_id is not None:
+            require_text("project_id", self.project_id)
         if not isinstance(self.plan, ShortPlan):
             raise ValidationError("plan", "must be a ShortPlan")
         _int("iterations", self.iterations, 1)
@@ -350,7 +369,8 @@ class LlmCallEntry:
     Holds only what the budget needs to read back after a suspension: no
     prompt, no response and no access token. ``rejection_reason`` is the
     sanitized validation reason of an ``invalid_output`` call. Token counts are None when the
-    CLI did not report them; ``model`` is None when it is not known.
+    CLI did not report them; ``model`` is None when it is not known; ``role`` is
+    one of ``ROLES`` or None when the call was not made for a role.
     """
 
     cycle_id: str
@@ -363,6 +383,7 @@ class LlmCallEntry:
     attempt: int = 1
     model: str | None = None
     rejection_reason: str | None = None
+    role: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("cycle_id", "purpose", "started_at"):
@@ -385,3 +406,107 @@ class LlmCallEntry:
                 raise ValidationError(
                     "rejection_reason", "is only allowed for the invalid_output outcome"
                 )
+        if self.role is not None:
+            validate_role(self.role)
+
+
+@dataclass(frozen=True)
+class BundleRecord:
+    """A bundle registered in a cycle (design section 8).
+
+    ``reference`` says where the bundle lives (a path or an address, as the
+    runner defines it); ``schema`` is the JSON-compatible description of its
+    inputs and outputs.
+    """
+
+    id: str
+    cycle_id: str
+    folder_hash: str
+    reference: str
+    schema: dict
+
+    def __post_init__(self) -> None:
+        for name in ("id", "cycle_id", "folder_hash", "reference"):
+            require_text(name, getattr(self, name))
+        if not isinstance(self.schema, dict):
+            raise ValidationError("schema", "must be an object")
+        _json_compatible("schema", self.schema)
+
+    def to_dict(self) -> dict:
+        return {name: getattr(self, name) for name in _BUNDLE_FIELDS}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "BundleRecord":
+        check_keys("bundle", data, _BUNDLE_FIELDS)
+        return cls(**{name: data.get(name) for name in _BUNDLE_FIELDS})
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, sort_keys=True)
+
+    @classmethod
+    def from_json(cls, text: str) -> "BundleRecord":
+        return cls.from_dict(loads_object("bundle", text))
+
+
+@dataclass(frozen=True)
+class RoleTrace:
+    """One call of a role: typed input and output, outcome, link to ``llm_calls`` (design section 7).
+
+    Append-only. ``input`` and ``output`` are JSON-compatible objects tagged by
+    ``input_type`` and ``output_type`` (for example the name of a proposal
+    type); there is no field for a prompt, a raw response or a credential.
+    ``output`` is None when the call produced none, and then so is
+    ``output_type``. ``llm_call_id`` is the id returned by ``add_llm_call``.
+    """
+
+    cycle_id: str
+    role: str
+    round_id: str
+    input_type: str
+    input: dict
+    outcome: str
+    created_at: str
+    candidate_id: str | None = None
+    output_type: str | None = None
+    output: dict | None = None
+    llm_call_id: int | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("cycle_id", "round_id", "input_type", "created_at"):
+            require_text(name, getattr(self, name))
+        validate_role(self.role)
+        if self.candidate_id is not None:
+            require_text("candidate_id", self.candidate_id)
+        for name in ("input", "output"):
+            value = getattr(self, name)
+            if value is None and name == "output":
+                continue
+            if not isinstance(value, dict):
+                raise ValidationError(name, "must be a JSON object")
+            _json_compatible(name, value)
+        if (self.output is None) != (self.output_type is None):
+            raise ValidationError("output_type", "is required exactly when output is present")
+        if self.output_type is not None:
+            require_text("output_type", self.output_type)
+        if self.outcome not in LLM_OUTCOMES:
+            raise ValidationError("outcome", f"must be one of {', '.join(LLM_OUTCOMES)}")
+        if self.llm_call_id is not None:
+            _int("llm_call_id", self.llm_call_id, 1)
+
+    def to_dict(self) -> dict:
+        return {name: getattr(self, name) for name in _TRACE_FIELDS}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "RoleTrace":
+        check_keys("trace", data, _TRACE_FIELDS)
+        kwargs = {name: data[name] for name in _TRACE_FIELDS if name in data}
+        for name in ("cycle_id", "role", "round_id", "input_type", "input", "outcome", "created_at"):
+            kwargs.setdefault(name, None)
+        return cls(**kwargs)
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, sort_keys=True)
+
+    @classmethod
+    def from_json(cls, text: str) -> "RoleTrace":
+        return cls.from_dict(loads_object("trace", text))

@@ -4,7 +4,9 @@ import json
 
 
 # object-level labels the validators use as ``field`` (not a field of any type)
-OBJECT_LABELS = ("plan", "attempt", "suggestion")
+OBJECT_LABELS = (
+    "plan", "attempt", "suggestion", "goal", "criterion", "guidance", "round", "report",
+)
 
 
 class ValidationError(ValueError):

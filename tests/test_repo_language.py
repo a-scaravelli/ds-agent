@@ -70,7 +70,7 @@ def test_to_dict_keys_and_error_messages_are_english():
     assert list(ShortPlan.from_dict(PLAN).to_dict()) == list(PLAN)
     assert set(Attempt.from_dict(ATTEMPT).to_dict()) == {
         "id", "phase", "parent_id", "hypothesis", "rationale", "evidence", "exploratory",
-        "what_changed", "expected_effect", "measure", "estimated_cost", "risks", "artifacts",
+        "what_changed", "expected_effect", "measure", "estimated_cost", "risks", "artifacts", "bundle_id",
     }
     assert list(Suggestion.from_dict(
         {"id": "S", "text": "t", "origin_cycle": "c"}).to_dict()
