@@ -1,7 +1,7 @@
 """Frozen metric and evaluation protocol, fixed code the model cannot modify."""
 
+from .candidate import Candidate
 from .engine import (
-    Candidate,
     EvaluationEngine,
     EvaluationResult,
     HoldoutEvaluator,
@@ -13,6 +13,7 @@ from .errors import (
     ProtocolHashMismatchError,
     ProtocolNotFrozenError,
 )
+from .goal import CriterionResult, GoalStatus, evaluate_goal
 from .hashing import evaluation_code_hash, protocol_hash
 from .metrics import METRICS, MetricSpec, get_metric, register_metric
 from .protocol import Protocol
@@ -23,10 +24,12 @@ from .threshold import Comparison, compare, dispersion
 __all__ = [
     "Candidate",
     "Comparison",
+    "CriterionResult",
     "EvaluationEngine",
     "EvaluationError",
     "EvaluationResult",
     "FrozenSplit",
+    "GoalStatus",
     "HoldoutAccessor",
     "HoldoutEvaluator",
     "HoldoutResult",
@@ -42,6 +45,7 @@ __all__ = [
     "compare",
     "derive_seed",
     "dispersion",
+    "evaluate_goal",
     "evaluation_code_hash",
     "get_metric",
     "get_scheme",
