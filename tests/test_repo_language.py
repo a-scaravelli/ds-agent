@@ -241,3 +241,9 @@ def test_readme_and_memory_record_the_real_smoke_test():
     entry = text.split("Ticket #12", 1)[1].lower()
     for word in ("claude-sonnet-4-6", "rejection_reason", "contract_hints", "rate limit", "quota", "oauth"):
         assert word in entry, word
+
+
+def test_readme_states_the_goal_input_kind_limit():
+    text = " ".join((ROOT / "README.md").read_text(encoding="utf-8").split())
+    assert "same `input_kind` as the main metric" in text
+    assert "to be reviewed at ticket 12" in text
