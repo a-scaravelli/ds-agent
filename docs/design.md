@@ -368,11 +368,11 @@ Rejected alternative: reproducing by rerunning the model with the same prompt, b
 
 ## 13. Human interaction
 
-The user steps in at three moments, in the `review` subpackage:
+The lead steps in at three moments, in the `review` subpackage:
 
-1. **Short plan**: the user approves or corrects the initial plan (section 4). It is the single point of control before the cycle.
-2. **Short final report**: best attempt, result on the test holdout, what worked and what did not.
-3. **Review**: the user accepts, or gives suggestions on what to explore. Every suggestion is recorded and starts a new cycle from the existing state (section 7). Every answer is saved in the registry.
+1. **Short plan**: the lead approves or corrects the initial plan (section 4). It is the single point of control before the cycle.
+2. **Guidance after each round**: the lead gives guidance on what to explore, recorded as a suggestion, or lets the cycle continue (section 2). A protocol change is not guidance and needs a new plan approval. At level 1 the input of the lead is a command or a file, not a chat.
+3. **Short final report and review**: the report has the best attempt, the result on the test holdout, what worked and what did not. The lead accepts, or gives suggestions on what to explore. Every suggestion is recorded and starts a new cycle from the existing state (section 7). Every answer is saved in the registry.
 
 ### Deliverable: the pipeline
 
@@ -384,16 +384,17 @@ The final output of every cycle is an executable end-to-end Python pipeline, or 
 
 ### Web consultation interface
 
-The web interface can be consulted without reading code and reads the data from the registry. The views are:
+The web interface can be consulted without reading code and reads the data from the registry. It is read-only from level 1: it shows rounds, candidates, runs, metrics, reviewer reports and agent traces. Input from the web (guidance, approvals) arrives at level 2; users and login arrive at level 3 (section 14). The views are:
 
-- **list/timeline of attempts**, with outcome, metric and originating attempt;
-- **chart of the metric per iteration**, with the best attempt highlighted;
-- **detail of each attempt**: hypothesis, rationale in natural language, what changes with respect to the originating attempt, configuration, metrics, duration, outcome, artifacts and link to the pipeline;
-- **user suggestions**, with the cycles spawned from each.
+- **list/timeline of attempts**, grouped by round, with outcome, metric and originating attempt;
+- **chart of the metric per iteration** (per round and per candidate), with the best attempt highlighted;
+- **detail of each attempt**: hypothesis, rationale in natural language, what changes with respect to the originating attempt, configuration, metrics, duration, outcome, artifacts, link to the pipeline, the bundle that was run and the agent traces of the candidate;
+- **reviewer reports**, one per round;
+- **user suggestions**, including the lead guidance, with the cycles spawned from each.
 
 The polished graphic design is deferred to a later ticket: in this design the completeness and navigability of the data matter, not the appearance.
 
-Rejected alternatives: batch approval of proposals (contradicts autonomous work and the user does not see the effect of each one), a web interface only for approval (traceability requires mostly consultation), a report only in Markdown (it does not allow navigating between attempts, suggestions and cycles) and a polished graphic design right away (deferred).
+Rejected alternatives: batch approval of proposals (contradicts autonomous work and the user does not see the effect of each one), a web interface only for approval (traceability requires mostly consultation), a chat with the lead at level 1 (a command or a file is enough and keeps the guidance recorded), a report only in Markdown (it does not allow navigating between attempts, suggestions and cycles) and a polished graphic design right away (deferred).
 
 ## 14. Architecture and repository structure
 
@@ -411,6 +412,9 @@ flowchart LR
     K <--> KG[(Kaggle)]
     E --> G
     P --> G
+    L -.-> AG[agents, future]
+    AG -.-> BU[bundle, future]
+    BU -.-> S
     L -.-> PL[pipeline, future]
     G -.-> W[web, future]
     PL -.-> G
@@ -429,13 +433,30 @@ Existing subpackages under `src/kaggle_agent/`:
 - `review`: initial plan and final review (section 13);
 - `budget`: limits and stop (section 11).
 
-Future subpackages, not created in this ticket and with names to be confirmed in review: `pipeline` for the generation of the end-to-end pipeline (section 13) and `web` for the consultation interface (section 13).
+Future subpackages, not created in this ticket and with names to be confirmed in review: `agents` for the five role prompts and their typed inputs and outputs (section 8), `bundle` for the bundle contract and the runner (section 8), `pipeline` for the round pipeline and the generation of the end-to-end pipeline (sections 2 and 13) and `web` for the consultation interface (section 13).
+
+**The three levels.** All levels keep the same core structure, the same five roles and the same guarantees: frozen protocol, labels and holdout owned by the evaluator, everything in the registry, tests with fakes. Level 1 is built first (tickets 6 to 12 of section 15). Levels 2 and 3 are directions.
+
+| Row | Level 1 | Level 2 | Level 3 |
+|---|---|---|---|
+| Roles | five role agents as typed prompts on `LlmClient` | the roles get tools and isolated workspaces | same roles, more autonomy per role if the evidence supports it |
+| Orchestration | plain sequential pipeline, no role calls another | orchestration with tools for the roles | same, with scheduling of candidates |
+| Bundle and runner | plain folder, same Python environment, subprocess with timeout | immutable versions with hash, one virtual environment per variant | containers |
+| Evaluation | frozen protocol, validation set, holdout read once at the end | protected final test | same guarantees on shared infrastructure |
+| Web | read-only | input from web (guidance, approvals) | users and login |
+| Lead input | a command or a file, not a chat | web form | web with users |
+| Data | Kaggle only | Kaggle only | other sources, for example Excel with label construction |
+| Storage | SQLite as now | SQLite | a database server |
+| Security | light sandbox, protected-file hash, no login | isolated workspaces | containers and user permissions |
+| Budget | caps on rounds and candidates only | time, submissions and subscription limits | per-user budgets |
+
+Level 1 in short: SQLite as now, Kaggle only, no login, no Docker, no parallel candidates, and caps on rounds and candidates only.
 
 Other folders: `docs/` (design), `tests/`, `data/` (ignored by git).
 
 **Extension point for predict + optimize.** After the prediction, a future phase will be able to estimate the uplift and optimize the allocation of a budget. It plugs in as a new subpackage (for example `decision`) that consumes the recorded predictions and as a new phase in the graph of section 3, with its own hypotheses and its own frozen protocol. It is not designed here; the design only ensures that the predictions are saved as artifacts and that phases and protocols are extensible.
 
-Rejected alternatives: a single monolithic module (it does not allow protecting the evaluation) and one package per work phase (the phases are data in the graph, not separate code).
+Rejected alternatives: a single monolithic module (it does not allow protecting the evaluation), one package per work phase (the phases are data in the graph, not separate code) and building all three levels at once (it delays the first real result; the common structure lets level 1 grow into the others).
 
 ## 15. Implementation plan
 
