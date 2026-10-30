@@ -225,6 +225,10 @@ The registry (`registry` subpackage) is the memory of the agent and the source o
 - `artifacts`: code and diff, predictions, charts, pipeline reference (the linked pipeline, section 13);
 - conclusion of the analysis: what was learned.
 
+**Identifiers.** From level 1 every record can be placed in the project and the round it belongs to: `project_id` (the competition work as a whole), `round_id`, `candidate_id` (equal to the attempt id), `run_id` (one execution of a candidate, equal to the execution record) and `bundle_id` (the bundle that was run, section 8). The cycle identifier stays as described below; a round belongs to one cycle.
+
+**Records of the roles.** Next to the attempts the registry stores, append-only: the *reviewer report* of each round (text, round id, time), the *lead guidance* given at `AWAITING_GUIDANCE` (text, round id, time; it is also recorded as a suggestion, see below) and the *role traces* (for each role call: role, round, candidate when there is one, typed input and output, outcome, link to the call record of the `llm_calls` table). Traces hold no credential and no raw model text beyond the typed output.
+
 **Attempt and execution records.** The `Attempt` of section 4 is the proposal; what happened when it ran is an *execution record*, a separate type in `registry` linked to the attempt by its id. The configuration, seed, hashes, metrics, duration, resources, outcome, `failure_kind`, reason and artifacts belong to the execution record. One attempt has one or more execution records: the initial run plus any code-fix retries (section 2). The registry stores all of them, so fixes are traceable, and the outcome of the attempt is the outcome of its last execution. An attempt is final only when it is closed with its conclusion; an open attempt has no outcome and does not appear in outcome or failure queries.
 
 **Failure kind.** `failure_kind` has the values `code_error`, `hypothesis_falsified`, `timeout` and `below_threshold`. It is required when the outcome is not `succeeded` and absent when it is `succeeded`. The free-text reason is kept as well. `code_error` has two meanings. On an execution record it only means that this run crashed. At attempt level, once the attempt is closed, it means that the code still failed after the cap of fix retries, and the registry refuses to close an attempt as `code_error` before the cap is reached. The registry can list failures by `failure_kind`, so the agent avoids retrying falsified hypotheses and the web interface can filter them.
@@ -237,9 +241,9 @@ Known open point: an iteration recorded as `inconclusive` after repeated rejecte
 
 **LLM call records.** For the subscription budget (section 11) the registry stores, per cycle, the consumption of every call to the language model (`LlmCallEntry`, section 8): purpose, outcome (`ok`, `rate_limited`, `quota`, `cli_error`, `invalid_output`), start time, duration, input and output tokens when reported, attempt number, the model used (none when unknown) and `rejection_reason` (the sanitized validation reason of an `invalid_output` call, none otherwise; a nullable column that existing files gain when opened). It is append-only, holds no prompt, no response and no access token, and existing files gain the `llm_calls` table when opened.
 
-**Cycle and suggestions.** A cycle has an identifier, approved plan, parameters (N, K, cap of fix retries), state and, once approved, the frozen protocol hash. A user suggestion has text, origin cycle and the cycles spawned from it. A new cycle restarts from the best model and the history, and the suggestion stays recorded together with the cycles it generated.
+**Cycle and suggestions.** A cycle has an identifier, approved plan, parameters (N, C, K, M, cap of fix retries), state and, once approved, the frozen protocol hash. A user suggestion has text, origin cycle and the cycles spawned from it. A new cycle restarts from the best model and the history, and the suggestion stays recorded together with the cycles it generated.
 
-**Required queries.** The registry must support the queries of the web interface: list of attempts, series of the metric per iteration, detail of an attempt, suggestions and linked cycles.
+**Required queries.** The registry must support the queries of the web interface: list of attempts, series of the metric per iteration, detail of an attempt, suggestions and linked cycles. For the rounds it also supports: the rounds of a project with their candidates, the reviewer reports of a round, the role traces of a round or a candidate, the lead guidance, and the series of the metric per round (best and spread of the candidates of each round).
 
 **Deduplication.** Two levels: (1) a deterministic *fingerprint* (hash of normalized configuration, code, data and protocol) discards exact duplicates; the code hash is included because features and models live in the code, so the same configuration with different feature code is a different idea. The check runs when a new attempt is proposed, against all previous attempts whatever their outcome; the fix retries of the same attempt are not checked against each other; (2) a semantic check: before proposing, the model receives a summary of the related attempts and must declare how the new attempt differs. The code rejects attempts without this declaration.
 
@@ -257,15 +261,21 @@ Alternatives considered:
 
 ## 8. Roles: model and deterministic code
 
-**The model decides and writes:** hypotheses, rationales, code of the iterations (features and models), interpretation of the results and the initial plan. It is creative but not reliable.
+**The five role agents.** Five roles are present from level 1: the *coordinator* (reads the problem, writes the plan, sets the direction of each round, reads the lead guidance and writes the final report), the *data* role (profiles the data, finds quality problems and leakage hints, proposes cleaning), the *feature engineering* role (proposes the transformations), the *modeling* role (proposes models and hyperparameters) and the *reviewer* (interprets the results of a round and reports). The roles decide and write: hypotheses, rationales, the code of the candidates, the interpretation of the results and the initial plan. They are creative but not reliable.
 
-**The fixed code (not modifiable by the model):** cycle and state machine, split, computation of the metric, significance threshold, holdout, access to Kaggle and credentials, budget, registry, hashes.
+**The reviewer is never a gate.** The reviewer interprets and reports; it does not accept or reject a candidate, and nothing in the cycle waits for its judgment. The significance threshold, the comparisons between candidates, the stop criteria and the choice of the best attempt stay in fixed code.
 
-**The user:** approves or corrects the initial plan and reviews the final report (accepts or gives suggestions). Does not validate the individual steps.
+**The fixed code (not modifiable by the model):** cycle and state machine, split, the runner and the computation of the metric, significance threshold, holdout, access to Kaggle and credentials, budget, registry, hashes. The evaluator owns the labels and the holdout: no role ever receives them.
+
+**The lead (the human):** approves or corrects the initial plan, gives guidance after a round or lets the cycle continue, and reviews the final report (accepts or gives suggestions). Does not validate the individual steps.
+
+**Orchestration at level 1.** A role is a prompt with a typed input and a typed output, called on `LlmClient`; there is no framework and no tool use beyond what the adapter allows. A plain sequential pipeline runs them in a fixed order: coordinator, data, feature engineering, modeling, runner, reviewer, coordinator. The roles do not call each other: each one receives its input from the pipeline and returns its output to it. The coordinator reads a compact registry summary inside its prompt (best attempts, recent failures, reviewer reports, lead guidance), so no role needs a database tool. Every call leaves a role trace in the registry (section 7).
+
+**Bundle contract.** A candidate is a bundle: a folder with the code, the transformations, the model, the declared dependencies, and two entry points, `fit(train)` and `predict(bundle_id, X)`. The runner, which is fixed code, runs the bundle in a subprocess with a timeout, passes the data without labels, calls `predict` on the partitions and computes the metrics itself. The bundle never sees labels it should not see and never reports its own score. The levels differ in the isolation: at level 1 the bundle is a plain folder run in the same Python environment as the agent; at level 2 bundles are immutable versions with a hash and each variant has its own virtual environment; at level 3 each bundle runs in a container.
 
 **How the model is prevented from altering the evaluation:**
 
-1. the generated code runs in a sandbox (`sandbox` subpackage) that receives only the training data and a narrow interface: a function that builds the features and a model; the partition and the metric are executed outside the sandbox;
+1. the generated code runs in a sandbox (`sandbox` subpackage) that receives only the training data and a narrow interface: the bundle contract above; the partition and the metric are executed outside the sandbox;
 2. the evaluation files are read-only or outside the writable tree; the model has no permissions on the paths of the fixed code;
 3. before every attempt the code checks the hash of the evaluation files and of the protocol; a difference blocks the run;
 4. the test holdout data and the test labels do not exist in the sandbox; the holdout is read only by the fixed code at the end of the cycle and every read is logged;
@@ -292,6 +302,10 @@ Rejected alternatives:
 - *Trusting instructions in the prompt ("do not modify the evaluation")*: rejected because it is not a control, only a request.
 - *Letting the model also write the evaluation and reviewing it by hand*: rejected because every change must be reread, it does not scale and a subtle error goes unseen.
 - *Isolation with a container for each run*: postponed; costly on a Mac. The sandbox starts as a separate process with reduced permissions and can evolve.
+- *Reviewer as gate*: rejected because a model that accepts or rejects candidates makes the stop and comparison rules depend on a non-deterministic judgment, and the evaluation could be argued around; the reviewer only reports.
+- *A single agent for all roles*: rejected because one long prompt mixes data, features, models and judgment, cannot be tested one role at a time with fakes, and leaves no per-role trace.
+- *A container per variant at level 1*: rejected because it is costly on a Mac and the first level needs to prove the loop first; containers arrive at level 3, with immutable versions and virtual environments at level 2.
+- *Roles that call each other*: rejected at level 1 because the order and the cost of the calls become unpredictable; the plain pipeline is testable with fakes.
 
 ## 9. Error analysis
 
@@ -330,14 +344,14 @@ Rejected alternatives:
 
 ## 11. Stop criteria and budget
 
-The budget is fixed code in the `budget` subpackage, configured by the human at the beginning and checked before every iteration.
+The budget is fixed code in the `budget` subpackage, configured by the lead at the beginning and checked before every round and every candidate. At level 1 the budget is limited to caps on rounds and candidates (section 14); the other limits below arrive at level 2.
 
-- **Iterations**: the number of iterations of the cycle is 10 by default and is configurable; there is also a cap on consecutive attempts closed as failed, distinct from N and K, and a cap of fix retries per attempt (3 by default, configurable; section 2). Code fixes do not consume iterations.
-- **Time**: maximum total time and per single run.
+- **Rounds and candidates**: the number of rounds N (provisional default 5; the cycle before the rounds was 10 by default and is configurable) and the number C of candidates per round (provisional default 3) are capped. There is also a cap on consecutive attempts closed as failed, distinct from N and K, and a cap of fix retries per attempt (3 by default, configurable; section 2). Code fixes do not consume rounds or candidates.
+- **Time**: maximum total time and per single run (the timeout of the runner, section 8).
 - **Submissions**: total maximum and daily reserve (section 10).
-- **Subscription**: consumption of the Claude Code quota, measured with the number of calls, tokens (when the CLI reports them) and duration reported by the adapter for every call and stored in the registry (section 7); warning threshold and stop threshold. In case of rate limit, the agent waits according to the backoff and suspends the cycle without losing the state.
-- **Early stop for stagnation**: if for K consecutive iterations there is no real improvement (section 6), the cycle stops automatically and moves to the final report without user intervention. K is configurable.
-- **Stop on target**: target score declared by the human reached; the cycle moves to the report.
+- **Subscription**: consumption of the Claude Code quota, measured with the number of calls, tokens (when the CLI reports them) and duration reported by the adapter for every call and stored in the registry (section 7); warning threshold and stop threshold. With five roles every round costs several calls per candidate plus those of the coordinator and the reviewer, so the quota is the main cost risk (section 16). In case of rate limit, the agent waits according to the backoff and suspends the cycle without losing the state.
+- **Early stop for stagnation**: if for K consecutive iterations (here rounds, K rounds without real improvement, section 6) there is no real improvement, the cycle stops automatically and moves to the final report without user intervention. K is configurable.
+- **Stop on target**: the goal criteria declared in the frozen protocol are reached; the cycle moves to the report. The target generalizes to several thresholds, for example a minimum precision and a minimum recall, and it is reached only when all of them hold together on the validation set. The thresholds are part of the frozen protocol, so the roles cannot move them.
 
 Rejected alternatives: leaving to the user the decision to stop at every stagnation (contradicts autonomous work), no limit with manual stop (risk of consuming the quota without noticing), and a single limit on time (it protects neither the subscription nor the submissions).
 
