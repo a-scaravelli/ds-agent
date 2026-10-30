@@ -7,7 +7,8 @@ This document is the design on which all later tickets are based. It does not im
 **Goals**
 
 - An agent that does the iterative work of a data scientist on a tabular Kaggle competition, from downloading the data to the submission.
-- The user approves only a short initial plan; then the agent works autonomously (split, baseline, improvement iterations) and the user steps in only at the end of the cycle, by reviewing the report. Every attempt is tracked and can be consulted from a web interface.
+- A team of five role agents does the work of a data science lab: coordinator, data, feature engineering, modeling and reviewer. The design has three levels with the same core structure, the same five roles and the same guarantees (frozen protocol, labels and holdout owned by the evaluator, everything in the registry, tests with fakes); the levels differ only in the machinery around the roles (table in section 14). Level 1 is built first; levels 2 and 3 are directions, not commitments.
+- The lead (the human) approves a short initial plan; then the agent works autonomously in rounds, each with several candidates, and the lead steps in after every round (guidance, or let the cycle continue) and at the end of the cycle, by reviewing the report. Every candidate is tracked and can be consulted from a read-only web interface.
 - Fully automatic interaction with Kaggle: download, reading of rules and metric, sending of submissions, reading of the score.
 - Runs on a Mac without GPU, with small or medium tabular datasets.
 - No paid API: the model that reasons at runtime is headless Claude Code with the subscription.
@@ -17,9 +18,10 @@ This document is the design on which all later tickets are based. It does not im
 **Non-goals**
 
 - This ticket does not write modeling logic: it produces the document and an empty skeleton of the repo.
-- No validation of the individual steps by the user: the control points are the initial plan and the final review (section 2).
+- No validation of the individual steps by the lead: the control points are the initial plan, the guidance after each round and the final review (section 2). Guidance never changes the frozen protocol.
 - No polished graphic design of the interface: it is deferred to a later ticket.
 - No support for GPU, deep learning on images or text, code competitions (notebook-only) or datasets that do not fit in memory on a Mac.
+- No parallel candidates, login, Docker or other data sources at level 1 (section 14).
 - No optimization for leaderboard rank at any cost: the agent must not sacrifice the validity of the evaluation to climb the leaderboard.
 
 **Principle on the stack**
@@ -36,63 +38,72 @@ Rejected alternative: fixing the complete stack now in the design. Rejected beca
 
 ## 2. Work cycle
 
-The cycle is a state machine, implemented as fixed code in the `loop` subpackage. The state is persisted after every transition, so a crash does not lose work. The user approves only a short initial plan; then the agent works autonomously and the user steps in at the end of the cycle. The individual steps are not validated by the user.
+The cycle is a state machine, implemented as fixed code in the `loop` subpackage. The state is persisted after every transition, so a crash does not lose work. The lead approves a short initial plan; then the agent works autonomously in rounds. After every round the cycle waits for the lead, who gives guidance or lets the cycle continue. The individual steps are not validated by the lead.
 
 States:
 
 | State | Meaning | Who acts |
 |---|---|---|
-| `PLANNING` | the model analyzes problem and data and writes the short initial plan (section 4) | model |
-| `AWAITING_PLAN_APPROVAL` | the plan is presented to the user, who approves or corrects it; it is the single point of control before the cycle | user |
-| `SPLITTING` | the code creates the validation set, which drives the iterations, and the test holdout, never used to decide (section 5) | code |
+| `PLANNING` | the coordinator analyzes problem and data and writes the short initial plan (section 4) | model |
+| `AWAITING_PLAN_APPROVAL` | the plan is presented to the lead, who approves or corrects it; it is the single point of control before the cycle | lead |
+| `SPLITTING` | the code creates the validation set, which drives the rounds, and the test holdout, never used to decide (section 5) | code |
 | `BASELINE` | first model trained and evaluated on the validation set | code and model |
-| `ITERATING` | improvement iteration, with the sub-steps `propose`, `validate`, `execute`, `analyze`, `record` | model and code |
+| `ITERATING` | one round: several candidates, each one an attempt, with the sub-steps `propose`, `validate`, `execute`, `analyze`, `record` (the reviewer then writes its report on the round) | model and code |
+| `AWAITING_GUIDANCE` | after each round the lead gives guidance, recorded as a suggestion, or lets the cycle continue | lead |
 | `REPORTING` | short final report and evaluation of the test holdout on the best attempt | code and model |
-| `AWAITING_REVIEW` | the user accepts or gives suggestions | user |
+| `AWAITING_REVIEW` | the lead accepts or gives suggestions | lead |
 | `STOPPED` | a stop criterion fired or the cycle ended (section 11) | code |
 
-Happy path: `PLANNING → AWAITING_PLAN_APPROVAL → SPLITTING → BASELINE → ITERATING (N times) → REPORTING → AWAITING_REVIEW`. After the plan is approved there is no other approval state until the final review.
+Happy path: `PLANNING → AWAITING_PLAN_APPROVAL → SPLITTING → BASELINE → ITERATING (a round) → AWAITING_GUIDANCE → ITERATING → ... → REPORTING → AWAITING_REVIEW`. After the plan is approved the only waits are the guidance after each round and the final review.
 
-**Configurable parameters.** The number of iterations N (10 by default), the number K of consecutive iterations without real improvement after which the cycle stops early (section 11), and the cap on fix retries per attempt (3 by default).
+**Configurable parameters.** The number of rounds N (provisional default 5; the previous cycle without rounds had N = 10 by default iterations), the number C of candidates per round (provisional default 3), the number K of rounds without real improvement after which the cycle stops early (section 11), the number M of rounds in a row without a pause for guidance (default 1; M = N is the previous cycle without pauses) and the cap on fix retries per attempt (3 by default). The defaults are provisional and will be tuned after the first real run.
 
-**One iteration.** The model analyzes the metric and the errors (section 9), formulates a hypothesis, decides what to change (feature engineering, model, hyperparameters, data cleaning, etc.) and runs a new attempt. The code checks the shape of the attempt and duplicates, runs it in the sandbox with the frozen evaluation and records the outcome. Every iteration produces an attempt in the registry (section 7).
+**Terminology.** A candidate is an attempt (section 4). Where the older sections say iteration they mean a round or a candidate, as the context shows.
 
-**Review at the end of the cycle.** The user accepts, or gives suggestions on what to explore. The suggestions are recorded and start a new cycle, which restarts from the existing state (best model and history of attempts) and skips the plan approval phase, except for a change of the protocol (section 5).
+**One round.** The coordinator reads a compact summary of the registry and sets the direction of the round (section 8). For each of the C candidates the model analyzes the metric and the errors (section 9), formulates a hypothesis, decides what to change (feature engineering, model, hyperparameters, data cleaning, etc.) and runs a new attempt. The code checks the shape of the attempt and duplicates, runs it in the sandbox with the frozen evaluation and records the outcome. Every candidate produces an attempt in the registry (section 7). At the end of the round the reviewer interprets the results and writes a report; the report never decides (section 8).
+
+**Guidance.** At `AWAITING_GUIDANCE` the lead can give guidance on what to explore, which is recorded as a suggestion and read by the coordinator in the next round, or let the cycle continue. With M greater than 1 the cycle runs M rounds in a row before the next pause. A protocol change is not guidance: it needs a new plan approval (section 5).
+
+**Review at the end of the cycle.** The lead accepts, or gives suggestions on what to explore. The suggestions are recorded and start a new cycle, which restarts from the existing state (best model and history of attempts) and skips the plan approval phase, except for a change of the protocol (section 5).
 
 Unhappy cases:
 
-- **Invalid or duplicate attempt proposal** (`validate`): back to `propose` with the reason for the rejection passed to the model. After a maximum number of consecutive rejections the iteration is recorded as `inconclusive` and the cycle goes on.
+- **Invalid or duplicate attempt proposal** (`validate`): back to `propose` with the reason for the rejection passed to the model. After a maximum number of consecutive rejections the candidate is recorded as `inconclusive` and the round goes on.
 - **Execution error** (exception, memory, invalid code): code fixes are not attempts and do not consume one of the N iterations, because an attempt is one ML idea (features, model, hyperparameters, data cleaning). The agent fixes the code and reruns inside the same attempt, without approval, with a cap of 3 fix retries per attempt (configurable). Every run is recorded with its traceback. If the cap is exceeded the attempt is closed with outcome `failed` and `failure_kind = code_error`, and the agent goes on. A cap on consecutive attempts closed as failed stops the cycle: once it is exceeded the cycle moves to `REPORTING`.
 - **Execution timeout**: the process is terminated, the attempt is `failed(timeout)`; the next attempt must estimate a lower cost or reduce the data.
-- **Approval timeout**: applies only to the plan and the final review. The state stays waiting; there is no implicit approval. The cycle is suspended and can resume from the saved state.
+- **Approval timeout**: applies to the plan, the guidance after a round and the final review. The state stays waiting; there is no implicit approval. The cycle is suspended and can resume from the saved state.
 - **Model error** (rate limit, malformed response): retry with backoff; if it persists, the cycle is suspended without losing the state and resumes from the saved state.
 
 Rejected alternatives:
 
-- *Human validation of every single step*: rejected because the requirement is that the user steps in only at the beginning and at the end; protection lies in the frozen evaluation, the sandbox and the recording of everything.
+- *Human validation of every single step*: rejected because the requirement is that the lead steps in only at the plan, after each round and at the end; protection lies in the frozen evaluation, the sandbox and the recording of everything.
 - *Separate approval of metric and validation*: rejected because the short plan already contains them and a single point of control is lighter for the user.
+- *Guidance after every single candidate*: rejected because it turns the lead into a bottleneck; the round is the unit of control.
 - *No control point*: rejected because a wrong metric or validation scheme invalidates the whole cycle; the approved plan is the minimum control.
-- *Cycle without an iteration cap*: rejected because it consumes the subscription quota and favors overfitting on the validation set.
+- *Cycle without a cap on rounds*: rejected because it consumes the subscription quota and favors overfitting on the validation set.
 - *A generic agent framework with a dynamic graph*: rejected because it hides the transitions and makes it hard to guarantee that the evaluation is not bypassed; an explicit state machine is testable with fakes.
 - *Unlimited automatic correction of errors*: rejected because the model could get around an evaluation error by changing the protocol instead of its code; hence the cap of fix retries per attempt and the cap on consecutive attempts closed as failed.
-- *Every code fix recorded as a new attempt*: rejected because fixes would consume the N iterations and a crash is not a new idea; the fixes stay as execution records of the same attempt, so they remain traceable.
+- *Every code fix recorded as a new attempt*: rejected because fixes would consume the N rounds and a crash is not a new idea; the fixes stay as execution records of the same attempt, so they remain traceable.
 
 ## 3. Work phases
 
 The phases are not a rigid list: they form a graph. The agent can go back to any earlier phase when the evidence justifies it (e.g. the error analysis discovers a data quality problem). The return is decided by the agent without approval and recorded in the attempt with its rationale. The evaluation protocol is the exception: it is frozen (section 5).
 
-| Phase | Input | Output | What the agent decides |
-|---|---|---|---|
-| Acquisition | competition identifier, credentials | raw data, data hash, rules, description of the metric | which files to download; nothing more, the rest is fixed code |
-| Problem understanding | rules, description, raw data | summary of the problem: type of target, official metric, constraints (submission limits, external data) | interpretations of the rules, reported in the plan |
-| Data exploration | raw data | profile: types, missing values, distributions, duplicates, hints of leakage, difference between train and test | targeted analyses and charts to produce |
-| Initial plan | understood problem, data profile | short plan with metric and why, validation, feature engineering, models, baseline (section 4); with the approval the protocol is frozen | the complete plan, approved or corrected by the user |
-| Split | approved plan | validation set for the iterations and untouched test holdout | nothing: it is fixed code |
-| Baseline | data, frozen protocol | first model trained and evaluated, with its uncertainty | the simple baseline indicated in the plan |
-| Iteration | previous outcomes, error analysis | an attempt with hypothesis, change and metrics | what to change: features, model, hyperparameters, data cleaning, without approval |
-| Error analysis | out-of-sample predictions | weak segments, hypotheses (section 9) | new hypotheses for the earlier phases |
-| Combination | candidate models | ensemble or selection | only if the models have different errors, with evidence |
-| Report and pipeline | history of attempts, best attempt | short final report, test holdout, end-to-end pipeline (section 13), generated submission | which attempts to tell and which variants to propose |
+Each phase has an owner among the five roles (section 8) or the fixed code. The roles are the coordinator, the data role, the feature engineering role, the modeling role and the reviewer; the runner is fixed code.
+
+| Phase | Who runs it | Input | Output | What the agent decides |
+|---|---|---|---|---|
+| Acquisition | fixed code | competition identifier, credentials | raw data, data hash, rules, description of the metric | which files to download; nothing more, the rest is fixed code |
+| Problem understanding | coordinator | rules, description, raw data | summary of the problem: type of target, official metric, constraints (submission limits, external data) | interpretations of the rules, reported in the plan |
+| Data exploration | data | raw data | profile: types, missing values, distributions, duplicates, hints of leakage, difference between train and test | targeted analyses and charts to produce |
+| Initial plan | coordinator | understood problem, data profile | short plan with metric and why, validation, feature engineering, models, baseline (section 4); with the approval the protocol is frozen | the complete plan, approved or corrected by the lead |
+| Split | fixed code (evaluator) | approved plan | validation set for the rounds and untouched test holdout | nothing: it is fixed code |
+| Baseline | modeling, run by the runner | data, frozen protocol | first model trained and evaluated, with its uncertainty | the simple baseline indicated in the plan |
+| Round | coordinator sets the direction; data, feature engineering and modeling write the candidates | previous outcomes, reviewer report, guidance | candidates, each an attempt with hypothesis, change and metrics | what to change: features, model, hyperparameters, data cleaning, without approval |
+| Execution and metrics | runner (fixed code) | the bundle of a candidate | out-of-sample predictions and metrics computed by the runner | nothing: it is fixed code |
+| Error analysis | reviewer reads the tables computed by the code | out-of-sample predictions | weak segments, hypotheses (section 9) | new hypotheses for the earlier phases |
+| Combination | modeling | candidate models | ensemble or selection | only if the models have different errors, with evidence |
+| Report and pipeline | coordinator and reviewer | history of attempts, best attempt | short final report, test holdout, end-to-end pipeline (section 13), generated submission | which attempts to tell and which variants to propose |
 
 The actual submission to Kaggle is not a phase of the autonomous cycle: it is an explicit action of the user after the review (section 10).
 
