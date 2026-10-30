@@ -73,3 +73,19 @@ def test_model_defaults_to_none_in_client_and_ask():
 def test_call_record_builds_without_rejection_reason():
     record = CallRecord("plan", "ok", "t", 1.0, Usage(), 1)
     assert record.rejection_reason is None
+
+
+def test_call_record_role_defaults_to_none_and_llm_code_has_no_model_per_role():
+    assert CallRecord("plan", "ok", "t", 1.0, Usage(), 1).role is None
+    assert CallRecord("plan", "ok", "t", 1.0, Usage(), 1, role="data").role == "data"
+    from kaggle_agent.proposals import ROLES
+
+    # "feature_engineering" is also a field of the short plan, so only the others are scanned
+    role_names = set(ROLES) - {"feature_engineering"}
+    for path in sorted(LLM_DIR.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                assert node.value not in role_names, f"{path.name}: role name {node.value!r} in code"
+            if isinstance(node, ast.Name):
+                assert node.id != "ROLES" or path.name == "interface.py", path.name

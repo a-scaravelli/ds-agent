@@ -23,7 +23,10 @@ Invariants every implementation keeps:
 - Tools and working directory come only from the ``ToolPermissions`` the
   caller passes; the adapter never widens them.
 - The model is ``None`` (default of the CLI) unless the client or the call
-  sets it; the effective model of every call is recorded.
+  sets it; the effective model of every call is recorded. The model per role
+  is the choice of the caller: ``role`` is only recorded, never mapped to a model.
+- ``role`` is optional and, when given, one of ``ROLES`` (checked before any
+  invocation); it is copied into every ``CallRecord`` of the call, retries included.
 - Consumption is only reported (``CallRecord`` per CLI invocation, in
   ``consumption()``, in ``LlmResult`` and through ``on_call``). The client never
   writes to the registry and enforces no budget.
@@ -35,7 +38,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from kaggle_agent.proposals import ValidationError
+from kaggle_agent.proposals import ValidationError, validate_role
 
 from .errors import (
     CliFailureError,
@@ -141,12 +144,17 @@ class LlmClient(ABC):
         permissions: ToolPermissions,
         purpose: str,
         model: str | None = None,
+        role: str | None = None,
     ) -> LlmResult:
         """Ask for an ``output_type`` and return it validated.
 
         ``model`` overrides the client's for this call; ``None`` keeps it.
-        Raises only ``LlmError`` subclasses.
+        ``role`` is recorded in the call records. Once the role is accepted,
+        raises only ``LlmError`` subclasses; an unknown role raises
+        ``ValidationError`` before any invocation.
         """
+        if role is not None:
+            validate_role(role)
         requested = model if model is not None else self._model
         full_prompt = f"{prompt}\n\n{json_contract(output_type)}"
         current = full_prompt
@@ -180,6 +188,7 @@ class LlmClient(ABC):
                     model=reported or requested,
                     stripped_variables=raw.stripped_variables if raw is not None else (),
                     rejection_reason=rejection_reason,
+                    role=role,
                 )
                 calls.append(call)
                 self._log.append(call)
