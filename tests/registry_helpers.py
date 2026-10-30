@@ -66,3 +66,30 @@ def close_after_cap(reg, attempt_id, cap=3):
     for n in range(1 + cap):
         reg.add_execution(crash(attempt_id, n))
     reg.close_attempt(attempt_id, "gave up")
+
+
+T0 = "2026-10-30T10:00:00+00:00"
+
+
+def make_trace(cycle_id="C1", role="modeling", round_id="R1", **kwargs):
+    from kaggle_agent.registry import RoleTrace
+
+    data = {
+        "cycle_id": cycle_id,
+        "role": role,
+        "round_id": round_id,
+        "input_type": "Round",
+        "input": {"tasks": ["try a tree model"]},
+        "output_type": "Attempt",
+        "output": {"id": "A1"},
+        "outcome": "ok",
+        "created_at": T0,
+        **kwargs,
+    }
+    return RoleTrace(**data)
+
+
+def add_round(reg, round_id="R1", cycle_id="C1", tasks=("task",), candidates=()):
+    from kaggle_agent.proposals import Round
+
+    return reg.add_round(cycle_id, Round(round_id, tuple(tasks), tuple(candidates)))
