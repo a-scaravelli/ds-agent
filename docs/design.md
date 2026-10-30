@@ -7,7 +7,7 @@ This document is the design on which all later tickets are based. It does not im
 **Goals**
 
 - An agent that does the iterative work of a data scientist on a tabular Kaggle competition, from downloading the data to the submission.
-- A team of five role agents does the work of a data science lab: coordinator, data, feature engineering, modeling and reviewer. The design has three levels with the same core structure, the same five roles and the same guarantees (frozen protocol, labels and holdout owned by the evaluator, everything in the registry, tests with fakes); the levels differ only in the machinery around the roles (table in section 14). Level 1 is built first; levels 2 and 3 are directions, not commitments.
+- A team of five role agents does the work of a data science lab: coordinator, data, feature engineering, modeling and reviewer. The design has three levels with the same core structure, the same five roles and the same guarantees (frozen protocol, labels and holdout owned by the evaluator, everything in the registry, tests with fakes); the levels differ only in the machinery around the roles (table in section 14). Level 1 is built first; level 2 and level 3 are directions, not commitments.
 - The lead (the human) approves a short initial plan; then the agent works autonomously in rounds, each with several candidates, and the lead steps in after every round (guidance, or let the cycle continue) and at the end of the cycle, by reviewing the report. Every candidate is tracked and can be consulted from a read-only web interface.
 - Fully automatic interaction with Kaggle: download, reading of rules and metric, sending of submissions, reading of the score.
 - Runs on a Mac without GPU, with small or medium tabular datasets.
@@ -56,7 +56,7 @@ States:
 
 Happy path: `PLANNING → AWAITING_PLAN_APPROVAL → SPLITTING → BASELINE → ITERATING (a round) → AWAITING_GUIDANCE → ITERATING → ... → REPORTING → AWAITING_REVIEW`. After the plan is approved the only waits are the guidance after each round and the final review.
 
-**Configurable parameters.** The number of rounds N (provisional default 5; the previous cycle without rounds had N = 10 by default iterations), the number C of candidates per round (provisional default 3), the number K of rounds without real improvement after which the cycle stops early (section 11), the number M of rounds in a row without a pause for guidance (default 1; M = N is the previous cycle without pauses) and the cap on fix retries per attempt (3 by default). The defaults are provisional and will be tuned after the first real run.
+**Configurable parameters.** The number of rounds N (provisional default 5; the previous cycle without rounds had N = 10 by default iterations), the number C of candidates per round (provisional default 3), the number K: K rounds without real improvement stop the cycle early (section 11), the number M of rounds in a row without a pause for guidance (default 1; M = N is the previous cycle without pauses) and the cap on fix retries per attempt (3 by default). The defaults are provisional and will be tuned after the first real run.
 
 **Terminology.** A candidate is an attempt (section 4). Where the older sections say iteration they mean a round or a candidate, as the context shows.
 
@@ -433,7 +433,7 @@ Existing subpackages under `src/kaggle_agent/`:
 - `review`: initial plan and final review (section 13);
 - `budget`: limits and stop (section 11).
 
-Future subpackages, not created in this ticket and with names to be confirmed in review: `agents` for the five role prompts and their typed inputs and outputs (section 8), `bundle` for the bundle contract and the runner (section 8), `pipeline` for the round pipeline and the generation of the end-to-end pipeline (sections 2 and 13) and `web` for the consultation interface (section 13).
+Future subpackages, not created in this ticket and with names to be confirmed in review: `agents` for the five role prompts (coordinator, data, feature engineering, modeling, reviewer) and their typed inputs and outputs (section 8), `bundle` for the bundle contract and the runner (section 8), `pipeline` for the round pipeline and the generation of the end-to-end pipeline (sections 2 and 13) and `web` for the consultation interface (section 13).
 
 **The three levels.** All levels keep the same core structure, the same five roles and the same guarantees: frozen protocol, labels and holdout owned by the evaluator, everything in the registry, tests with fakes. Level 1 is built first (tickets 6 to 12 of section 15). Levels 2 and 3 are directions.
 

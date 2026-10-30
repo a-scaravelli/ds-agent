@@ -172,8 +172,9 @@ def test_short_initial_plan_with_five_items(sections):
 
 def test_plan_is_single_control_point(sections):
     s2 = sections[2]
-    assert len(re.findall(r"`AWAITING_[A-Z_]+`", s2.split("Happy path")[0])) == 2
-    assert "`AWAITING_PLAN_APPROVAL`" in s2 and "`AWAITING_APPROVAL`" not in s2
+    assert len(re.findall(r"`AWAITING_[A-Z_]+`", s2.split("Happy path")[0])) == 3
+    assert "`AWAITING_PLAN_APPROVAL`" in s2 and "`AWAITING_GUIDANCE`" in s2
+    assert "`AWAITING_APPROVAL`" not in s2
     assert "single point of control" in s2.lower()
     s5 = sections[5].lower()
     assert "contained in the initial plan" in s5 and "replaces the separate approval" in s5
@@ -473,3 +474,142 @@ def test_section_8_documents_rich_contract_and_rejection_reason(sections):
                  "claude-sonnet-4-6", "not verified", "rate limit", "oauth"):
         assert word in low, word
     assert "rejection_reason" in sections[7] and "rejection_reason" not in sections[1]
+
+
+# --- Three levels with the DS Lab roles (ticket 14) ---
+
+ROLES = ("coordinator", "data", "feature engineering", "modeling", "reviewer")
+TICKET_LINE = re.compile(r"^(\d+)\. \*\*.+$", re.M)
+
+
+def _tickets(sections):
+    return {int(m.group(1)): m.group(0).lower() for m in TICKET_LINE.finditer(sections[15])}
+
+
+def test_three_levels_same_roles_and_guarantees(sections):
+    for n in (1, 8, 14):
+        low = sections[n].lower()
+        for word in ("level 1", "level 2", "level 3"):
+            assert word in low, (n, word)
+        for role in ROLES:
+            assert role in low, (n, role)
+    low = sections[1].lower()
+    for word in ("same core structure", "same five roles", "same guarantees", "frozen protocol",
+                 "labels and holdout owned by the evaluator", "registry", "fakes", "level 1 is built first"):
+        assert word in low, word
+
+
+def test_rounds_candidates_guidance_and_parameters(sections):
+    s2 = sections[2]
+    low = s2.lower()
+    for word in ("`awaiting_guidance`", "rounds", "candidate", "m rounds", "m = n", "k rounds",
+                 "recorded as a suggestion", "protocol change is not guidance", "new plan approval"):
+        assert word in low, word
+    assert "default 5" in low and "default 3" in low and "default 1" in low
+
+
+def test_level_1_pipeline_and_reviewer_not_a_gate(sections):
+    s8 = sections[8]
+    low = s8.lower()
+    seq = ["coordinator, data, feature engineering, modeling, runner, reviewer, coordinator"]
+    for word in seq + ["`llmclient`", "do not call each other", "compact registry summary",
+                       "never a gate", "typed input", "rejected"]:
+        assert word in low, word
+    assert "reviewer as gate" in low
+
+
+def test_bundle_contract_and_runner_levels(sections):
+    low = sections[8].lower()
+    for word in ("`fit(train)`", "`predict(bundle_id, x)`", "subprocess", "timeout", "without labels",
+                 "computes the metrics itself", "virtual environment", "containers", "immutable"):
+        assert word in low, word
+
+
+def test_stop_on_target_with_several_thresholds(sections):
+    low = sections[11].lower()
+    for word in ("several thresholds", "minimum precision", "minimum recall", "frozen protocol"):
+        assert word in low, word
+
+
+def test_registry_identifiers_records_and_queries(sections):
+    s7 = sections[7]
+    for ident in ("project_id", "round_id", "candidate_id", "run_id", "bundle_id"):
+        assert f"`{ident}`" in s7, ident
+    low = s7.lower()
+    for word in ("equal to the attempt id", "reviewer report", "lead guidance", "role trace",
+                 "per round", "failure_kind", "fingerprint", "rejection_reason"):
+        assert word in low, word
+
+
+def test_web_read_only_at_level_1_and_lead_input(sections):
+    low = sections[13].lower()
+    for word in ("read-only", "agent traces", "reviewer reports", "command or a file", "not a chat",
+                 "login", "level 2", "level 3"):
+        assert word in low, word
+
+
+def test_levels_table_rows_and_future_subpackages(sections):
+    s14 = sections[14]
+    rows = [l for l in s14.splitlines() if l.startswith("| ") and not l.startswith("| Row") and not l.startswith("|---")]
+    firsts = [r.split("|")[1].strip().lower() for r in rows]
+    assert firsts == ["roles", "orchestration", "bundle and runner", "evaluation", "web",
+                      "lead input", "data", "storage", "security", "budget"]
+    for r in rows:
+        assert r.count("|") == 5, r
+    for name in ("agents", "bundle", "pipeline", "web"):
+        assert f"`{name}`" in s14, name
+    low = s14.lower()
+    for word in ("sqlite", "kaggle only", "no login", "no docker", "no parallel candidates",
+                 "caps on rounds and candidates only"):
+        assert word in low, word
+
+
+def test_tickets_1_to_16_by_level(sections):
+    tickets = _tickets(sections)
+    assert sorted(tickets) == list(range(1, 17))
+    for n, line in tickets.items():
+        assert "goal:" in line and "acceptance criteria:" in line, n
+    body = sections[15]
+    pos = {k: body.index(k) for k in ("**Level 1**", "**Level 2**", "**Level 3**")}
+    for n in range(6, 17):
+        at = body.index(f"\n{n}. **")
+        level = 1 if n <= 12 else 2 if n <= 15 else 3
+        starts = sorted(pos.values())
+        current = max(i for i, s in enumerate(starts, 1) if s < at)
+        assert current == level, n
+    low = body.lower()
+    assert "without network" in low and "fake" in low and "simulation" in low
+
+
+def test_ticket_keywords(sections):
+    tickets = _tickets(sections)
+    expected = {
+        6: ("light sandbox", "timeout", "protected-file hash"),
+        7: ("bundle", "runner"),
+        8: ("typed prompt",),
+        9: ("round", "guidance"),
+        10: ("read-only",),
+        11: ("final report", "suggestions"),
+        12: ("orchestrator", "end-to-end"),
+        13: ("isolated workspaces",),
+        14: ("immutable", "protected final test", "budget"),
+        15: ("input",),
+        16: ("containers", "excel"),
+    }
+    for n, words in expected.items():
+        for w in words:
+            assert w in tickets[n], (n, w)
+
+
+def test_new_alternatives_risks_and_question(sections):
+    low8 = sections[8].lower()
+    assert "reviewer as gate" in low8 and "single agent for all roles" in low8
+    assert "container per variant" in low8
+    low16 = sections[16].lower()
+    assert "quota" in low16 and "five roles" in low16
+    assert "reviewer is a model" in low16
+    assert "is level 1 enough" in low16
+    low3 = sections[3].lower()
+    for role in ROLES + ("runner",):
+        assert role in low3, role
+    assert "who runs it" in low3
