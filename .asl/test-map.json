@@ -2,80 +2,150 @@
  "cases": {
   "1": [
    {
-    "file": "tests/test_llm_structured.py",
-    "name": "test_shortplan_contract_has_types_nonempty_lists_and_word_limit"
+    "file": "tests/test_design_doc.py",
+    "name": "test_design_has_all_16_sections_in_order"
    }
   ],
   "2": [
    {
-    "file": "tests/test_llm_structured.py",
-    "name": "test_attempt_contract_has_required_fields_types_and_evidence_rule"
+    "file": "tests/test_design_doc.py",
+    "name": "test_plan_is_single_control_point"
    }
   ],
   "3": [
    {
-    "file": "tests/test_llm_structured.py",
-    "name": "test_type_without_hints_or_with_unmapped_annotations_still_gets_a_contract"
+    "file": "tests/test_design_doc.py",
+    "name": "test_short_final_report"
    }
   ],
   "4": [
    {
-    "file": "tests/test_proposals_plan.py",
-    "name": "test_contract_hints_match_the_validation"
+    "file": "tests/test_design_doc.py",
+    "name": "test_loop_ten_configurable_iterations"
    },
    {
-    "file": "tests/test_proposals_attempt.py",
-    "name": "test_contract_hints_match_the_validation"
+    "file": "tests/test_design_doc.py",
+    "name": "test_early_stop_after_k_iterations"
    },
    {
-    "file": "tests/test_llm_structured.py",
-    "name": "test_llm_code_does_not_hardcode_the_word_limit"
+    "file": "tests/test_design_doc.py",
+    "name": "test_holdout_isolation_limit_documented"
    }
   ],
   "5": [
    {
-    "file": "tests/test_llm_client.py",
-    "name": "test_rejection_reason_is_set_for_invalid_output_and_none_otherwise"
+    "file": "tests/test_design_doc.py",
+    "name": "test_three_levels_same_roles_and_guarantees"
    }
   ],
   "6": [
    {
-    "file": "tests/test_llm_client.py",
-    "name": "test_rejection_reason_is_sanitized_for_every_validation_path"
+    "file": "tests/test_design_doc.py",
+    "name": "test_level_1_pipeline_and_reviewer_not_a_gate"
    }
   ],
   "7": [
    {
-    "file": "tests/test_llm_recording.py",
-    "name": "test_rejection_reason_is_stored_and_survives_reopening"
+    "file": "tests/test_design_doc.py",
+    "name": "test_level_1_pipeline_and_reviewer_not_a_gate"
    }
   ],
   "8": [
    {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_llm_calls_without_rejection_reason_column_is_migrated"
+    "file": "tests/test_design_doc.py",
+    "name": "test_rounds_candidates_guidance_and_parameters"
    }
   ],
   "9": [
    {
-    "file": "tests/test_registry_records.py",
-    "name": "test_llm_call_entry_rejection_reason_validation"
+    "file": "tests/test_design_doc.py",
+    "name": "test_rounds_candidates_guidance_and_parameters"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_metric_and_protocol_are_frozen"
    }
   ],
   "10": [
    {
-    "file": "tests/test_llm_models.py",
-    "name": "test_call_record_builds_without_rejection_reason"
+    "file": "tests/test_design_doc.py",
+    "name": "test_bundle_contract_and_runner_levels"
    }
   ],
   "11": [
    {
-    "file": "tests/test_repo_language.py",
-    "name": "test_readme_and_memory_record_the_real_smoke_test"
+    "file": "tests/test_design_doc.py",
+    "name": "test_stop_on_target_with_several_thresholds"
+   }
+  ],
+  "12": [
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_registry_identifiers_records_and_queries"
+   }
+  ],
+  "13": [
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_web_read_only_at_level_1_and_lead_input"
+   }
+  ],
+  "14": [
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_levels_table_rows_and_future_subpackages"
+   }
+  ],
+  "15": [
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_subpackages_cited_in_section_14"
    },
    {
     "file": "tests/test_design_doc.py",
-    "name": "test_section_8_documents_rich_contract_and_rejection_reason"
+    "name": "test_only_documentation_no_new_packages"
+   }
+  ],
+  "16": [
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_tickets_1_to_16_by_level"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_implementation_plan_tickets_have_criteria_and_fakes"
+   }
+  ],
+  "17": [
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_ticket_keywords"
+   }
+  ],
+  "18": [
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_new_alternatives_risks_and_question"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_decision_sections_have_rejected_alternatives"
+   }
+  ],
+  "19": [
+   {
+    "file": "tests/test_repo_language.py",
+    "name": "test_repo_text_has_no_italian_function_words"
+   },
+   {
+    "file": "tests/test_repo_language.py",
+    "name": "test_italian_field_names_absent"
+   }
+  ],
+  "20": [
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_only_documentation_no_new_packages"
    }
   ]
  }
