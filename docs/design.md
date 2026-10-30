@@ -7,7 +7,8 @@ This document is the design on which all later tickets are based. It does not im
 **Goals**
 
 - An agent that does the iterative work of a data scientist on a tabular Kaggle competition, from downloading the data to the submission.
-- The user approves only a short initial plan; then the agent works autonomously (split, baseline, improvement iterations) and the user steps in only at the end of the cycle, by reviewing the report. Every attempt is tracked and can be consulted from a web interface.
+- The lead (the user) gives the objective and the success criteria, confirms the target, the evaluation protocol and a short plan, and then directs the research round by round: a team of role agents (coordinator, data, feature engineering, modeling, reviewer) does the work, the lead reads the results of each round on the web interface and gives guidance for the next one, or lets several rounds run without pausing. Every candidate is tracked and can be consulted from the web interface from the first level.
+- The solution is built in three levels (section 14). All levels keep the same five roles and the same guarantees (frozen protocol, labels and holdout owned by the evaluator, everything in the registry, tests with fakes); they differ only in the machinery around the roles. Level 1 is built first and is the minimum that tests the whole chain.
 - Fully automatic interaction with Kaggle: download, reading of rules and metric, sending of submissions, reading of the score.
 - Runs on a Mac without GPU, with small or medium tabular datasets.
 - No paid API: the model that reasons at runtime is headless Claude Code with the subscription.
@@ -17,7 +18,8 @@ This document is the design on which all later tickets are based. It does not im
 **Non-goals**
 
 - This ticket does not write modeling logic: it produces the document and an empty skeleton of the repo.
-- No validation of the individual steps by the user: the control points are the initial plan and the final review (section 2).
+- No validation of the individual steps by the user: the control points are the initial plan, the reading of each round and the final review (section 2).
+- Level 1 has no container per variant, no login, no parallel candidates, no chat with the agents and no tools for the agents beyond what the fixed code gives them (section 14).
 - No polished graphic design of the interface: it is deferred to a later ticket.
 - No support for GPU, deep learning on images or text, code competitions (notebook-only) or datasets that do not fit in memory on a Mac.
 - No optimization for leaderboard rank at any cost: the agent must not sacrifice the validity of the evaluation to climb the leaderboard.
@@ -46,14 +48,17 @@ States:
 | `AWAITING_PLAN_APPROVAL` | the plan is presented to the user, who approves or corrects it; it is the single point of control before the cycle | user |
 | `SPLITTING` | the code creates the validation set, which drives the iterations, and the test holdout, never used to decide (section 5) | code |
 | `BASELINE` | first model trained and evaluated on the validation set | code and model |
-| `ITERATING` | improvement iteration, with the sub-steps `propose`, `validate`, `execute`, `analyze`, `record` | model and code |
+| `ITERATING` | one round of candidates (see below), each with the sub-steps `propose`, `validate`, `execute`, `analyze`, `record` | roles and code |
+| `AWAITING_GUIDANCE` | the lead reads the round and gives guidance for the next one, or lets the cycle go on | user |
 | `REPORTING` | short final report and evaluation of the test holdout on the best attempt | code and model |
 | `AWAITING_REVIEW` | the user accepts or gives suggestions | user |
 | `STOPPED` | a stop criterion fired or the cycle ended (section 11) | code |
 
-Happy path: `PLANNING → AWAITING_PLAN_APPROVAL → SPLITTING → BASELINE → ITERATING (N times) → REPORTING → AWAITING_REVIEW`. After the plan is approved there is no other approval state until the final review.
+Happy path: `PLANNING → AWAITING_PLAN_APPROVAL → SPLITTING → BASELINE → ITERATING (N times) → REPORTING → AWAITING_REVIEW`. After the plan is approved there is no other approval state until the final review: this is the cycle without pauses. With the round guidance described below, `AWAITING_GUIDANCE` is reached after every round.
 
-**Configurable parameters.** The number of iterations N (10 by default), the number K of consecutive iterations without real improvement after which the cycle stops early (section 11), and the cap on fix retries per attempt (3 by default).
+**Rounds and guidance.** Inside `ITERATING` the work is organized in *rounds*. A round is: the coordinator assigns tasks, with the parent candidate and the criteria; the data, feature engineering and modeling roles produce one or more candidates, each delivered as a bundle (section 8); the runner evaluates every bundle in the frozen protocol; the reviewer writes the report; the coordinator reads the results and proposes the next round. Every candidate is an `Attempt` (section 4) and every round is recorded in the registry. After the report of each round the cycle enters `AWAITING_GUIDANCE`: the lead reads the round on the web interface and either gives guidance (a text that the coordinator must take into account in the next round, recorded as a suggestion) or lets the cycle continue. The lead can allow up to M rounds in a row without pausing; M equal to N is the cycle without pauses of the happy path. A change of the protocol is not guidance: it needs a new plan approval (section 5). At level 1 the roles run one after the other in a fixed order (section 14).
+
+**Configurable parameters.** The number of rounds N (provisional default 5: every round has several candidates, so it replaces the earlier default of 10 single attempts), the number C of candidates per round (provisional default 3), the number M of rounds in a row without a pause (default 1), the number K of consecutive rounds without real improvement after which the cycle stops early (section 11), and the cap on fix retries per attempt (3 by default).
 
 **One iteration.** The model analyzes the metric and the errors (section 9), formulates a hypothesis, decides what to change (feature engineering, model, hyperparameters, data cleaning, etc.) and runs a new attempt. The code checks the shape of the attempt and duplicates, runs it in the sandbox with the frozen evaluation and records the outcome. Every iteration produces an attempt in the registry (section 7).
 
@@ -93,6 +98,8 @@ The phases are not a rigid list: they form a graph. The agent can go back to any
 | Error analysis | out-of-sample predictions | weak segments, hypotheses (section 9) | new hypotheses for the earlier phases |
 | Combination | candidate models | ensemble or selection | only if the models have different errors, with evidence |
 | Report and pipeline | history of attempts, best attempt | short final report, test holdout, end-to-end pipeline (section 13), generated submission | which attempts to tell and which variants to propose |
+
+**Who does each phase.** Acquisition and the split are fixed code. Problem understanding and data exploration belong to the data role, which delivers the profile and the data snapshot; the initial plan to the coordinator; feature engineering to the feature engineering role; models, baseline and combination to the modeling role; the error analysis tables are computed by code and interpreted by the reviewer and the coordinator; the report is written by the reviewer. Each role is a prompt with typed input and output (section 8).
 
 The actual submission to Kaggle is not a phase of the autonomous cycle: it is an explicit action of the user after the review (section 10).
 
@@ -228,7 +235,9 @@ Known open point: an iteration recorded as `inconclusive` after repeated rejecte
 
 **Cycle and suggestions.** A cycle has an identifier, approved plan, parameters (N, K, cap of fix retries), state and, once approved, the frozen protocol hash. A user suggestion has text, origin cycle and the cycles spawned from it. A new cycle restarts from the best model and the history, and the suggestion stays recorded together with the cycles it generated.
 
-**Required queries.** The registry must support the queries of the web interface: list of attempts, series of the metric per iteration, detail of an attempt, suggestions and linked cycles.
+**Project, rounds and roles.** For the multi-role flow (section 8) the registry also stores, linked by shared identifiers (`project_id`, `cycle_id`, `round_id`, `candidate_id`, which is the id of the attempt, `run_id`, which is the id of the execution record, and `bundle_id`): the rounds with the tasks assigned by the coordinator; the bundles (hash of the folder, reference, schema); the evaluation of each bundle; the reports of the reviewer; the guidance of the lead; and the trace of every role call (role, prompt and response, with the role added to the call record). The coordinator receives a compact summary of this memory inside its prompt and does not rebuild the history from a conversation.
+
+**Required queries.** The registry must support the queries of the web interface: list of attempts, series of the metric per round, detail of an attempt, rounds with their candidates, reports of the reviewer, traces of the role calls, suggestions and linked cycles.
 
 **Deduplication.** Two levels: (1) a deterministic *fingerprint* (hash of normalized configuration, code, data and protocol) discards exact duplicates; the code hash is included because features and models live in the code, so the same configuration with different feature code is a different idea. The check runs when a new attempt is proposed, against all previous attempts whatever their outcome; the fix retries of the same attempt are not checked against each other; (2) a semantic check: before proposing, the model receives a summary of the related attempts and must declare how the new attempt differs. The code rejects attempts without this declaration.
 
@@ -251,6 +260,10 @@ Alternatives considered:
 **The fixed code (not modifiable by the model):** cycle and state machine, split, computation of the metric, significance threshold, holdout, access to Kaggle and credentials, budget, registry, hashes.
 
 **The user:** approves or corrects the initial plan and reviews the final report (accepts or gives suggestions). Does not validate the individual steps.
+
+**The role agents.** The model side is split in five roles, all present from level 1: the *coordinator* proposes the plan and the rounds, reads the results and decides the next round; the *data* role writes the profile, checks quality, target, time and entity of the protocol, and delivers the data snapshot; the *feature engineering* role delivers feature packages with code and tests; the *modeling* role delivers the candidate bundles; the *reviewer* interprets the numbers produced by the runner and writes the report. At level 1 a role is a prompt with typed input and output, called through `LlmClient` (see the adapter below) by a plain sequential pipeline; roles do not call each other, the pipeline passes artifacts between them. Before proposing, feature engineering and modeling read the history in the registry to avoid duplicates (section 7). The reviewer interprets and reports; it is never a gate, because what protects the evaluation is fixed code.
+
+**The bundle contract.** A candidate is delivered as a *bundle*: a folder with the code, the transformations, the model and the declared dependencies, and a script that exposes `fit(train)` and `predict(bundle_id, X)`, which returns ids and predictions. The runner, fixed code, loads the bundle in a subprocess with a timeout, passes only the evaluation data without labels, collects the predictions and computes the metrics itself, so no model is judged on the account of the agent that built it. The labels stay with the evaluator. At level 1 a bundle is a plain folder run in the same Python environment; immutable versions and one environment per variant come at level 2 (section 14).
 
 **How the model is prevented from altering the evaluation:**
 
@@ -281,6 +294,8 @@ Rejected alternatives:
 - *Trusting instructions in the prompt ("do not modify the evaluation")*: rejected because it is not a control, only a request.
 - *Letting the model also write the evaluation and reviewing it by hand*: rejected because every change must be reread, it does not scale and a subtle error goes unseen.
 - *Isolation with a container for each run*: postponed; costly on a Mac. The sandbox starts as a separate process with reduced permissions and can evolve.
+- *The reviewer agent as the gate on what counts as an improvement*: rejected because a model judging a model is not a control; the threshold and the comparisons stay in code and the reviewer only interprets them.
+- *A single agent doing every role*: rejected because the separation of roles (data, features, models, review) is the essence of the method and has to be testable from level 1; what is simplified at level 1 is the machinery around the roles, not the roles.
 
 ## 9. Error analysis
 
@@ -326,7 +341,8 @@ The budget is fixed code in the `budget` subpackage, configured by the human at 
 - **Submissions**: total maximum and daily reserve (section 10).
 - **Subscription**: consumption of the Claude Code quota, measured with the number of calls, tokens (when the CLI reports them) and duration reported by the adapter for every call and stored in the registry (section 7); warning threshold and stop threshold. In case of rate limit, the agent waits according to the backoff and suspends the cycle without losing the state.
 - **Early stop for stagnation**: if for K consecutive iterations there is no real improvement (section 6), the cycle stops automatically and moves to the final report without user intervention. K is configurable.
-- **Stop on target**: target score declared by the human reached; the cycle moves to the report.
+- **Stop on target**: the goal criteria declared by the lead (a target score, or several thresholds such as a minimum precision and a minimum recall, measured in the frozen protocol) are met; the cycle freezes the candidate and moves to the report.
+- **Level 1**: only the caps on rounds, on candidates per round and on consecutive failed attempts are enforced; the limits on time, subscription and stagnation arrive at level 2 (section 14).
 
 Rejected alternatives: leaving to the user the decision to stop at every stagnation (contradicts autonomous work), no limit with manual stop (risk of consuming the quota without noticing), and a single limit on time (it protects neither the subscription nor the submissions).
 
@@ -343,11 +359,12 @@ Rejected alternative: reproducing by rerunning the model with the same prompt, b
 
 ## 13. Human interaction
 
-The user steps in at three moments, in the `review` subpackage:
+The lead steps in at four moments, in the `review` subpackage:
 
-1. **Short plan**: the user approves or corrects the initial plan (section 4). It is the single point of control before the cycle.
-2. **Short final report**: best attempt, result on the test holdout, what worked and what did not.
-3. **Review**: the user accepts, or gives suggestions on what to explore. Every suggestion is recorded and starts a new cycle from the existing state (section 7). Every answer is saved in the registry.
+1. **Mandate**: objective, success criteria and context of the project.
+2. **Short plan**: the lead confirms the target, the evaluation protocol and the initial plan (section 4). It is the single approval before the cycle and the only moment where the protocol can change.
+3. **Round guidance**: after every round (section 2) the lead reads the results and the report of the reviewer and gives guidance for the next round, or lets the cycle continue. At level 1 the guidance is given with a command or a file, not in a chat.
+4. **Short final report and review**: best attempt (the best candidate), result on the test holdout, what worked and what did not; the lead accepts, or gives suggestions on what to explore. Every suggestion is recorded and starts a new cycle from the existing state (section 7). Every answer is saved in the registry.
 
 ### Deliverable: the pipeline
 
@@ -357,14 +374,20 @@ The final output of every cycle is an executable end-to-end Python pipeline, or 
 - is launched with a single command and is reproducible: fixed seeds, declared dependencies, no notebook and no in-memory state (section 12);
 - is linked to the attempt it comes from: the attempt records the reference to the pipeline (section 7) and from the interface one goes from the attempt to the corresponding pipeline.
 
+At level 1 the bundle (section 8) is the unit that is run and evaluated; the pipeline delivered at the end is its end-to-end version, with data loading and submission added.
+
 ### Web consultation interface
 
-The web interface can be consulted without reading code and reads the data from the registry. The views are:
+The web interface can be consulted without reading code and reads the data from the registry. It exists from level 1, in read-only form, because it is how the lead evaluates the solution. The views are:
 
 - **list/timeline of attempts**, with outcome, metric and originating attempt;
 - **chart of the metric per iteration**, with the best attempt highlighted;
 - **detail of each attempt**: hypothesis, rationale in natural language, what changes with respect to the originating attempt, configuration, metrics, duration, outcome, artifacts and link to the pipeline;
-- **user suggestions**, with the cycles spawned from each.
+- **user suggestions**, with the cycles spawned from each;
+- **rounds and reports**: the candidates of each round and the report of the reviewer;
+- **agent traces**: prompt and response of every role call, with its consumption.
+
+Input from the web (guidance, conversation with the coordinator) is level 2; users and login are level 3.
 
 The polished graphic design is deferred to a later ticket: in this design the completeness and navigability of the data matter, not the appearance.
 
@@ -392,6 +415,25 @@ flowchart LR
     H -.-> W
 ```
 
+### Levels of the solution
+
+The diagram above is the target. The solution is built in three levels that keep the same roles and the same guarantees (frozen protocol, labels and holdout owned by the evaluator, everything in the registry, tests with fakes); the levels differ in the machinery around them, and each piece is behind an interface so that a level changes an implementation, not the structure.
+
+| | Level 1: core (built first) | Level 2: intermediate | Level 3: target |
+|---|---|---|---|
+| Roles | all five, as prompts with typed input and output on `LlmClient`, no tools | the same roles with real tools: run code in their workspace and query the registry | autonomous runtime with memory and a queue of tasks |
+| Orchestration | plain sequential pipeline of a round; the coordinator reads a registry summary in its prompt | candidates in parallel, concurrent lines of work | the coordinator decides dynamically whom to call |
+| Bundle and runner | plain folder with `fit` and `predict(bundle_id, X)`, run by fixed code in a subprocess with a timeout, same environment | immutable versions with a hash in the registry, one virtual environment per variant | containers or isolated environments per variant |
+| Evaluation | frozen protocol and holdout (section 6); the reviewer reports on the numbers of the runner | adds the final protected test session with the frozen candidate | management of the overfitting on the holdout |
+| Web interface | read-only: rounds, candidates, runs, metrics, reports, agent traces | adds input: guidance and conversation with the coordinator | complete application with users and login |
+| Lead input | a command or a file | from the web interface | from the web interface, several projects |
+| Data | Kaggle | Kaggle and simple extra sources | Excel and other sources, with construction of the label |
+| Storage | SQLite as now | SQLite plus the registry of bundles | a database behind the same `Registry` interface |
+| Security | hash of protected files and timeout, no login | resource limits | complete sandbox and login |
+| Budget | caps on rounds and candidates | stop on stagnation, rate limit, quota | complete quotas |
+
+Level 1 tests the essence: whether the five roles, handing each other bundles and reports, improve a real baseline, and whether the lead can judge it from the web interface.
+
 Existing subpackages under `src/kaggle_agent/`:
 
 - `loop`: state machine (section 2);
@@ -404,7 +446,7 @@ Existing subpackages under `src/kaggle_agent/`:
 - `review`: initial plan and final review (section 13);
 - `budget`: limits and stop (section 11).
 
-Future subpackages, not created in this ticket and with names to be confirmed in review: `pipeline` for the generation of the end-to-end pipeline (section 13) and `web` for the consultation interface (section 13).
+Future subpackages, with names to be confirmed in review: `agents` for the prompts of the five roles and their typed contracts (section 8), `bundle` for the bundle contract and the runner (section 8), `pipeline` for the generation of the end-to-end pipeline (section 13) and `web` for the interface (section 13).
 
 Other folders: `docs/` (design), `tests/`, `data/` (ignored by git).
 
@@ -414,20 +456,32 @@ Rejected alternatives: a single monolithic module (it does not allow protecting 
 
 ## 15. Implementation plan
 
-Sequence of successive tickets. Principle: each ticket that introduces a dependency chooses the library among its own tasks, with the alternatives evaluated according to the criteria of section 1 (the starting stack is a starting point that is not binding). All tests run without network: Kaggle and Claude have a fake (simulation) and no test contacts them. The order puts first what protects the evaluation and gives priority to traceability.
+Sequence of successive tickets. Principle: each ticket that introduces a dependency chooses the library among its own tasks, with the alternatives evaluated according to the criteria of section 1 (the starting stack is a starting point that is not binding). All tests run without network: Kaggle and Claude have a fake (simulation) and no test contacts them. The order puts first what protects the evaluation and gives priority to traceability. The plan is split by level (section 14): level 1 keeps all five roles and is complete enough to test the whole chain; levels 2 and 3 add machinery, not roles.
 
 1. **Data model of plan, attempt and suggestion.** Goal: schema and validation of the short plan (five items, length limit), of the attempt and of the suggestion. Acceptance criteria: incomplete or overlong plans rejected; attempts without `what_changed` rejected; serialization and rereading identical; examples of section 4 valid.
 2. **Attempt registry with traceability.** Goal: registry with a replaceable interface (SQLite chosen over MLflow and JSONL, with the alternatives evaluated), execution records, cycles and suggestions. Acceptance criteria: all fields of section 7 saved and reread; exact duplicates (fingerprint including the code hash) rejected; failures retrievable by `failure_kind` with the reason; queries for list, metric series, detail, suggestions and linked cycles.
 3. **Evaluation engine with frozen split.** Goal: a `Protocol` proposed with the plan and frozen at approval, metric and partition scheme chosen by name from extensible registries (none is a default), validation and holdout split, threshold `k` times the baseline dispersion, holdout session, hash of protocol and evaluation code stored on the cycle; pandas, numpy and scikit-learn confirmed as pinned runtime dependencies. Acceptance criteria: run blocked if the hash changes (protocol or evaluation code); same seed, same split; protocols without metric, direction or scheme rejected; deterministic schemes accept repetitions and only the candidate seed changes; holdout reachable only through an accessor that logs every read in the registry, one session per cycle, failed evaluation consuming it, and the limit that real isolation comes with the sandbox; threshold applied on paired comparisons and comparisons counted without raising the threshold yet; tests with fake candidates, without network.
 4. **Kaggle client with fake.** Goal: download, rules, submission, score, daily limit, credentials with a documented lookup order (new API token and legacy `kaggle.json`), and the choice of the access method (the official `kaggle` package, section 10). Acceptance criteria: all tests use the fake and no network; submission format validated; limit respected; credentials absent from the logs; the score recorded in the registry with the submission; nothing submits automatically. Real Kaggle is exercised only by a manual smoke test in the README.
 5. **Headless Claude adapter with fake.** Goal: call Claude Code non-interactively and read its outcome. Acceptance criteria: fake that simulates responses, malformed responses and rate limit; consumption recorded; no test calls Claude and no network. Done: the adapter runs `claude -p` with the subscription only, validates structured output with the proposal types, applies backoff and reports consumption per call (including the model); real Claude is exercised only by a manual smoke test in the README (section 8).
-6. **Execution sandbox.** Goal: run the generated code with reduced permissions. Acceptance criteria: timeout applied; writing to protected files impossible and diff touching them rejected; no access to credentials and holdout.
-7. **State machine of the autonomous cycle.** Goal: plan, baseline, N iterations, early stop and resume. Acceptance criteria: happy path with fake model and user; default of 10 configurable iterations; stop after K iterations without improvement; code errors fixed inside the attempt up to the fix-retry cap, then the attempt is closed as `failed` with `code_error`, and a cap on consecutive failed attempts; resume from the saved state.
-8. **End-to-end pipeline generator linked to the attempt.** Goal: produce the executable pipeline (and N variants on request). Acceptance criteria: a single command; seeds and dependencies declared; no notebook; reference recorded in the attempt; replay that reproduces the metric.
-9. **Budget and stop.** Goal: limits and stop criteria. Acceptance criteria: every limit blocks the cycle; stagnation detected; rate limit handled with simulated wait.
-10. **Final report and review with suggestions and new cycles.** Goal: short report, holdout evaluation, acceptance or suggestions. Acceptance criteria: the report contains best attempt, result on the test holdout, what worked and what did not; a suggestion is recorded and starts a cycle from the best model and the history.
-11. **Web interface for consultation.** Goal: views of list/timeline, metric chart, detail and suggestions. Acceptance criteria: the four views show the registry data; the detail shows the rationale and the link to the pipeline; tests without network.
-12. **Orchestrator and first end-to-end competition.** Goal: connect the components and complete a tabular competition chosen by the user, with fakes in the tests and real Kaggle by hand. Acceptance criteria: complete cycle with the fakes; a real submission sent by the user after the review; reproducible registry and pipeline.
+Level 1 (core), tickets 6 to 12:
+
+6. **Light execution sandbox (level 1).** Goal: run the generated code in a subprocess with reduced permissions, without containers. Acceptance criteria: timeout applied and the process killed; the working directory holds only the training data and the bundle; writing to protected files impossible and a diff touching them rejected before the run; hash of the protected files checked before every run; no credentials in the environment of the subprocess and no labels or holdout in its directory; tests without network.
+7. **Bundle contract and runner (level 1).** Goal: bundle folder with `fit` and `predict(bundle_id, X)`, loaded and run by the fixed code in the sandbox, with the evaluation engine taking a bundle in place of the fake candidates. Acceptance criteria: the runner passes only data without labels and computes the metrics itself; hash of the bundle stored in the registry; broken, slow or schema-violating bundles recorded as failed with the reason; the holdout stays reachable only through the accessor; fake bundles in the tests, no network.
+8. **Role agents as typed prompts (level 1).** Goal: the five roles (coordinator, data, feature engineering, modeling, reviewer) as prompts with typed input and output on `LlmClient`, with the role added to the call records. Acceptance criteria: every role validated with its output type and malformed output retried within the existing bounds; consumption recorded per role; the output of the reviewer cannot change a metric or a decision threshold; all tests with `FakeLlmClient`, no Claude and no network.
+9. **Round pipeline and guidance (level 1).** Goal: the sequential pipeline of a round of the autonomous cycle (coordinator, data, feature engineering, modeling, runner, reviewer, coordinator), the `AWAITING_GUIDANCE` state and the goal criteria, on the state machine; the coordinator receives a compact registry summary in its prompt. Acceptance criteria: happy path with fake roles and a fake lead; the guidance of the lead (from a command or a file) recorded and passed to the next round; M rounds without a pause respected; stop on met criteria, on the cap of rounds and on K rounds without real improvement; duplicates rejected with the reason passed back; code errors fixed inside the candidate up to the fix-retry cap, then the attempt closed as `failed` with `code_error`, and a cap on consecutive failed attempts; resume from the saved state.
+10. **Read-only web interface (level 1).** Goal: views of rounds, candidates, metric series, detail, reports of the reviewer and traces of the role calls. Acceptance criteria: the views show the registry data; the detail shows the rationale and the link to the bundle; the interface only reads, with no endpoint that writes; tests without network.
+11. **Final report, pipeline and suggestions (level 1).** Goal: report of the reviewer, holdout evaluation of the frozen candidate, end-to-end pipeline from the accepted bundle, acceptance or suggestions. Acceptance criteria: the report contains the best candidate, the result on the test holdout, what worked and what did not; the pipeline runs with a single command, with seeds and dependencies declared and no notebook, and a replay reproduces the metric; a suggestion is recorded and starts a cycle from the best model and the history.
+12. **Orchestrator and first end-to-end competition (level 1).** Goal: connect the components and complete a tabular competition chosen by the lead, with fakes in the tests and real Kaggle and Claude by hand. Acceptance criteria: complete cycle with the fakes; a real submission sent by the user after the review; reproducible registry and pipeline; the manual smoke test documented in the README.
+
+Level 2 (intermediate), tickets 13 to 15:
+
+13. **Tools for the roles and isolated workspaces (level 2).** Goal: roles with real tool permissions in their own workspace, one virtual environment per variant, candidates in parallel. Acceptance criteria: a role cannot write outside its workspace; variants do not share an environment; parallel candidates are all recorded; tests with fakes, without network.
+14. **Immutable bundles, protected final test and budget (level 2).** Goal: bundles as immutable versions with a hash, the final test session with the frozen candidate, and the budget and stop. Acceptance criteria: a published bundle cannot change; every limit blocks the cycle; stagnation detected; rate limit handled with a simulated wait.
+15. **Web interface with input (level 2).** Goal: guidance and conversation with the coordinator from the web interface, with plan approval and review moved into it. Acceptance criteria: the guidance from the web reaches the next round and is recorded; the conversation reads the registry and does not rebuild the history from memory; tests without network.
+
+Level 3 (target), ticket 16:
+
+16. **Containers, database, users and other sources (level 3).** Goal: the final machinery of section 14. Acceptance criteria: every variant runs in a container; a database behind the same `Registry` interface; users and login; several projects; Excel and other sources with construction of the label; the predict + optimize extension point.
 
 A later ticket, outside this plan, covers the polished graphic design of the interface.
 
@@ -443,7 +497,8 @@ Rejected alternative: a single large implementation ticket, because it is not re
 - The hash covers the bytes of the `evaluation` sources, so any edit of the package invalidates the frozen protocols of open cycles, and a change of library versions in the middle of a cycle is recorded but not blocked.
 - Overfitting on the holdout: the holdout is read at the end of every cycle, so with repeated cycles it grows. The design logs every read but does not solve it (for example with a new holdout): open point.
 - Quality of the short plan: a poor or wrong plan, approved in a hurry, conditions the whole cycle.
-- Cost in subscription quota per autonomous cycle, unknown.
+- Cost in subscription quota per cycle, unknown and higher than with a single model: five roles per round and several candidates per round; at level 1 the caps on rounds and candidates are the only brake.
+- The reviewer is a model: its report can be wrong or flattering. It never decides, but the lead reads it; the numbers it comments come from the runner.
 - The rules of some competitions forbid external data or limit automation; the reading of the rules done by the model can be wrong, which is why it goes into the plan the user approves.
 - The sandbox on a Mac without containers offers partial isolation.
 - The real Kaggle adapter cannot be tested without network and credentials: the mapping of responses relies on a stub built from the library source, so the manual smoke test is the only real check. The exact error Kaggle returns when the rules are not accepted must be confirmed there. The official package changes often and has several transitive dependencies that are not pinned individually.
@@ -460,6 +515,7 @@ Rejected alternative: a single large implementation ticket, because it is not re
 4. Is a web interface for consulting the attempts acceptable, with plan approval and review outside the web?
 5. Is it acceptable for code errors to be fixed automatically inside the same attempt, with a cap of fix retries per attempt (now 3) and a cap on consecutive attempts closed as failed, and which caps?
 6. Are external data or pre-trained models allowed when the competition permits them?
-7. Which default values for the number of iterations N (now 10) and for K of the early stop?
+7. Which default values for the number of rounds N (provisional 5), the candidates per round C (provisional 3) and K of the early stop?
 8. Do you want several pipelines per cycle and which variants to keep (for example the best one and a simpler one)?
 9. Should the submission to Kaggle be done after the review, as an explicit action of the user?
+10. Is level 1 (five roles as prompts, read-only web interface, subprocess sandbox, no login) enough to judge the solution before level 2?

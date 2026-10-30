@@ -172,7 +172,7 @@ def test_short_initial_plan_with_five_items(sections):
 
 def test_plan_is_single_control_point(sections):
     s2 = sections[2]
-    assert len(re.findall(r"`AWAITING_[A-Z_]+`", s2.split("Happy path")[0])) == 2
+    assert len(re.findall(r"`AWAITING_[A-Z_]+`", s2.split("Happy path")[0])) == 3
     assert "`AWAITING_PLAN_APPROVAL`" in s2 and "`AWAITING_APPROVAL`" not in s2
     assert "single point of control" in s2.lower()
     s5 = sections[5].lower()
