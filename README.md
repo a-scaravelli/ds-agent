@@ -45,6 +45,20 @@ except ValidationError as error:
     print(error)  # what_changed: is required
 ```
 
+```python
+from kaggle_agent.proposals import GoalCriteria, Guidance, ReviewerReport, Round
+
+goal = GoalCriteria.from_dict({"criteria": [
+    {"metric": "accuracy", "threshold": 0.8, "direction": "maximize"},
+    {"metric": "log_loss", "threshold": 0.4, "direction": "minimize"},
+]})
+round_ = Round(id="R1", tasks=("try a tree model",), candidates=("A1", "A2"))
+report = ReviewerReport(id="P1", round_id="R1", text="A2 is better", created_at="2026-10-30T10:00:00+00:00")
+guidance = Guidance(id="G1", round_id="R1", text="try target encoding", created_at="2026-10-30T11:00:00+00:00")
+for item in (goal, round_, report, guidance):
+    assert type(item).from_json(item.to_json()) == item  # identical after rereading
+```
+
 ## Registry (`kaggle_agent.registry`)
 
 The registry stores cycles, attempts, execution records and suggestions behind the replaceable `Registry` interface. `SqliteRegistry` is the implementation and the source of truth: standard library `sqlite3` only, no network. MLflow and JSONL were evaluated and not adopted (see section 7 of the design).
