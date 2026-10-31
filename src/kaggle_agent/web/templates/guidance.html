@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Guidance {{ cycle.id }}{% endblock %}
+{% block body %}
+<h1>Lead guidance of cycle {{ cycle.id }}</h1>
+<p class="note">Guidance is written outside the web at level 1; this page only shows it.</p>
+{% for item in items %}{% set g = item.guidance %}
+<h4>{{ g.id }}: round <a href="{{ url_for('round_view', cycle_id=cycle.id, round_id=g.round_id) }}">{{ g.round_id }}</a>
+<span class="note">{{ g.created_at }}</span></h4>
+<pre>{{ g.text }}</pre>
+<p class="note">Suggestion created: {{ item.suggestion.id }}
+(<a href="{{ url_for('suggestions') }}">all suggestions</a>)</p>
+{% else %}
+<p>No guidance.</p>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Metrics {{ cycle.id }}{% endblock %}
+{% block body %}
+<h1>Metrics of cycle {{ cycle.id }}</h1>
+{% if not partitions %}
+<p>No metric data for this cycle.</p>
+{% else %}
+<p>Partition:
+{% for p in partitions %}
+{% if p == partition %}<b>{{ p }}</b>{% else %}<a href="{{ url_for('metrics', cycle_id=cycle.id, partition=p, best=best) }}">{{ p }}</a>{% endif %}
+{% endfor %}
+</p>
+{% if partition not in partitions %}
+<p>Unknown partition {{ partition }}.</p>
+{% else %}
+<p>Highlighted best: <b>{{ best }}</b>.
+<span class="note">Direction not stored in the registry: higher assumed best unless switched.</span>
+Switch to <a href="{{ url_for('metrics', cycle_id=cycle.id, partition=partition, best=('min' if best == 'max' else 'max')) }}">best={{ 'min' if best == 'max' else 'max' }}</a>.</p>
+{% if svg %}
+<div>{{ svg | safe }}</div>
+{% else %}
+<p>No candidate has the partition {{ partition }}.</p>
+{% endif %}
+
+<h2>Per round</h2>
+<table>
+<tr><th>Round position</th><th>Round</th><th>Attempt</th><th>Iteration</th><th>Mean</th><th>Dispersion</th></tr>
+{% for r in by_round %}{% for p in r.points %}
+<tr><td>{{ r.position }}</td><td><a href="{{ url_for('round_view', cycle_id=cycle.id, round_id=r.round_id) }}">{{ r.round_id }}</a></td>
+<td><a href="{{ url_for('attempt', attempt_id=p.attempt_id) }}">{{ p.attempt_id }}</a></td>
+<td>{{ p.iteration }}</td><td>{{ '%.6g' % p.mean }}</td><td>{{ '%.4g' % p.dispersion }}</td></tr>
+{% endfor %}{% endfor %}
+</table>
+
+<h2>Per iteration</h2>
+<table>
+<tr><th>Iteration</th><th>Attempt</th><th>Mean</th><th>Dispersion</th></tr>
+{% for p in by_iteration %}
+<tr><td>{{ p.iteration }}</td><td><a href="{{ url_for('attempt', attempt_id=p.attempt_id) }}">{{ p.attempt_id }}</a></td>
+<td>{{ '%.6g' % p.mean }}</td><td>{{ '%.4g' % p.dispersion }}</td></tr>
+{% endfor %}
+</table>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Reports {{ cycle.id }}{% endblock %}
+{% block body %}
+<h1>Reviewer reports of cycle {{ cycle.id }}</h1>
+{% for g in groups %}
+<h2><a href="{{ url_for('round_view', cycle_id=cycle.id, round_id=g.round.round.id) }}">Round {{ g.round.position }}: {{ g.round.round.id }}</a></h2>
+{% for r in g.reports %}
+<h4>{{ r.id }} <span class="note">{{ r.created_at }}</span></h4>
+<pre>{{ r.text }}</pre>
+{% endfor %}
+{% else %}
+<p>No reviewer reports.</p>
+{% endfor %}
+{% endblock %}

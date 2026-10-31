@@ -10,6 +10,7 @@ REGISTRY = SRC / "registry"
 EVALUATION = SRC / "evaluation"
 KAGGLE = SRC / "kaggle"
 LLM = SRC / "llm"
+WEB = SRC / "web"
 LLM_REAL = LLM / "real.py"
 TESTS = Path(__file__).resolve().parent
 REAL_ADAPTER = KAGGLE / "real.py"
@@ -50,13 +51,15 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
             allowed |= THIRD_PARTY
         if path == REAL_ADAPTER:
             allowed |= KAGGLE_LIBRARY
+        if WEB in path.parents:
+            allowed |= {"flask"}
         for top, _ in _imports(path):
             assert top in allowed, f"{path}: {top}"
 
 
 def test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle_llm():
     for path in _modules():
-        if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM)):
+        if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM, WEB)):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -109,7 +112,7 @@ def test_runtime_dependencies_are_the_pinned_libraries():
     pyproject = tomllib.loads((SRC.parent.parent / "pyproject.toml").read_text(encoding="utf-8"))
     deps = pyproject["project"]["dependencies"]
     names = sorted(d.split("==")[0] for d in deps)
-    assert names == ["kaggle", "numpy", "pandas", "scikit-learn"]
+    assert names == ["flask", "kaggle", "numpy", "pandas", "scikit-learn"]
     assert all("==" in d and d.split("==")[1][:1].isdigit() for d in deps)
     everything = " ".join(
         deps + [d for group in pyproject["project"].get("optional-dependencies", {}).values() for d in group]
@@ -249,7 +252,7 @@ def test_no_test_builds_a_real_client_without_a_runner():
 
 
 def test_evaluation_imports_neither_tests_nor_llm_and_no_unpinned_library_anywhere():
-    pinned = {"kaggle", "pandas", "numpy", "sklearn"}
+    pinned = {"kaggle", "pandas", "numpy", "sklearn", "flask"}
     stdlib = set(sys.stdlib_module_names)
     for path in _modules():
         for top, full in _imports(path):
@@ -266,5 +269,5 @@ def test_nothing_of_tickets_6_to_16_exists():
         files = [p for p in (SRC / package).rglob("*.py")]
         assert [p.name for p in files] == ["__init__.py"], package
     names = {p.stem for p in SRC.rglob("*.py")}
-    assert not names & {"runner", "bundle", "agents", "pipeline", "web", "app", "server"}
-    assert not [p for p in SRC.iterdir() if p.is_dir() and p.name in {"web", "agents", "runner"}]
+    assert not names & {"runner", "bundle", "agents", "pipeline"}
+    assert not [p for p in SRC.iterdir() if p.is_dir() and p.name in {"agents", "runner"}]

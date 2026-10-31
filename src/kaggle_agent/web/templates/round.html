@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "macros.html" import candidate_table, trace_list %}
+{% block title %}Round {{ detail.round.id }}{% endblock %}
+{% block body %}
+<h1>Round {{ detail.position }}: {{ detail.round.id }}</h1>
+<p>Cycle <a href="{{ url_for('cycle', cycle_id=cycle.id) }}">{{ cycle.id }}</a></p>
+<h2>Tasks</h2>
+<ul>{% for task in detail.round.tasks %}<li>{{ task }}</li>{% else %}<li>No tasks.</li>{% endfor %}</ul>
+<h2>Candidates</h2>
+{% if candidates %}{{ candidate_table(candidates) }}{% else %}<p>No candidates.</p>{% endif %}
+<h2>Reviewer reports</h2>
+{% for r in reports %}
+<h4>{{ r.id }} <span class="note">{{ r.created_at }}</span></h4>
+<pre>{{ r.text }}</pre>
+{% else %}<p>No reports.</p>{% endfor %}
+<h2>Lead guidance</h2>
+{% for g in guidance %}
+<h4>{{ g.id }} <span class="note">{{ g.created_at }}</span></h4>
+<pre>{{ g.text }}</pre>
+{% else %}<p>No guidance.</p>{% endfor %}
+<h2>Role traces</h2>
+{{ trace_list(traces) }}
+{% endblock %}
