@@ -6,11 +6,11 @@ Convention: the entire repository is in English (code, documentation, comments, 
 
 ## Current status
 
-Design plus the first pieces of code: the design document is in [docs/design.md](docs/design.md), the `proposals` subpackage of `kaggle_agent` holds the data model of plan, attempt and suggestion (ticket 1 of section 15 of the design) the `registry` subpackage holds the attempt registry with traceability (ticket 2), the `evaluation` subpackage the frozen evaluation engine (ticket 3) the `kaggle` subpackage the Kaggle client with its fake (ticket 4) and the `llm` subpackage the headless Claude adapter with its fake (ticket 5); the `agents` subpackage holds the five role agents as typed prompts (step 8 of the design). The other subpackages are still empty. There is no modeling logic yet.
+Design plus the first pieces of code: the design document is in [docs/design.md](docs/design.md), the `proposals` subpackage of `kaggle_agent` holds the data model of plan, attempt and suggestion (ticket 1 of section 15 of the design) the `registry` subpackage holds the attempt registry with traceability (ticket 2), the `evaluation` subpackage the frozen evaluation engine (ticket 3) the `kaggle` subpackage the Kaggle client with its fake (ticket 4) and the `llm` subpackage the headless Claude adapter with its fake (ticket 5); the `sandbox` subpackage holds the light sandbox (ticket 6, level 1); the `web` subpackage holds the read-only web interface (step 10 of the design); the `agents` subpackage holds the five role agents as typed prompts (step 8 of the design). The other subpackages are still empty. There is no modeling logic yet.
 
 ## Stack
 
-Python 3.12, pandas, scikit-learn, LightGBM and local MLflow are a starting point, not a constraint: libraries are chosen ticket by ticket, with the criteria of section 1 of the design. The runtime dependencies are pinned with `==` in `pyproject.toml`: pandas, numpy and scikit-learn (only `evaluation` imports them) and the official `kaggle` package (only `kaggle/real.py` imports it). The data model, the registry, the rest of the Kaggle client and the Claude adapter use only the standard library (the adapter spawns the `claude` CLI, which is not a Python dependency).
+Python 3.12, pandas, scikit-learn, LightGBM and local MLflow are a starting point, not a constraint: libraries are chosen ticket by ticket, with the criteria of section 1 of the design. The runtime dependencies are pinned with `==` in `pyproject.toml`: pandas, numpy and scikit-learn (only `evaluation` imports them) and the official `kaggle` package (only `kaggle/real.py` imports it). The data model, the registry, the rest of the Kaggle client and the Claude adapter use only the standard library (the adapter spawns the `claude` CLI, which is not a Python dependency). Flask is pinned too and only `web` imports it.
 
 ## Data model (`kaggle_agent.proposals`)
 
@@ -236,6 +236,73 @@ print(result.value, result.consumption, result.calls[0].model, result.stripped_v
 4. Check that the answer is a valid `ShortPlan`, that tokens and the model are reported (if not, they stay `None`), that no token appears in any output, and, with `ANTHROPIC_API_KEY` exported, that a WARNING names it and the call still uses the subscription.
 5. Rate limit and quota messages are not verified: if you hit one, check that it is classified as `RateLimitError` or `QuotaExhaustedError` and report the exact message so the patterns in `llm/real.py` can be fixed.
 
+## Web interface (`kaggle_agent.web`)
+
+A read-only, server-rendered web interface over the registry. Start it with a single command:
+
+```bash
+python -m kaggle_agent.web --db PATH
+```
+
+It binds to `127.0.0.1:8000` (options `--host` and `--port`), has no authentication and never writes: the registry file is opened with SQLite `mode=ro`, only GET routes exist, and no page has a form or input. Guidance and approvals stay outside the web at level 1. A registry file created by an older version is not migrated in read-only mode: open it once with the current version first. The command exits with code 2 and a message if the file is missing or not a registry.
+
+Views: the list of cycles (`/`); a cycle with its rounds, their candidates and the timeline of attempts (`/cycles/<id>`); a round with tasks, candidates, reports, guidance and traces; the metric series per round and per iteration with an SVG chart (`/cycles/<id>/metrics?partition=&best=`); reviewer reports; role traces with typed input and output and outcome (`?role=&round=`); lead guidance; suggestions with the cycles they spawned; and the candidate detail (`/attempts/<id>`) with rationale, hypothesis, runs, `failure_kind`, bundle and the link to the pipeline.
+
+- Pipeline link: the web looks in the artifacts of the runs for an entry `pipeline:<reference>`. It is a link only for `http` and `https` references; anything else is shown as text, so local files are never served. Without one the page says "no pipeline yet". The convention lives in `pipeline_reference` in `web/views.py`, to be agreed with the pipeline step.
+- Direction of the metric: the registry stores only `protocol_hash`, so the direction of the metric is not readable through the registry interface. The chart highlights the maximum by default and offers a link to switch (`best=min`).
+- Library: Flask 3.1.3, pinned with `==` in `pyproject.toml` (the reasons and the rejected alternatives are in section 13 of the design). Python 3.12 was checked here; 3.13 and 3.14 could not be checked in the environment that built this ticket (no network access to those interpreters), so run `pip install .` and the test suite once on 3.14 before relying on it. The transitive dependencies of Flask (werkzeug, jinja2, markupsafe, itsdangerous, click, blinker) are not pinned.
+
+## Light sandbox (`kaggle_agent.sandbox`)
+
+Level 1 of the design (step 6): run generated code in a child process with a timeout, a minimal environment and a SHA-256 hash of the protected files. There are no containers. `Sandbox` is the small interface (one method, `run(policy, request)`) that a container implementation can replace at level 3; `SubprocessSandbox` is the standard-library implementation (POSIX only). The bundle contract and runner (step 7) are not built.
+
+```python
+from pathlib import Path
+from kaggle_agent.sandbox import (
+    ProtectedPath, SandboxPolicy, SandboxRequest, SubprocessSandbox,
+)
+
+policy = SandboxPolicy(
+    timeout_seconds=60,  # mandatory, no default
+    protected=(
+        ProtectedPath("src/kaggle_agent/evaluation", Path("src/kaggle_agent/evaluation")),  # child sees a read-only copy
+        ProtectedPath("data/holdout.csv", Path("data/holdout.csv"), expose=False),  # hashed, never copied
+    ),
+    hidden_paths=(Path("data/holdout.csv"), Path.home() / ".kaggle"),  # never passed to the child
+)
+request = SandboxRequest(entry_point=Path("candidate.py"), args=("--seed", "3"), diff=None)
+result = SubprocessSandbox().run(policy, request)
+if result.status != "succeeded":
+    print(result.status, result.failure_kind, result.reason)
+```
+
+A run goes in this order: a diff that touches a protected file is rejected (`diff_rejected`) and nothing starts; the protected files are hashed and compared with `expected_hashes` when given (a difference is `protected_modified` and nothing starts); the child starts in its own process group in an empty working directory with read-only copies under `SANDBOX_PROTECTED_DIR`; on timeout the whole group is killed (`timed_out`); leftover descendants are killed after a normal exit; stdout and stderr are kept up to `max_output_bytes`; the hashes are computed again on the originals and the copies, and any change is `protected_modified` even when the child exits with 0; a non-zero exit or a signal is `crashed`.
+
+Failure kinds. No new kind was added: `timed_out` is `timeout`, and `crashed`, `protected_modified` and `diff_rejected` are `code_error`, with the precise cause in `result.status` and `result.reason`. **Callers must check `status`, not only `failure_kind`: `protected_modified` and `diff_rejected` are integrity failures and must never be retried as code fixes, even though they map to `code_error`.** Only `crashed` is a candidate for fix retries. Nothing in this ticket enforces that on the future caller, so step 7 and the round pipeline must keep it.
+
+| Enforced | By convention only |
+| --- | --- |
+| Timeout, with the child and its process group killed | The child is not told about credentials, the holdout or the registry, but a readable absolute path is still readable |
+| Minimal environment built from scratch: no Kaggle, Claude or other tokens, no `PYTHONPATH`; extra variables with secret-looking names are rejected | The caller lists the protected and hidden paths correctly |
+| `HOME` and `TMPDIR` inside the run folder, so `~/.kaggle` does not resolve to the real home | Generated code is expected not to look for files outside its working directory |
+| Read-only copies (files `0o444`, folders `0o555`) of the exposed protected files; the holdout is never copied | Callers retry only `crashed` results |
+| SHA-256 before and after on the originals and on the copies; a change blocks the run | |
+| Diffs touching protected files are rejected before running; arguments and variables that mention a hidden path are refused | |
+| Output limit, stdin closed, working directory removed afterwards | |
+
+On macOS the system adds `__CF_USER_TEXT_ENCODING` to every child process (and the interpreter may add `LC_CTYPE`): these are not set by the sandbox and are not credentials, and the sandbox tests allow them as platform-added keys. The sandbox tests also do not depend on `/proc`, which does not exist on macOS.
+
+The child runs with `python -I` (and `-B`), which ignores `PYTHONPATH` and the user site, and the environment never carries import paths. So step 7 cannot rely on the environment for imports: it must pass every import path explicitly, for example through `SANDBOX_PROTECTED_DIR` or absolute paths in the arguments.
+
+What the light sandbox does **not** guarantee:
+
+- the child is the same OS user as the agent: it can chmod its own copies and write to original paths it can guess (this is detected afterwards by the hash, not prevented);
+- no network isolation and no filesystem isolation: any absolute path the user can read, including credential files and the holdout, is readable if the code guesses it;
+- as root, permissions do not block writes;
+- a process that calls `setsid` escapes the group kill;
+- on a Mac without containers the isolation is partial; real isolation needs level 3;
+- diff parsing reads the paths declared in headers only.
+
 ## Role agents (`kaggle_agent.agents`)
 
 The five roles (coordinator, data, feature engineering, modeling, reviewer) as prompts with a typed input and a typed output on `LlmClient`. Each role has a typed input made of summaries (`DataSummary`, `RegistrySummary`, ...: numbers and short text, never labels, holdout data, credentials, paths or the registry), a typed output that reuses the proposal types (`CoordinatorOutput` with `ShortPlan` and `GoalCriteria`; `DataFindings`; `Attempt` for feature engineering and modeling; `ReviewerReport`), a `build_<role>_prompt` and a `run_<role>` function. `run_<role>` calls `LlmClient.ask` with the role and a purpose, validates the output, and relies on the client for retries (`rejection_reason`) and rate limits. Invalid output after the retries raises `RoleRejectedError` (role, attempts and the sanitized reason; never the model text). The model is the caller's choice (`model=` argument).
@@ -301,7 +368,7 @@ The tests do not use the network.
 ## Structure
 
 - `docs/design.md`: design in 16 sections (cycle, frozen evaluation, registry, Kaggle, ticket plan).
-- `src/kaggle_agent/`: package with the subpackages `proposals` (data model), `registry` (attempt registry), `evaluation` (protocol, split, holdout, threshold), `loop`, `kaggle`, `llm`, `agents`, `sandbox`, `review`, `budget`; `agents` holds the five roles; `evaluation` holds the evaluation engine, `kaggle` the Kaggle client (interface, fake, credentials, submission rules, recording, real adapter) and `llm` the Claude adapter (interface, fake, structured output, environment, recording, real adapter); `loop`, `sandbox`, `review` and `budget` are still empty.
+- `src/kaggle_agent/`: package with the subpackages `proposals` (data model), `registry` (attempt registry), `evaluation` (protocol, split, holdout, threshold), `loop`, `kaggle`, `llm`, `agents`, `sandbox`, `review`, `budget`, `web`; `evaluation` holds the evaluation engine, `kaggle` the Kaggle client (interface, fake, credentials, submission rules, recording, real adapter) and `llm` the Claude adapter (interface, fake, structured output, environment, recording, real adapter); `agents` holds the five roles; `sandbox` holds the light sandbox (interface, subprocess implementation, protected files, environment); `loop`, `review` and `budget` are still empty; `web` holds the read-only web interface.
 - `tests/`: check the 16 sections of the design, the data model and its examples, the language convention, the test map, that the package imports, and the registry behavior (deduplication, fix retries, queries, persistence), the evaluation engine (protocol, schemes, split, holdout session, threshold, hash), the Kaggle client on the fake and on a stub of the library, the Claude adapter on the fake and on a fake process runner, and that third-party libraries are imported only by `evaluation` and by `kaggle/real.py`.
 
 Result of a manual run on macOS (Claude Code with the subscription, Python 3.14; the CLI version on that machine was not recorded): a fake `ANTHROPIC_API_KEY` was removed with a WARNING that names only the variable; the call used the subscription; the success envelope was read correctly (model `claude-sonnet-4-6`, usage reported); the result was a valid `ShortPlan`. So the format of the success envelope assumed in the design is confirmed. The first answer, however, was rejected (`invalid_output`, 7113 input and 545 output tokens) and only the retry succeeded (`ok`, 7139 and 271): about 7k input tokens per call, so a first-try failure doubles the cost. This motivated the rich contract and `rejection_reason` above; the benefit is not yet measured.
@@ -311,12 +378,14 @@ Result of a manual run on macOS (Claude Code with the subscription, Python 3.14;
 - The placeholder import in `load_api_class()` depends on the internals of the pinned `kaggle` version (it skips the package `__init__` and supplies only `__version__`). Recheck it, together with the source-scan test in `tests/test_kaggle_real.py`, whenever the pin in `pyproject.toml` changes.
 - Adding the goal and the new modules changes the hash of the `evaluation` sources, so a protocol frozen earlier in an open cycle no longer passes `verify`.
 - `Kaggle` needed no change; the data hash and the per-file SHA-256 are already in `DownloadResult`, and there is no separate snapshot accessor (the data role of a later ticket will read these).
-- There is still no runnable command of the agent: only the data model, the registry, the evaluation engine, the Kaggle client and the Claude adapter exist.
+- There is still no runnable command of the agent: only the data model, the registry, the evaluation engine, the Kaggle client, the Claude adapter and the light sandbox exist.
 - The real Kaggle adapter is checked only by the manual smoke test: its mapping of responses is tested against a stub built from the source of the official package, and the exact error for unaccepted rules is to be confirmed by hand. The policy of when a submission is worthwhile and the reserve for the last hours are not implemented (loop and review tickets); the key-like-string check of the artifacts belongs to the tickets that save artifacts. The official package has several transitive dependencies that are not pinned individually.
-- The holdout guarantee is one of interface and log (one session per cycle, every read logged in the registry). Real isolation from generated code arrives with the sandbox (ticket 6).
+- The holdout guarantee is one of interface and log (one session per cycle, every read logged in the registry). The light sandbox (ticket 6) only partly isolates generated code, see its section.
 - The hash covers the bytes of the `evaluation` sources: any edit of the package invalidates the frozen protocols of open cycles. Library versions are outside the hash and recorded in `resources`. Raising the threshold with the number of comparisons is not implemented; the count is only recorded.
 - The registry is meant for a single process; multi-process access is not tested. The cycle `state` is free text until the `loop` ticket, and an iteration recorded `inconclusive` after repeated rejected proposals cannot be represented yet (open point in section 7 of the design). The semantic level of deduplication (section 7) is left to the loop ticket.
 - The tests on the design check structure and keywords, not the quality of the content. The language test is a heuristic (Italian function words and identifiers), not a proof that every sentence is English.
 - The word count of the plan (split on whitespace) is a simple proxy for "one page". `id` and `phase` have no format constraints yet: they belong to the registry and loop tickets.
+- The web interface is read-only and meant for localhost (default `127.0.0.1`, no login). A registry file created by an older version is not migrated in read-only mode and some views may fail on it: open it once with the current version first.
+- The web interface has no pagination and finds the metric partitions with one registry read per attempt: fine for tens of candidates, not for thousands. It has no login, so do not expose it on a network.
 - The guard on third-party dependencies is relaxed one package at a time: `evaluation` may import pandas, numpy and scikit-learn, and only `kaggle/real.py` may import the official `kaggle` package.
 - The Claude adapter was designed against the CLI help and an error envelope only (the CLI was not logged in when it was written). The envelope of a successful call and the reported model are now verified by a manual run (`claude-sonnet-4-6`). The reporting of rate limit and quota and the effect of `CLAUDE_CODE_OAUTH_TOKEN` (it is unclear whether the run used the token or the login) are *not verified*; the tests use canned envelopes built from those assumptions, so only a manual run can confirm them. The contract may still not prevent every first-try rejection: `rejection_reason` tells which constraint is missing. Session resume is documented but not used (the validation retry is stateless). The backoff defaults are provisional until the budget ticket, and the WARNING for a stripped variable appears at every call. Tool isolation relies on CLI flags and the working directory until the sandbox exists.

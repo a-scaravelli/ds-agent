@@ -33,7 +33,7 @@ DECISION_WORDS = (
 FORBIDDEN_FIELD_PARTS = ("label", "holdout", "credential", "path", "dataframe")
 FORBIDDEN_TYPE_NAMES = {"Registry", "DataFrame", "Credentials", "Path", "PurePath"}
 NETWORK = {"socket", "ssl", "http", "urllib", "requests", "httpx", "aiohttp", "asyncio", "subprocess"}
-FORBIDDEN_PACKAGES = {"evaluation", "kaggle", "sandbox", "loop", "review", "budget"}
+FORBIDDEN_PACKAGES = {"evaluation", "kaggle", "sandbox", "web", "loop", "review", "budget"}
 
 
 def _imports(path):
@@ -167,8 +167,8 @@ def test_only_call_imports_from_registry():
 
 
 def test_existing_packages_do_not_import_agents():
-    for package in ("proposals", "registry", "evaluation", "kaggle", "llm"):
-        for path in sorted((SRC / package).glob("*.py")):
+    for package in ("proposals", "registry", "evaluation", "kaggle", "llm", "sandbox", "web"):
+        for path in sorted((SRC / package).rglob("*.py")):
             for top, module, names, level in _imports(path):
                 parts = module.split(".")
                 assert "agents" not in parts, f"{path}: {module}"
@@ -176,10 +176,10 @@ def test_existing_packages_do_not_import_agents():
 
 
 def test_nothing_chains_roles_and_no_other_step_is_present():
-    for package in ("sandbox", "loop", "review", "budget"):
+    for package in ("loop", "review", "budget"):
         assert [p.name for p in (SRC / package).rglob("*.py")] == ["__init__.py"], package
     stems = {p.stem for p in SRC.rglob("*.py")}
-    assert not stems & {"runner", "bundle", "pipeline", "web", "app", "server"}
+    assert not stems & {"runner", "bundle", "pipeline"}
     for path in _agents_files():
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.FunctionDef) and node.name.startswith("run_"):

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "macros.html" import trace_list %}
+{% block title %}Traces {{ cycle.id }}{% endblock %}
+{% block body %}
+<h1>Role traces of cycle {{ cycle.id }}</h1>
+<p>Filter (links):
+<a href="{{ url_for('traces', cycle_id=cycle.id) }}">all</a>
+{% for role in ['coordinator', 'data', 'feature_engineering', 'modeling', 'reviewer'] %}
+| <a href="{{ url_for('traces', cycle_id=cycle.id, role=role) }}">{{ role }}</a>
+{% endfor %}
+</p>
+<p>Round:
+{% for rid in round_ids %}<a href="{{ url_for('traces', cycle_id=cycle.id, round=rid, role=role) }}">{{ rid }}</a> {% endfor %}
+</p>
+{% if role or round_id %}<p class="note">Showing role: {{ role or 'any' }}; round: {{ round_id or 'any' }}</p>{% endif %}
+{{ trace_list(traces) }}
+{% endblock %}

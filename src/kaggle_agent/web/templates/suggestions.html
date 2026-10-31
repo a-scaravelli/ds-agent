@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Suggestions{% endblock %}
+{% block body %}
+<h1>Suggestions</h1>
+{% for item in items %}{% set s = item.suggestion %}
+<h4>{{ s.id }}</h4>
+<pre>{{ s.text }}</pre>
+<p>Origin: <a href="{{ url_for('cycle', cycle_id=s.origin_cycle) }}">{{ s.origin_cycle }}</a>.
+Spawned cycles:
+{% for c in item.cycles %}<a href="{{ url_for('cycle', cycle_id=c.id) }}">{{ c.id }}</a> {% else %}none{% endfor %}
+</p>
+{% else %}
+<p>No suggestions.</p>
+{% endfor %}
+{% endblock %}
