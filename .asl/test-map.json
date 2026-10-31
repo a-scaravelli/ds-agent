@@ -291,6 +291,202 @@
     "file": "tests/test_repo_language.py",
     "name": "test_code_identifiers_are_english"
    }
+  ],
+  "37": [
+   {
+    "file": "tests/test_agents_coordinator.py",
+    "name": "test_coordinator_valid_output_is_typed"
+   }
+  ],
+  "38": [
+   {
+    "file": "tests/test_agents_data.py",
+    "name": "test_data_valid_output_has_the_four_fields"
+   }
+  ],
+  "39": [
+   {
+    "file": "tests/test_agents_feature_engineering.py",
+    "name": "test_feature_engineering_id_is_assigned_by_the_caller"
+   }
+  ],
+  "40": [
+   {
+    "file": "tests/test_agents_modeling.py",
+    "name": "test_modeling_id_is_assigned_and_previous_attempt_is_in_the_prompt"
+   }
+  ],
+  "41": [
+   {
+    "file": "tests/test_agents_reviewer.py",
+    "name": "test_reviewer_report_has_fixed_id_round_and_date"
+   }
+  ],
+  "42": [
+   {
+    "file": "tests/test_agents_call.py",
+    "name": "test_malformed_output_is_retried_then_rejected_with_a_clear_error"
+   }
+  ],
+  "43": [
+   {
+    "file": "tests/test_agents_call.py",
+    "name": "test_invalid_then_valid_uses_the_client_retry_and_traces_the_last_row"
+   }
+  ],
+  "44": [
+   {
+    "file": "tests/test_agents_call.py",
+    "name": "test_rate_limit_is_handled_by_the_existing_client"
+   }
+  ],
+  "45": [
+   {
+    "file": "tests/test_agents_call.py",
+    "name": "test_exhausted_rate_limit_and_quota_are_traced_and_propagated"
+   }
+  ],
+  "46": [
+   {
+    "file": "tests/test_agents_call.py",
+    "name": "test_every_call_writes_a_trace_with_typed_input_and_output"
+   }
+  ],
+  "47": [
+   {
+    "file": "tests/test_agents_call.py",
+    "name": "test_candidate_trace_is_written_after_the_attempt_with_candidate_id"
+   }
+  ],
+  "48": [
+   {
+    "file": "tests/test_agents_call.py",
+    "name": "test_rejected_candidate_role_is_traced_with_no_candidate_and_no_output"
+   }
+  ],
+  "49": [
+   {
+    "file": "tests/test_agents_call.py",
+    "name": "test_rejected_call_keeps_no_raw_model_text"
+   }
+  ],
+  "50": [
+   {
+    "file": "tests/test_agents_call.py",
+    "name": "test_llm_call_rows_are_built_by_one_shared_function"
+   },
+   {
+    "file": "tests/test_llm_recording.py",
+    "name": "test_calls_are_stored_in_order_with_outcome_duration_and_tokens"
+   }
+  ],
+  "51": [
+   {
+    "file": "tests/test_agents_call.py",
+    "name": "test_a_client_already_recording_in_the_same_registry_is_refused"
+   },
+   {
+    "file": "tests/test_agents_call.py",
+    "name": "test_a_lambda_wrapper_is_not_detected_and_duplicates_rows"
+   },
+   {
+    "file": "tests/test_agents_call.py",
+    "name": "test_a_hook_for_another_registry_is_accepted"
+   }
+  ],
+  "52": [
+   {
+    "file": "tests/test_agents_guards.py",
+    "name": "test_reviewer_output_has_no_field_that_decides"
+   }
+  ],
+  "53": [
+   {
+    "file": "tests/test_agents_guards.py",
+    "name": "test_roles_do_not_import_or_call_each_other"
+   },
+   {
+    "file": "tests/test_agents_guards.py",
+    "name": "test_modeling_receives_the_previous_attempt_only_as_an_argument"
+   }
+  ],
+  "54": [
+   {
+    "file": "tests/test_agents_guards.py",
+    "name": "test_inputs_are_typed_summaries_without_sensitive_fields"
+   },
+   {
+    "file": "tests/test_agents_guards.py",
+    "name": "test_agents_imports_only_allowed_modules"
+   },
+   {
+    "file": "tests/test_agents_guards.py",
+    "name": "test_only_call_imports_from_registry"
+   }
+  ],
+  "55": [
+   {
+    "file": "tests/test_agents_guards.py",
+    "name": "test_existing_packages_do_not_import_agents"
+   }
+  ],
+  "56": [
+   {
+    "file": "tests/test_agents_types.py",
+    "name": "test_types_round_trip_identically"
+   },
+   {
+    "file": "tests/test_agents_types.py",
+    "name": "test_invalid_values_raise_validation_error"
+   }
+  ],
+  "57": [
+   {
+    "file": "tests/test_agents_call.py",
+    "name": "test_the_model_given_by_the_caller_reaches_ask_and_the_row"
+   },
+   {
+    "file": "tests/test_agents_call.py",
+    "name": "test_agents_sources_contain_no_model_names_or_role_to_model_map"
+   }
+  ],
+  "58": [
+   {
+    "file": "tests/test_agents_guards.py",
+    "name": "test_no_agents_test_builds_a_real_client"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_no_test_builds_a_real_client_without_a_runner"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_runtime_dependencies_are_the_pinned_libraries"
+   }
+  ],
+  "59": [
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_nothing_of_tickets_6_to_16_exists"
+   },
+   {
+    "file": "tests/test_agents_guards.py",
+    "name": "test_nothing_chains_roles_and_no_other_step_is_present"
+   }
+  ],
+  "60": [
+   {
+    "file": "tests/test_test_map.py",
+    "name": "test_test_map_entries_exist"
+   },
+   {
+    "file": "tests/test_agents_guards.py",
+    "name": "test_readme_has_the_agents_section_and_its_example_runs"
+   },
+   {
+    "file": "tests/test_repo_language.py",
+    "name": "test_code_identifiers_are_english"
+   }
   ]
  }
 }

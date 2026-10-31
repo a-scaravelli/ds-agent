@@ -194,3 +194,16 @@ def test_no_agents_test_builds_a_real_client():
     for path in sorted(Path(__file__).parent.glob("*agents*.py")):
         if path != Path(__file__).resolve():
             assert "RealClaudeClient" not in path.read_text(encoding="utf-8"), path.name
+
+
+def test_readme_has_the_agents_section_and_its_example_runs():
+    import re
+
+    readme = (SRC.parent.parent / "README.md").read_text(encoding="utf-8")
+    start = readme.index("## Role agents (`kaggle_agent.agents`)")
+    section = readme[start : readme.index("\n## ", start + 1)]
+    blocks = re.findall(r"```python\n(.*?)```", section, re.S)
+    assert len(blocks) == 1
+    exec(compile(blocks[0], "README agents example", "exec"), {})
+    for word in ("RoleConfigurationError", "record_trace", "Known limits"):
+        assert word in section

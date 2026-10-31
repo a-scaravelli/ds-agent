@@ -269,7 +269,7 @@ Alternatives considered:
 
 **The lead (the human):** approves or corrects the initial plan, gives guidance after a round or lets the cycle continue, and reviews the final report (accepts or gives suggestions). Does not validate the individual steps.
 
-**Orchestration at level 1.** A role is a prompt with a typed input and a typed output, called on `LlmClient`; there is no framework and no tool use beyond what the adapter allows. A plain sequential pipeline runs them in a fixed order: coordinator, data, feature engineering, modeling, runner, reviewer, coordinator. The roles do not call each other: each one receives its input from the pipeline and returns its output to it. The coordinator reads a compact registry summary inside its prompt (best attempts, recent failures, reviewer reports, lead guidance), so no role needs a database tool. Every call leaves a role trace in the registry (section 7).
+**Orchestration at level 1.** A role is a prompt with a typed input and a typed output, called on `LlmClient`; there is no framework and no tool use beyond what the adapter allows. A plain sequential pipeline runs them in a fixed order: coordinator, data, feature engineering, modeling, runner, reviewer, coordinator. The roles do not call each other: each one receives its input from the pipeline and returns its output to it. The coordinator reads a compact registry summary inside its prompt (best attempts, recent failures, reviewer reports, lead guidance), so no role needs a database tool. Every call leaves a role trace in the registry (section 7): the `agents` helper stores the `llm_calls` rows and the trace, and for the roles with a candidate (feature engineering, modeling) the caller writes the trace after registering the attempt, so that it links to the candidate.
 
 **Bundle contract.** A candidate is a bundle: a folder with the code, the transformations, the model, the declared dependencies, and two entry points, `fit(train)` and `predict(bundle_id, X)`. The runner, which is fixed code, runs the bundle in a subprocess with a timeout, passes the data without labels, calls `predict` on the partitions and computes the metrics itself. The bundle never sees labels it should not see and never reports its own score. The levels differ in the isolation: at level 1 the bundle is a plain folder run in the same Python environment as the agent; at level 2 bundles are immutable versions with a hash and each variant has its own virtual environment; at level 3 each bundle runs in a container.
 
@@ -412,7 +412,7 @@ flowchart LR
     K <--> KG[(Kaggle)]
     E --> G
     P --> G
-    L -.-> AG[agents, future]
+    L -.-> AG[agents]
     AG -.-> BU[bundle, future]
     BU -.-> S
     L -.-> PL[pipeline, future]
@@ -429,11 +429,12 @@ Existing subpackages under `src/kaggle_agent/`:
 - `registry`: registry of attempts, execution records, cycles and suggestions behind a replaceable interface, with a SQLite implementation, fingerprint and deduplication (section 7);
 - `kaggle`: client interface, fake, credential resolution, submission rules and recording in the registry, and the real adapter on the official package, the only module that imports it (section 10);
 - `llm`: adapter for headless Claude Code with structured output, retries, backoff and per-call consumption, the fake, and the real adapter, the only module that spawns the CLI process (section 8); `llm/recording.py` is the only module that imports the registry;
+- `agents`: the five role prompts (coordinator, data, feature engineering, modeling, reviewer) with typed inputs and outputs on `LlmClient`, the shared call helper and the role traces; roles never import or call each other, and `agents/call.py` is the only module that imports the registry (section 8);
 - `sandbox`: execution of the generated code (section 8);
 - `review`: initial plan and final review (section 13);
 - `budget`: limits and stop (section 11).
 
-Future subpackages, not created in this ticket and with names to be confirmed in review: `agents` for the five role prompts (coordinator, data, feature engineering, modeling, reviewer) and their typed inputs and outputs (section 8), `bundle` for the bundle contract and the runner (section 8), `pipeline` for the round pipeline and the generation of the end-to-end pipeline (sections 2 and 13) and `web` for the consultation interface (section 13).
+Future subpackages, not created in this ticket and with names to be confirmed in review: `bundle` for the bundle contract and the runner (section 8), `pipeline` for the round pipeline and the generation of the end-to-end pipeline (sections 2 and 13) and `web` for the consultation interface (section 13).
 
 **The three levels.** All levels keep the same core structure, the same five roles and the same guarantees: frozen protocol, labels and holdout owned by the evaluator, everything in the registry, tests with fakes. Level 1 is built first (tickets 6 to 12 of section 15). Levels 2 and 3 are directions.
 
