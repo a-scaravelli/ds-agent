@@ -14,12 +14,13 @@ comes from the ``best`` argument of ``metrics_page``; this is the single place
 to read it from the registry if a later change makes it readable.
 """
 
-from urllib.parse import urlparse
+import re
 
 from kaggle_agent.proposals import validate_role
 from kaggle_agent.registry import NotFoundError, Registry
 
 PIPELINE_PREFIX = "pipeline:"
+_WEB_URL = re.compile(r"https?://[^\s/?#]+\S*", re.IGNORECASE)
 BEST_CHOICES = ("max", "min")
 DEFAULT_BEST = "max"
 
@@ -35,9 +36,7 @@ def pipeline_reference(artifacts) -> dict | None:
     for artifact in artifacts:
         if isinstance(artifact, str) and artifact.startswith(PIPELINE_PREFIX):
             ref = artifact[len(PIPELINE_PREFIX):].strip()
-            parsed = urlparse(ref)
-            is_web = parsed.scheme in ("http", "https") and bool(parsed.netloc)
-            return {"ref": ref, "url": ref if is_web else None}
+            return {"ref": ref, "url": ref if _WEB_URL.fullmatch(ref) else None}
     return None
 
 

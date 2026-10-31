@@ -271,3 +271,36 @@ def test_nothing_of_tickets_6_to_16_exists():
     names = {p.stem for p in SRC.rglob("*.py")}
     assert not names & {"runner", "bundle", "agents", "pipeline"}
     assert not [p for p in SRC.iterdir() if p.is_dir() and p.name in {"agents", "runner"}]
+
+
+# --- web package (step 10) ---
+
+
+def _web_modules():
+    return sorted(WEB.glob("*.py"))
+
+
+def test_web_imports_only_stdlib_flask_proposals_registry_and_itself():
+    stdlib = set(sys.stdlib_module_names)
+    forbidden = {"evaluation", "llm", "kaggle", "sandbox", "loop", "review", "budget"}
+    assert _web_modules()
+    for path in _web_modules():
+        for top, full in _imports(path):
+            assert top in stdlib | {"flask", "kaggle_agent", "<relative>"}, f"{path}: {full}"
+            assert top not in NETWORK_MODULES, f"{path}: {full}"
+            if top == "kaggle_agent":
+                parts = full.split(".")
+                assert len(parts) > 1 and parts[1] in {"proposals", "registry", "web"}, full
+            if top == "<relative>":
+                assert full.lstrip(".").split(".")[0] not in forbidden, f"{path}: {full}"
+
+
+def test_only_the_web_start_module_imports_the_sqlite_registry():
+    for path in _web_modules():
+        sqlite_import = any(full.endswith("registry.sqlite") for _, full in _imports(path))
+        assert sqlite_import == (path.name == "__main__.py"), path
+    for path in _modules():
+        if WEB in path.parents:
+            continue
+        for top, _ in _imports(path):
+            assert top != "flask", path

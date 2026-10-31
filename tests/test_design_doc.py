@@ -613,3 +613,15 @@ def test_new_alternatives_risks_and_question(sections):
     for role in ROLES + ("runner",):
         assert role in low3, role
     assert "who runs it" in low3
+
+
+# --- Read-only web interface (step 10 of section 15) ---
+
+
+def test_web_library_decision_is_documented(sections):
+    s13 = sections[13]
+    assert "Decision (web ticket)" in s13 and "Flask" in s13
+    for rejected in ("wsgiref", "Bottle", "FastAPI", "Django", "Streamlit"):
+        assert rejected in s13, rejected
+    assert "`web`" in sections[14].split("Future subpackages")[0]
+    assert "`web` for the consultation interface" not in sections[14]

@@ -292,3 +292,38 @@ def test_templates_are_package_resources_and_declared_in_package_data():
     assert "include-package-data" not in setuptools
     assert setuptools["packages"] == {"find": {"where": ["src"]}}
     assert "py-modules" not in setuptools
+
+
+# 35, 36
+def _web_section():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    start = readme.index("## Web interface (`kaggle_agent.web`)")
+    return readme[start: readme.index("\n## ", start + 1)]
+
+
+def test_readme_documents_the_flask_pin_python_versions_and_unpinned_dependencies():
+    section = _web_section()
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    pin = next(d for d in pyproject["project"]["dependencies"] if d.startswith("flask"))
+    assert pin.startswith("flask==")
+    assert f"Flask {pin.split('==')[1]}" in section
+    assert "3.12" in section and "3.14" in section
+    assert "not pinned" in section and "werkzeug" in section
+
+
+def test_readme_has_the_single_start_command_in_a_code_block():
+    section = _web_section()
+    block = re.search(r"```bash\n(.*?)```", section, re.S).group(1)
+    assert block.strip() == "python -m kaggle_agent.web --db PATH"
+    assert section.count("python -m kaggle_agent.web --db") == 1
+
+
+def test_pipeline_reference_convention():
+    from kaggle_agent.web.views import pipeline_reference
+
+    assert pipeline_reference(["x", "pipeline:https://a.test/p"]) == {
+        "ref": "https://a.test/p", "url": "https://a.test/p"}
+    assert pipeline_reference(["pipeline:/etc/passwd"])["url"] is None
+    assert pipeline_reference(["pipeline:javascript:alert(1)"])["url"] is None
+    assert pipeline_reference(["pipeline:https://"])["url"] is None
+    assert pipeline_reference(["other"]) is None and pipeline_reference([]) is None
