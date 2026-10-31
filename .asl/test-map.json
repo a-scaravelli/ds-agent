@@ -2,375 +2,83 @@
  "cases": {
   "1": [
    {
-    "file": "tests/test_proposals_goal.py",
-    "name": "test_goal_criteria_roundtrip_identical"
-   }
-  ],
-  "2": [
-   {
-    "file": "tests/test_proposals_goal.py",
-    "name": "test_goal_criteria_validation"
-   }
-  ],
-  "3": [
-   {
-    "file": "tests/test_proposals_round.py",
-    "name": "test_roundtrip_identical"
-   },
-   {
-    "file": "tests/test_proposals_round.py",
-    "name": "test_text_types_reject_missing_and_empty_fields"
-   },
-   {
-    "file": "tests/test_proposals_round.py",
-    "name": "test_round_validation"
-   },
-   {
-    "file": "tests/test_proposals_round.py",
-    "name": "test_malformed_json_rejected"
-   }
-  ],
-  "4": [
-   {
-    "file": "tests/test_proposals_attempt.py",
-    "name": "test_attempt_bundle_id_optional_and_validated"
-   },
-   {
-    "file": "tests/test_proposals_attempt.py",
-    "name": "test_attempt_example_from_design_is_valid"
-   }
-  ],
-  "5": [
-   {
-    "file": "tests/test_proposals_goal.py",
-    "name": "test_roles_are_the_five_of_the_design"
-   }
-  ],
-  "6": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_old_files_open_and_gain_tables_and_columns"
-   }
-  ],
-  "7": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_project_id_and_awaiting_guidance_state_persist"
-   },
-   {
-    "file": "tests/test_registry_records.py",
-    "name": "test_cycle_project_id_roundtrip_and_validation"
-   }
-  ],
-  "8": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_rounds_list_their_own_candidates"
-   },
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_add_round_rules"
-   }
-  ],
-  "9": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_bundles_and_attempt_reference"
-   },
-   {
-    "file": "tests/test_registry_records.py",
-    "name": "test_bundle_record_validation_and_roundtrip"
-   }
-  ],
-  "10": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_reviewer_reports_per_round"
-   }
-  ],
-  "11": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_guidance_roundtrip_and_creates_suggestion"
-   }
-  ],
-  "12": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_guidance_roundtrip_and_creates_suggestion"
-   }
-  ],
-  "13": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_rejected_guidance_writes_nothing"
-   }
-  ],
-  "14": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_suggestion_saved_with_spawned_cycles"
-   },
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_suggestion_queries_and_integrity"
-   }
-  ],
-  "15": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_role_traces_are_append_only_and_roundtrip"
-   }
-  ],
-  "16": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_role_traces_filtered_by_role_and_round"
-   }
-  ],
-  "17": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_trace_llm_call_link_is_checked"
-   }
-  ],
-  "18": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_trace_references_are_checked"
-   },
-   {
-    "file": "tests/test_registry_records.py",
-    "name": "test_role_trace_validation_and_no_raw_text_fields"
-   }
-  ],
-  "19": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_llm_calls_filtered_by_role"
-   }
-  ],
-  "20": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_metric_series_by_round"
-   }
-  ],
-  "21": [
-   {
-    "file": "tests/test_registry_records.py",
-    "name": "test_llm_call_entry_role_nullable_and_validated"
-   },
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_llm_call_role_survives_reopening"
-   }
-  ],
-  "22": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_new_records_are_unchanged_after_reopening"
-   }
-  ],
-  "23": [
-   {
-    "file": "tests/test_evaluation_goal.py",
-    "name": "test_goal_met_only_when_every_criterion_is_met_and_is_deterministic"
-   }
-  ],
-  "24": [
-   {
-    "file": "tests/test_evaluation_goal.py",
-    "name": "test_goal_with_registered_metrics_is_scored_on_the_validation_predictions"
-   }
-  ],
-  "25": [
-   {
-    "file": "tests/test_evaluation_goal.py",
-    "name": "test_a_goal_metric_registered_by_a_test_works_and_is_removed_afterwards"
-   }
-  ],
-  "26": [
-   {
-    "file": "tests/test_evaluation_goal.py",
-    "name": "test_goal_direction_and_input_kind_are_validated"
-   }
-  ],
-  "27": [
-   {
-    "file": "tests/test_evaluation_hashing.py",
-    "name": "test_goal_enters_the_hash_only_when_present"
-   }
-  ],
-  "28": [
-   {
-    "file": "tests/test_evaluation_goal.py",
-    "name": "test_candidate_may_be_any_object_with_fit_predict"
-   },
-   {
-    "file": "tests/test_evaluation_goal.py",
-    "name": "test_evaluation_imports_no_tests_llm_or_fake_names"
-   }
-  ],
-  "29": [
-   {
-    "file": "tests/test_evaluation_goal.py",
-    "name": "test_no_builtin_metric_was_added_for_goals"
-   }
-  ],
-  "30": [
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_kaggle_code_does_not_assume_a_single_attempt_iteration"
-   },
-   {
-    "file": "tests/test_kaggle_recording.py",
-    "name": "test_recording_binds_to_the_cycle_only"
-   }
-  ],
-  "31": [
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_data_hash_and_file_hashes_are_exposed_without_a_snapshot_accessor"
-   },
-   {
-    "file": "tests/test_kaggle_fake.py",
-    "name": "test_download_writes_files_with_hashes"
-   }
-  ],
-  "32": [
-   {
-    "file": "tests/test_llm_client.py",
-    "name": "test_role_is_recorded_in_every_call_including_retries"
-   }
-  ],
-  "33": [
-   {
-    "file": "tests/test_llm_client.py",
-    "name": "test_unknown_role_is_rejected_before_any_invocation"
-   },
-   {
-    "file": "tests/test_llm_models.py",
-    "name": "test_call_record_role_defaults_to_none_and_llm_code_has_no_model_per_role"
-   }
-  ],
-  "34": [
-   {
-    "file": "tests/test_llm_recording.py",
-    "name": "test_role_is_stored_in_llm_calls_and_old_files_are_migrated"
-   }
-  ],
-  "35": [
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_evaluation_imports_neither_tests_nor_llm_and_no_unpinned_library_anywhere"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_nothing_of_tickets_6_to_16_exists"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_runtime_dependencies_are_the_pinned_libraries"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_no_test_builds_a_real_client_without_a_runner"
-   }
-  ],
-  "36": [
-   {
-    "file": "tests/test_repo_language.py",
-    "name": "test_readme_states_the_goal_input_kind_limit"
-   },
-   {
-    "file": "tests/test_test_map.py",
-    "name": "test_test_map_entries_exist"
-   },
-   {
-    "file": "tests/test_repo_language.py",
-    "name": "test_code_identifiers_are_english"
-   }
-  ],
-  "37": [
-   {
     "file": "tests/test_agents_coordinator.py",
     "name": "test_coordinator_valid_output_is_typed"
    }
   ],
-  "38": [
+  "2": [
    {
     "file": "tests/test_agents_data.py",
     "name": "test_data_valid_output_has_the_four_fields"
    }
   ],
-  "39": [
+  "3": [
    {
     "file": "tests/test_agents_feature_engineering.py",
     "name": "test_feature_engineering_id_is_assigned_by_the_caller"
    }
   ],
-  "40": [
+  "4": [
    {
     "file": "tests/test_agents_modeling.py",
     "name": "test_modeling_id_is_assigned_and_previous_attempt_is_in_the_prompt"
    }
   ],
-  "41": [
+  "5": [
    {
     "file": "tests/test_agents_reviewer.py",
     "name": "test_reviewer_report_has_fixed_id_round_and_date"
    }
   ],
-  "42": [
+  "6": [
    {
     "file": "tests/test_agents_call.py",
     "name": "test_malformed_output_is_retried_then_rejected_with_a_clear_error"
    }
   ],
-  "43": [
+  "7": [
    {
     "file": "tests/test_agents_call.py",
     "name": "test_invalid_then_valid_uses_the_client_retry_and_traces_the_last_row"
    }
   ],
-  "44": [
+  "8": [
    {
     "file": "tests/test_agents_call.py",
     "name": "test_rate_limit_is_handled_by_the_existing_client"
    }
   ],
-  "45": [
+  "9": [
    {
     "file": "tests/test_agents_call.py",
     "name": "test_exhausted_rate_limit_and_quota_are_traced_and_propagated"
    }
   ],
-  "46": [
+  "10": [
    {
     "file": "tests/test_agents_call.py",
     "name": "test_every_call_writes_a_trace_with_typed_input_and_output"
    }
   ],
-  "47": [
+  "11": [
    {
     "file": "tests/test_agents_call.py",
     "name": "test_candidate_trace_is_written_after_the_attempt_with_candidate_id"
    }
   ],
-  "48": [
+  "12": [
    {
     "file": "tests/test_agents_call.py",
     "name": "test_rejected_candidate_role_is_traced_with_no_candidate_and_no_output"
    }
   ],
-  "49": [
+  "13": [
    {
     "file": "tests/test_agents_call.py",
     "name": "test_rejected_call_keeps_no_raw_model_text"
    }
   ],
-  "50": [
+  "14": [
    {
     "file": "tests/test_agents_call.py",
     "name": "test_llm_call_rows_are_built_by_one_shared_function"
@@ -380,7 +88,7 @@
     "name": "test_calls_are_stored_in_order_with_outcome_duration_and_tokens"
    }
   ],
-  "51": [
+  "15": [
    {
     "file": "tests/test_agents_call.py",
     "name": "test_a_client_already_recording_in_the_same_registry_is_refused"
@@ -394,13 +102,13 @@
     "name": "test_a_hook_for_another_registry_is_accepted"
    }
   ],
-  "52": [
+  "16": [
    {
     "file": "tests/test_agents_guards.py",
     "name": "test_reviewer_output_has_no_field_that_decides"
    }
   ],
-  "53": [
+  "17": [
    {
     "file": "tests/test_agents_guards.py",
     "name": "test_roles_do_not_import_or_call_each_other"
@@ -410,7 +118,7 @@
     "name": "test_modeling_receives_the_previous_attempt_only_as_an_argument"
    }
   ],
-  "54": [
+  "18": [
    {
     "file": "tests/test_agents_guards.py",
     "name": "test_inputs_are_typed_summaries_without_sensitive_fields"
@@ -424,13 +132,13 @@
     "name": "test_only_call_imports_from_registry"
    }
   ],
-  "55": [
+  "19": [
    {
     "file": "tests/test_agents_guards.py",
     "name": "test_existing_packages_do_not_import_agents"
    }
   ],
-  "56": [
+  "20": [
    {
     "file": "tests/test_agents_types.py",
     "name": "test_types_round_trip_identically"
@@ -440,7 +148,7 @@
     "name": "test_invalid_values_raise_validation_error"
    }
   ],
-  "57": [
+  "21": [
    {
     "file": "tests/test_agents_call.py",
     "name": "test_the_model_given_by_the_caller_reaches_ask_and_the_row"
@@ -450,7 +158,7 @@
     "name": "test_agents_sources_contain_no_model_names_or_role_to_model_map"
    }
   ],
-  "58": [
+  "22": [
    {
     "file": "tests/test_agents_guards.py",
     "name": "test_no_agents_test_builds_a_real_client"
@@ -464,7 +172,7 @@
     "name": "test_runtime_dependencies_are_the_pinned_libraries"
    }
   ],
-  "59": [
+  "23": [
    {
     "file": "tests/test_no_modeling_logic.py",
     "name": "test_nothing_of_tickets_6_to_16_exists"
@@ -474,7 +182,7 @@
     "name": "test_nothing_chains_roles_and_no_other_step_is_present"
    }
   ],
-  "60": [
+  "24": [
    {
     "file": "tests/test_test_map.py",
     "name": "test_test_map_entries_exist"
