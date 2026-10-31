@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -19,6 +20,10 @@ from kaggle_agent.sandbox import (
     SandboxRequest, SandboxResult, SubprocessSandbox, hash_paths,
 )
 
+# Keys the platform or the interpreter adds to every child process (macOS adds
+# __CF_USER_TEXT_ENCODING, Python may add LC_CTYPE): not credentials, not set by the sandbox.
+PLATFORM_ADDED_KEYS = {"LC_CTYPE", "__CF_USER_TEXT_ENCODING"}
+
 NOT_ROOT = pytest.mark.skipif(os.geteuid() == 0, reason="permissions do not stop root")
 
 
@@ -33,7 +38,14 @@ def alive(pid: int) -> bool:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
-    try:  # a killed process nobody has reaped yet is a zombie, not alive
+    try:  # a killed process nobody has reaped yet is a zombie, not alive; `ps` works on Linux and macOS
+        state = subprocess.run(
+            ["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True, timeout=5
+        ).stdout.strip()
+        return bool(state) and not state.startswith("Z")
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:  # no `ps`: fall back to /proc where it exists
         return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
     except OSError:
         return True
@@ -89,7 +101,7 @@ def test_command_and_exclusive_request(tmp_path):
 
 def test_timeout_kills_child_and_process_group(tmp_path):
     pid_file = tmp_path / "pid"
-    policy = make_policy(tmp_path / "repo", timeout=1)
+    policy = make_policy(tmp_path / "repo", timeout=3)
     started = time.monotonic()
     _, result = run(tmp_path, sleeper(tmp_path / "s"), str(pid_file), policy=policy)
     assert time.monotonic() - started < 10
@@ -147,7 +159,7 @@ def test_child_sees_no_credentials_or_inherited_secrets(tmp_path, monkeypatch):
     assert "leaked-" not in result.stdout + result.stderr
     _, dump = run(tmp_path, env_dumper(tmp_path / "s"))
     child_env = json.loads(dump.stdout)["env"]
-    assert set(child_env) <= set(MINIMAL_KEYS) | {"LC_CTYPE"}
+    assert set(child_env) <= set(MINIMAL_KEYS) | PLATFORM_ADDED_KEYS
     assert dict(os.environ) == before
 
 
