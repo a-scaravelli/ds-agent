@@ -39,6 +39,10 @@ Invariants every implementation must keep:
   id and text, the cycle of the guidance as origin) in one transaction.
 - A role trace holds no credential and no raw model text: its input and
   output are typed JSON objects.
+- ``list_cycles`` returns every cycle in insertion order, including cycles
+  with no attempts.
+- A registry opened read-only never writes: every method that changes data
+  raises ``RegistryError`` and the storage is left untouched.
 - A rejected call leaves the registry unchanged.
 """
 
@@ -139,6 +143,10 @@ class Registry(ABC):
     @abstractmethod
     def get_cycle(self, cycle_id: str) -> Cycle:
         """Return a cycle; unknown id raises ``NotFoundError``."""
+
+    @abstractmethod
+    def list_cycles(self) -> list[Cycle]:
+        """All cycles in insertion order, including those with no attempts."""
 
     @abstractmethod
     def set_cycle_state(self, cycle_id: str, state: str) -> None:
