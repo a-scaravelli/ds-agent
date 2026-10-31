@@ -70,6 +70,7 @@ class CallRecord:
     ``attempt`` counts invocations inside one ``ask`` (retries included).
     ``rejection_reason`` is only set for ``invalid_output``: the sanitized
     'field: reason' of the validation error, never the model's text.
+    ``role`` is the role of the agent that asked (one of ``ROLES``) or None.
     """
 
     purpose: str
@@ -81,6 +82,7 @@ class CallRecord:
     model: str | None = None
     stripped_variables: tuple[str, ...] = ()
     rejection_reason: str | None = None
+    role: str | None = None
 
 
 @dataclass(frozen=True)

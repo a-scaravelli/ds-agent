@@ -119,3 +119,36 @@ def evaluate(engine, candidate, frame, attempt_id="A1", n=1):
         candidate, frame, attempt_id=attempt_id, execution_id=f"{attempt_id}-E{n}",
         config={"model": "fake"}, code_hash="code", data_hash="data",
     )
+
+
+def goal_dict(*criteria):
+    """Goal in dict form from (metric, threshold, direction) triples."""
+    return {"criteria": [
+        {"metric": m, "threshold": t, "direction": d} for m, t, d in criteria
+    ]}
+
+
+def positive_rate(y_true, y_pred):
+    """A tiny metric for tests: share of rows predicted as the positive class."""
+    return float(np.mean(np.asarray(y_pred) == 1))
+
+
+class TemporaryMetric:
+    """Registers a test metric and removes it from ``METRICS`` on exit (also on error)."""
+
+    def __init__(self, name="test_positive_rate", input_kind="labels", direction="maximize"):
+        from kaggle_agent.evaluation import MetricSpec
+
+        self.name = name
+        self.spec = MetricSpec(name, positive_rate, input_kind, direction)
+
+    def __enter__(self):
+        from kaggle_agent.evaluation import register_metric
+
+        register_metric(self.spec)
+        return self.name
+
+    def __exit__(self, *exc):
+        from kaggle_agent.evaluation import METRICS
+
+        METRICS.pop(self.name, None)

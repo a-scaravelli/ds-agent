@@ -187,3 +187,39 @@ def test_competition_info_has_data_description_and_every_page():
     plain, _ = make_fake()
     assert plain.get_competition_info("comp").data_description == ""
     assert "data-description" not in plain.get_competition_info("comp").pages
+
+
+def test_data_hash_and_file_hashes_are_exposed_without_a_snapshot_accessor(tmp_path):
+    import dataclasses
+
+    client, _ = make_fake()
+    one = client.download("comp", tmp_path / "a")
+    two = client.download("comp", tmp_path / "b")
+    assert one.data_hash == two.data_hash and len(one.data_hash) == 64
+    assert {"train.csv", "test.csv"} <= {f.name for f in one.files}
+    assert all(f.name and len(f.sha256) == 64 for f in one.files)
+    assert not hasattr(one, "snapshot")
+    assert "snapshot" not in {f.name for f in dataclasses.fields(type(one))}
+
+
+def test_kaggle_code_does_not_assume_a_single_attempt_iteration():
+    import ast
+
+    import kaggle_agent.kaggle as package
+    from pathlib import Path
+
+    forbidden = {"attempt_id", "iteration"}
+    for path in Path(package.__file__).parent.glob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            names = set()
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                names = {node.name, *(a.arg for a in node.args.args + node.args.kwonlyargs)}
+            elif isinstance(node, ast.arg):
+                names = {node.arg}
+            elif isinstance(node, ast.Name):
+                names = {node.id}
+            elif isinstance(node, ast.Attribute):
+                names = {node.attr}
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                names = {node.target.id}
+            assert not names & forbidden, f"{path.name}: {names & forbidden}"

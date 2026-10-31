@@ -128,3 +128,17 @@ def test_contract_hints_match_the_validation():
     with pytest.raises(ValidationError):
         Attempt.from_dict({**T0014, "evidence": []})
     assert Attempt.from_dict({**T0014, "evidence": [], "exploratory": True})
+
+
+def test_attempt_bundle_id_optional_and_validated():
+    for data in (T0014, FULL, MINIMAL):
+        attempt = Attempt.from_json(json.dumps(data))
+        assert attempt.bundle_id is None
+        assert Attempt.from_json(attempt.to_json()) == attempt
+    with_bundle = Attempt.from_dict({**T0014, "bundle_id": "B-0003"})
+    assert with_bundle.bundle_id == "B-0003"
+    again = Attempt.from_json(with_bundle.to_json())
+    assert again == with_bundle and again.to_json() == with_bundle.to_json()
+    for bad in ("", "  ", 3, ["B-1"]):
+        with pytest.raises(ValidationError, match="bundle_id"):
+            Attempt.from_dict({**T0014, "bundle_id": bad})

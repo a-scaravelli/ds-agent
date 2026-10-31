@@ -70,7 +70,7 @@ def test_to_dict_keys_and_error_messages_are_english():
     assert list(ShortPlan.from_dict(PLAN).to_dict()) == list(PLAN)
     assert set(Attempt.from_dict(ATTEMPT).to_dict()) == {
         "id", "phase", "parent_id", "hypothesis", "rationale", "evidence", "exploratory",
-        "what_changed", "expected_effect", "measure", "estimated_cost", "risks", "artifacts",
+        "what_changed", "expected_effect", "measure", "estimated_cost", "risks", "artifacts", "bundle_id",
     }
     assert list(Suggestion.from_dict(
         {"id": "S", "text": "t", "origin_cycle": "c"}).to_dict()
@@ -241,3 +241,9 @@ def test_readme_and_memory_record_the_real_smoke_test():
     entry = text.split("Ticket #12", 1)[1].lower()
     for word in ("claude-sonnet-4-6", "rejection_reason", "contract_hints", "rate limit", "quota", "oauth"):
         assert word in entry, word
+
+
+def test_readme_states_the_goal_input_kind_limit():
+    text = " ".join((ROOT / "README.md").read_text(encoding="utf-8").split())
+    assert "same `input_kind` as the main metric" in text
+    assert "to be reviewed at ticket 12" in text

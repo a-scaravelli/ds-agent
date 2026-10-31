@@ -91,3 +91,27 @@ def test_rejection_reason_is_stored_and_survives_reopening(tmp_path):
     assert before[0].rejection_reason.startswith("plan: invalid JSON") and before[1].rejection_reason is None
     registry.close()
     assert SqliteRegistry(path).list_llm_calls("C1") == before
+
+
+def test_role_is_stored_in_llm_calls_and_old_files_are_migrated(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "r.db")
+    registry = _registry(path)
+    client = FakeLlmClient(
+        [Reply(PLAN_JSON), Reply(PLAN_JSON)], on_call=functools.partial(record_call, registry, "C1")
+    )
+    client.ask("p", ShortPlan, permissions(tmp_path), "plan", role="coordinator")
+    client.ask("p", ShortPlan, permissions(tmp_path), "plan")
+    entry = record_call(registry, "C1", client.call_log()[0])
+    assert entry.role == "coordinator"
+    registry.close()
+    db = sqlite3.connect(path)
+    assert [r[0] for r in db.execute("SELECT role FROM llm_calls ORDER BY rowid")] == [
+        "coordinator", None, "coordinator"]
+    db.execute("ALTER TABLE llm_calls DROP COLUMN role")  # file written before roles existed
+    db.commit()
+    db.close()
+    migrated = SqliteRegistry(path)
+    assert [c.role for c in migrated.list_llm_calls("C1")] == [None, None, None]
+    migrated.close()

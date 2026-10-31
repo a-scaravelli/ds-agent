@@ -19,9 +19,10 @@ _FIELDS = (
     "estimated_cost",
     "risks",
     "artifacts",
+    "bundle_id",
 )
 _REQUIRED_TEXT = ("id", "phase", "hypothesis", "rationale", "what_changed", "measure")
-_OPTIONAL_TEXT = ("parent_id", "expected_effect", "estimated_cost")
+_OPTIONAL_TEXT = ("parent_id", "expected_effect", "estimated_cost", "bundle_id")
 _LISTS = ("evidence", "risks", "artifacts")
 
 
@@ -45,6 +46,7 @@ class Attempt:
     estimated_cost: str | None = None
     risks: tuple[str, ...] = ()
     artifacts: tuple[str, ...] = ()
+    bundle_id: str | None = None
 
     def __post_init__(self) -> None:
         for name in _REQUIRED_TEXT:
@@ -74,7 +76,7 @@ class Attempt:
         """
         hints = {name: "non-empty string" for name in _REQUIRED_TEXT}
         hints["parent_id"] = "if present, a non-empty string different from id"
-        for name in ("expected_effect", "estimated_cost"):
+        for name in ("expected_effect", "estimated_cost", "bundle_id"):
             hints[name] = "if present, a non-empty string"
         for name in _LISTS:
             hints[name] = "list of non-empty strings (may be empty)"

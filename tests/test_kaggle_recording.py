@@ -99,3 +99,16 @@ def test_the_score_never_changes_the_protocol():
     text = (SRC / "kaggle" / "recording.py").read_text(encoding="utf-8")
     for forbidden in ("set_protocol_hash", "add_cycle", "set_cycle_state", "add_comparison"):
         assert forbidden not in text
+
+
+def test_recording_binds_to_the_cycle_only():
+    import ast
+    from pathlib import Path
+
+    import kaggle_agent.kaggle.recording as recording
+
+    tree = ast.parse(Path(recording.__file__).read_text(encoding="utf-8"))
+    names = {n.arg for n in ast.walk(tree) if isinstance(n, ast.arg)}
+    names |= {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+    assert "cycle_id" in names
+    assert not names & {"attempt_id", "round_id", "iteration", "candidate_id"}

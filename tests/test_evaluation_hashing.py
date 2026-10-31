@@ -66,3 +66,19 @@ def test_library_versions_are_outside_the_hash():
     source = (PACKAGE / "hashing.py").read_text(encoding="utf-8")
     code = source.split('"""', 2)[2]
     assert "__version__" not in code and "pandas" not in code and "sklearn" not in code
+
+
+def test_goal_enters_the_hash_only_when_present():
+    from evaluation_helpers import goal_dict, make_protocol
+
+    from kaggle_agent.evaluation import protocol_hash
+
+    plain = make_protocol()
+    assert "goal" not in plain.to_dict() and '"goal"' not in plain.to_json()
+    with_goal = make_protocol(goal=goal_dict(("accuracy", 0.8, "maximize")))
+    assert with_goal.to_dict()["goal"]["criteria"][0]["metric"] == "accuracy"
+    assert type(with_goal).from_json(with_goal.to_json()) == with_goal
+    assert with_goal.to_json() == type(with_goal).from_json(with_goal.to_json()).to_json()
+    assert protocol_hash(plain, "code") != protocol_hash(with_goal, "code")
+    other = make_protocol(goal=goal_dict(("accuracy", 0.9, "maximize")))
+    assert protocol_hash(with_goal, "code") != protocol_hash(other, "code")

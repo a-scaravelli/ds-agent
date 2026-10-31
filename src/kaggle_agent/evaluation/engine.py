@@ -8,8 +8,7 @@ frozen hash, the holdout reads and the comparisons.
 
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass
-from typing import Protocol as Structural
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -23,7 +22,9 @@ from kaggle_agent.registry import (
     Registry,
 )
 
+from .candidate import Candidate
 from .errors import ProtocolHashMismatchError, ProtocolNotFrozenError
+from .goal import GoalStatus, evaluate_goal
 from .hashing import evaluation_code_hash, protocol_hash
 from .metrics import get_metric
 from .protocol import Protocol
@@ -32,28 +33,23 @@ from .split import FrozenSplit, HoldoutAccessor
 from .threshold import Comparison, compare as compare_scores, dispersion
 
 VALIDATION = "validation"
-
-
-class Candidate(Structural):
-    """What the engine needs from a model: fit on train, predict on validation.
-
-    The sandbox of a later ticket will implement it; tests use fakes.
-    """
-
-    def fit_predict(
-        self, x_train: pd.DataFrame, y_train: pd.Series, x_valid: pd.DataFrame, seed: int
-    ):
-        """Return predictions for ``x_valid`` (one per row)."""
+GOAL = "goal"
 
 
 @dataclass(frozen=True)
 class EvaluationResult:
-    """Scores per partition id and the execution record ready for ``Registry.add_execution``."""
+    """Scores per partition id and the execution record ready for ``Registry.add_execution``.
+
+    With a goal in the protocol, ``goal_scores`` holds the scores per partition
+    id of every goal metric and ``goal`` says whether the means meet it.
+    """
 
     scores: dict[str, float]
     mean: float
     dispersion: float
     execution: ExecutionRecord
+    goal_scores: dict[str, dict[str, float]] = field(default_factory=dict)
+    goal: GoalStatus | None = None
 
 
 @dataclass(frozen=True)
@@ -104,11 +100,13 @@ class EvaluationEngine:
 
     # -- scoring helpers -----------------------------------------------------
 
-    def _score(self, y_true, predictions) -> float:
+    def _score(self, y_true, predictions, metric=None, params=None) -> float:
         predicted = np.asarray(predictions)
         if len(predicted) != len(y_true):
             raise ValidationError("predictions", "must have one value per validation row")
-        return self._metric.score(y_true, predicted, self.protocol.metric_params)
+        if metric is None:
+            return self._metric.score(y_true, predicted, self.protocol.metric_params)
+        return metric.score(y_true, predicted, params or {})
 
     # -- validation ----------------------------------------------------------
 
@@ -120,16 +118,27 @@ class EvaluationEngine:
         started = time.perf_counter()
         split = FrozenSplit.create(frame, self.protocol)
         scores: dict[str, float] = {}
+        goal = self.protocol.goal
+        goal_specs = {c.metric: get_metric(c.metric) for c in goal.criteria} if goal else {}
+        goal_scores: dict[str, dict[str, float]] = {name: {} for name in goal_specs}
         for part in split.partitions():
             x_train, y_train = split.data(part.train_rows)
             x_valid, y_valid = split.data(part.valid_rows)
             seed = derive_seed(self.protocol.seed, "candidate", part.repetition)
             predictions = candidate.fit_predict(x_train, y_train, x_valid, seed)
             scores[part.id] = self._score(y_valid, predictions)
+            for name, spec in goal_specs.items():
+                goal_scores[name][part.id] = self._score(y_valid, predictions, spec)
         mean = float(np.mean(list(scores.values())))
         spread = dispersion(scores)
         metrics = [PartitionMetric(VALIDATION, mean, spread)]
         metrics += [PartitionMetric(f"{VALIDATION}/{pid}", s, 0.0) for pid, s in scores.items()]
+        goal_means = {}
+        for name, by_partition in goal_scores.items():
+            goal_means[name] = float(np.mean(list(by_partition.values())))
+            metrics.append(
+                PartitionMetric(f"{GOAL}/{name}", goal_means[name], dispersion(by_partition))
+            )
         record = ExecutionRecord(
             id=execution_id,
             attempt_id=attempt_id,
@@ -143,12 +152,20 @@ class EvaluationEngine:
             outcome="succeeded",
             resources={"library_versions": library_versions()},
         )
-        return EvaluationResult(scores, mean, spread, record)
+        status = evaluate_goal(goal, goal_means) if goal else None
+        return EvaluationResult(scores, mean, spread, record, goal_scores, status)
 
     @staticmethod
     def scores_from_execution(record: ExecutionRecord) -> dict[str, float]:
         """Per-partition scores of an execution record produced by ``evaluate_validation``."""
         prefix = f"{VALIDATION}/"
+        return {m.partition[len(prefix):]: m.mean for m in record.metrics
+                if m.partition.startswith(prefix)}
+
+    @staticmethod
+    def goal_values_from_execution(record: ExecutionRecord) -> dict[str, float]:
+        """Mean of every goal metric of an execution record, by metric name."""
+        prefix = f"{GOAL}/"
         return {m.partition[len(prefix):]: m.mean for m in record.metrics
                 if m.partition.startswith(prefix)}
 

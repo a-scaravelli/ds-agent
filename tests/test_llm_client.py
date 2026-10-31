@@ -242,3 +242,34 @@ def test_rejection_reason_is_sanitized_for_every_validation_path(tmp_path):
             assert reason.endswith(" words, over the limit of 300")
         for secret in (SECRET_KEY, SECRET_TOKEN, "invented_key"):
             assert secret not in reason
+
+
+def test_role_is_recorded_in_every_call_including_retries(tmp_path):
+    import inspect
+
+    from kaggle_agent.llm import LlmClient
+
+    client = FakeLlmClient([Malformed(), Reply(PLAN_JSON), Reply(PLAN_JSON)])
+    perms = permissions(tmp_path)
+    with_role = client.ask("p", ShortPlan, perms, purpose="plan", role="modeling")
+    without = client.ask("p", ShortPlan, perms, "plan")
+    assert [c.role for c in with_role.calls] == ["modeling", "modeling"]
+    assert [c.role for c in without.calls] == [None]
+    assert [c.role for c in client.call_log()] == ["modeling", "modeling", None]
+    params = list(inspect.signature(LlmClient.ask).parameters)
+    assert params[-2:] == ["model", "role"]
+    assert inspect.signature(LlmClient.ask).parameters["role"].default is None
+
+
+def test_unknown_role_is_rejected_before_any_invocation(tmp_path):
+    from kaggle_agent.proposals import ValidationError
+
+    client = FakeLlmClient([Reply(PLAN_JSON), Reply(PLAN_JSON)])
+    perms = permissions(tmp_path)
+    for bad in ("planner", "", "Modeling"):
+        with pytest.raises(ValidationError):
+            client.ask("p", ShortPlan, perms, "plan", role=bad)
+    assert len(client.calls) == 0
+    first = client.ask("p", ShortPlan, perms, "plan", model="m-one", role="data")
+    second = client.ask("p", ShortPlan, perms, "plan", model="m-two", role="reviewer")
+    assert [first.calls[0].model, second.calls[0].model] == ["m-one", "m-two"]

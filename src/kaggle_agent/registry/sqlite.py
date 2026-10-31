@@ -1,9 +1,19 @@
 """SQLite implementation of the registry, standard library only (design section 7)."""
 
+import json
 import sqlite3
 from contextlib import contextmanager
 
-from kaggle_agent.proposals import Attempt, ShortPlan, Suggestion, ValidationError
+from kaggle_agent.proposals import (
+    Attempt,
+    Guidance,
+    ReviewerReport,
+    Round,
+    ShortPlan,
+    Suggestion,
+    ValidationError,
+    validate_role,
+)
 from kaggle_agent.proposals.errors import require_text
 
 from .errors import DuplicateAttemptError, NotFoundError, RegistryError
@@ -13,16 +23,20 @@ from .interface import (
     FailureRecord,
     MetricPoint,
     Registry,
+    RoundDetail,
+    RoundMetrics,
 )
 from .records import (
     FAILURE_KINDS,
     OUTCOMES,
+    BundleRecord,
     ComparisonRecord,
     Cycle,
     ExecutionRecord,
     HoldoutRead,
     HoldoutSession,
     LlmCallEntry,
+    RoleTrace,
     SubmissionEntry,
     _finite,
 )
@@ -111,6 +125,46 @@ CREATE TABLE IF NOT EXISTS llm_calls (
     model TEXT,
     rejection_reason TEXT
 );
+CREATE TABLE IF NOT EXISTS rounds (
+    id TEXT PRIMARY KEY,
+    cycle_id TEXT NOT NULL REFERENCES cycles(id),
+    position INTEGER NOT NULL,
+    tasks TEXT NOT NULL,
+    UNIQUE (cycle_id, position)
+);
+CREATE TABLE IF NOT EXISTS bundles (
+    id TEXT PRIMARY KEY,
+    cycle_id TEXT NOT NULL REFERENCES cycles(id),
+    folder_hash TEXT NOT NULL,
+    reference TEXT NOT NULL,
+    schema_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS reviewer_reports (
+    id TEXT PRIMARY KEY,
+    round_id TEXT NOT NULL REFERENCES rounds(id),
+    text TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS lead_guidance (
+    id TEXT PRIMARY KEY,
+    cycle_id TEXT NOT NULL REFERENCES cycles(id),
+    round_id TEXT NOT NULL REFERENCES rounds(id),
+    text TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS role_traces (
+    cycle_id TEXT NOT NULL REFERENCES cycles(id),
+    role TEXT NOT NULL,
+    round_id TEXT NOT NULL REFERENCES rounds(id),
+    candidate_id TEXT REFERENCES attempts(id),
+    input_type TEXT NOT NULL,
+    input TEXT NOT NULL,
+    output_type TEXT,
+    output TEXT,
+    outcome TEXT NOT NULL,
+    llm_call_id INTEGER,
+    created_at TEXT NOT NULL
+);
 """
 
 # the last execution of every attempt, joined to the attempt row
@@ -138,6 +192,15 @@ class SqliteRegistry(Registry):
         llm_columns = [r[1] for r in self._db.execute("PRAGMA table_info(llm_calls)")]
         if "rejection_reason" not in llm_columns:
             self._db.execute("ALTER TABLE llm_calls ADD COLUMN rejection_reason TEXT")
+        # nullable columns without REFERENCES: the code checks the references
+        for table, column in (
+            ("cycles", "project_id"),
+            ("attempts", "round_id"),
+            ("llm_calls", "role"),
+        ):
+            present = [r[1] for r in self._db.execute(f"PRAGMA table_info({table})")]
+            if column not in present:
+                self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
 
     def close(self) -> None:
         self._db.close()
@@ -166,7 +229,7 @@ class SqliteRegistry(Registry):
     def _require_cycle_row(self, cycle_id: str):
         row = self._one(
             "SELECT id, plan, iterations, stagnation_k, max_fix_retries, state, "
-            "protocol_hash FROM cycles WHERE id = ?",
+            "protocol_hash, project_id FROM cycles WHERE id = ?",
             (cycle_id,),
         )
         if row is None:
@@ -183,6 +246,7 @@ class SqliteRegistry(Registry):
             max_fix_retries=row[4],
             state=row[5],
             protocol_hash=row[6],
+            project_id=row[7],
         )
 
     def _require_attempt_row(self, attempt_id: str):
@@ -194,6 +258,20 @@ class SqliteRegistry(Registry):
         if row is None:
             raise NotFoundError(f"attempt {attempt_id!r} does not exist")
         return row
+
+    def _require_round_in_cycle(self, round_id: str, cycle_id: str):
+        row = self._one("SELECT id, position, tasks FROM rounds WHERE id = ? AND cycle_id = ?",
+                        (round_id, cycle_id))
+        if row is None:
+            raise NotFoundError(f"round {round_id!r} does not exist in cycle {cycle_id!r}")
+        return row
+
+    def _point(self, attempt_id: str, iteration: int, partition: str) -> MetricPoint | None:
+        for execution in reversed(self._executions(attempt_id)):
+            metric = next((m for m in execution.metrics if m.partition == partition), None)
+            if metric is not None:
+                return MetricPoint(iteration, attempt_id, metric.mean, metric.dispersion)
+        return None
 
     def _executions(self, attempt_id: str) -> list[ExecutionRecord]:
         rows = self._db.execute(
@@ -210,7 +288,7 @@ class SqliteRegistry(Registry):
                 raise RegistryError(f"cycle {cycle.id!r} already exists")
             self._db.execute(
                 "INSERT INTO cycles (id, plan, iterations, stagnation_k, max_fix_retries, "
-                "state, protocol_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "state, protocol_hash, project_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     cycle.id,
                     cycle.plan.to_json(),
@@ -219,6 +297,7 @@ class SqliteRegistry(Registry):
                     cycle.max_fix_retries,
                     cycle.state,
                     cycle.protocol_hash,
+                    cycle.project_id,
                 ),
             )
 
@@ -243,10 +322,23 @@ class SqliteRegistry(Registry):
 
     # -- attempts ----------------------------------------------------------
 
-    def add_attempt(self, cycle_id: str, attempt: Attempt, fingerprint: str) -> int:
+    def add_attempt(
+        self,
+        cycle_id: str,
+        attempt: Attempt,
+        fingerprint: str,
+        round_id: str | None = None,
+    ) -> int:
         require_text("fingerprint", fingerprint)
         with self._transaction():
             self._require_cycle_row(cycle_id)
+            if round_id is not None:
+                require_text("round_id", round_id)
+                self._require_round_in_cycle(round_id, cycle_id)
+            if attempt.bundle_id is not None and not self._one(
+                "SELECT 1 FROM bundles WHERE id = ?", (attempt.bundle_id,)
+            ):
+                raise NotFoundError(f"bundle {attempt.bundle_id!r} does not exist")
             if self._one("SELECT 1 FROM attempts WHERE id = ?", (attempt.id,)):
                 raise RegistryError(f"attempt {attempt.id!r} already exists")
             if attempt.parent_id is not None and not self._one(
@@ -263,9 +355,9 @@ class SqliteRegistry(Registry):
                 (cycle_id,),
             )[0]
             self._db.execute(
-                "INSERT INTO attempts (id, cycle_id, iteration, fingerprint, proposal) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (attempt.id, cycle_id, iteration, fingerprint, attempt.to_json()),
+                "INSERT INTO attempts (id, cycle_id, iteration, fingerprint, proposal, round_id) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (attempt.id, cycle_id, iteration, fingerprint, attempt.to_json(), round_id),
             )
             return iteration
 
@@ -391,13 +483,9 @@ class SqliteRegistry(Registry):
         ).fetchall()
         points = []
         for attempt_id, iteration in rows:
-            for execution in reversed(self._executions(attempt_id)):
-                metric = next((m for m in execution.metrics if m.partition == partition), None)
-                if metric is not None:
-                    points.append(
-                        MetricPoint(iteration, attempt_id, metric.mean, metric.dispersion)
-                    )
-                    break
+            point = self._point(attempt_id, iteration, partition)
+            if point is not None:
+                points.append(point)
         return points
 
     def list_failures(self, failure_kind: str | None = None) -> list[FailureRecord]:
@@ -432,19 +520,23 @@ class SqliteRegistry(Registry):
 
     def add_suggestion(self, suggestion: Suggestion) -> None:
         with self._transaction():
-            if self._one("SELECT 1 FROM suggestions WHERE id = ?", (suggestion.id,)):
-                raise RegistryError(f"suggestion {suggestion.id!r} already exists")
-            for cycle_id in (suggestion.origin_cycle, *suggestion.spawned_cycles):
-                self._require_cycle_row(cycle_id)
+            self._insert_suggestion(suggestion)
+
+    def _insert_suggestion(self, suggestion: Suggestion) -> None:
+        """Insert a suggestion inside a transaction the caller already opened."""
+        if self._one("SELECT 1 FROM suggestions WHERE id = ?", (suggestion.id,)):
+            raise RegistryError(f"suggestion {suggestion.id!r} already exists")
+        for cycle_id in (suggestion.origin_cycle, *suggestion.spawned_cycles):
+            self._require_cycle_row(cycle_id)
+        self._db.execute(
+            "INSERT INTO suggestions VALUES (?, ?, ?)",
+            (suggestion.id, suggestion.text, suggestion.origin_cycle),
+        )
+        for position, cycle_id in enumerate(suggestion.spawned_cycles):
             self._db.execute(
-                "INSERT INTO suggestions VALUES (?, ?, ?)",
-                (suggestion.id, suggestion.text, suggestion.origin_cycle),
+                "INSERT INTO suggestion_cycles VALUES (?, ?, ?)",
+                (suggestion.id, cycle_id, position),
             )
-            for position, cycle_id in enumerate(suggestion.spawned_cycles):
-                self._db.execute(
-                    "INSERT INTO suggestion_cycles VALUES (?, ?, ?)",
-                    (suggestion.id, cycle_id, position),
-                )
 
     def link_cycle(self, suggestion_id: str, cycle_id: str) -> None:
         with self._transaction():
@@ -645,13 +737,13 @@ class SqliteRegistry(Registry):
 
     # -- language model calls -------------------------------------------------
 
-    def add_llm_call(self, entry: LlmCallEntry) -> None:
+    def add_llm_call(self, entry: LlmCallEntry) -> int:
         with self._transaction():
             self._require_cycle_row(entry.cycle_id)
-            self._db.execute(
+            cursor = self._db.execute(
                 "INSERT INTO llm_calls (cycle_id, purpose, outcome, started_at, "
                 "duration_seconds, input_tokens, output_tokens, attempt, model, "
-                "rejection_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "rejection_reason, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     entry.cycle_id,
                     entry.purpose,
@@ -663,15 +755,264 @@ class SqliteRegistry(Registry):
                     entry.attempt,
                     entry.model,
                     entry.rejection_reason,
+                    entry.role,
+                ),
+            )
+            return cursor.lastrowid
+
+    def list_llm_calls(self, cycle_id: str, role: str | None = None) -> list[LlmCallEntry]:
+        if role is not None:
+            validate_role(role)
+        self._require_cycle_row(cycle_id)
+        sql = (
+            "SELECT cycle_id, purpose, outcome, started_at, duration_seconds, "
+            "input_tokens, output_tokens, attempt, model, rejection_reason, role "
+            "FROM llm_calls WHERE cycle_id = ?"
+        )
+        args: list = [cycle_id]
+        if role is not None:
+            sql += " AND role = ?"
+            args.append(role)
+        rows = self._db.execute(sql + " ORDER BY rowid", args).fetchall()
+        return [LlmCallEntry(*row) for row in rows]
+
+    # -- rounds ----------------------------------------------------------------
+
+    def _candidate_ids(self, round_id: str) -> tuple[str, ...]:
+        rows = self._db.execute(
+            "SELECT id FROM attempts WHERE round_id = ? ORDER BY iteration", (round_id,)
+        ).fetchall()
+        return tuple(r[0] for r in rows)
+
+    def add_round(self, cycle_id: str, round: Round) -> int:
+        with self._transaction():
+            self._require_cycle_row(cycle_id)
+            if self._one("SELECT 1 FROM rounds WHERE id = ?", (round.id,)):
+                raise RegistryError(f"round {round.id!r} already exists")
+            for candidate_id in round.candidates:
+                row = self._one(
+                    "SELECT cycle_id, round_id FROM attempts WHERE id = ?", (candidate_id,)
+                )
+                if row is None or row[0] != cycle_id:
+                    raise NotFoundError(
+                        f"candidate {candidate_id!r} is not an attempt of cycle {cycle_id!r}"
+                    )
+                if row[1] is not None:
+                    raise RegistryError(f"candidate {candidate_id!r} already belongs to a round")
+            position = self._one(
+                "SELECT COALESCE(MAX(position), 0) + 1 FROM rounds WHERE cycle_id = ?",
+                (cycle_id,),
+            )[0]
+            self._db.execute(
+                "INSERT INTO rounds (id, cycle_id, position, tasks) VALUES (?, ?, ?, ?)",
+                (round.id, cycle_id, position, json.dumps(list(round.tasks), ensure_ascii=False)),
+            )
+            for candidate_id in round.candidates:
+                self._db.execute(
+                    "UPDATE attempts SET round_id = ? WHERE id = ?", (round.id, candidate_id)
+                )
+            return position
+
+    def _round(self, round_id: str, tasks: str) -> Round:
+        return Round(round_id, tuple(json.loads(tasks)), self._candidate_ids(round_id))
+
+    def get_round(self, round_id: str) -> Round:
+        row = self._one("SELECT id, tasks FROM rounds WHERE id = ?", (round_id,))
+        if row is None:
+            raise NotFoundError(f"round {round_id!r} does not exist")
+        return self._round(*row)
+
+    def list_rounds_with_candidates(self, cycle_id: str) -> list[RoundDetail]:
+        self._require_cycle_row(cycle_id)
+        rows = self._db.execute(
+            "SELECT id, position, tasks FROM rounds WHERE cycle_id = ? ORDER BY position",
+            (cycle_id,),
+        ).fetchall()
+        summaries = {s.attempt_id: s for s in self.list_attempts(cycle_id)}
+        return [
+            RoundDetail(
+                round=(round_ := self._round(round_id, tasks)),
+                cycle_id=cycle_id,
+                position=position,
+                candidates=tuple(summaries[c] for c in round_.candidates),
+            )
+            for round_id, position, tasks in rows
+        ]
+
+    def metric_series_by_round(self, cycle_id: str, partition: str) -> list[RoundMetrics]:
+        self._require_cycle_row(cycle_id)
+        rounds = self._db.execute(
+            "SELECT id, position FROM rounds WHERE cycle_id = ? ORDER BY position", (cycle_id,)
+        ).fetchall()
+        out = []
+        for round_id, position in rounds:
+            rows = self._db.execute(
+                "SELECT id, iteration FROM attempts WHERE round_id = ? ORDER BY iteration",
+                (round_id,),
+            ).fetchall()
+            points = (self._point(attempt_id, it, partition) for attempt_id, it in rows)
+            out.append(RoundMetrics(round_id, position, tuple(p for p in points if p)))
+        return out
+
+    # -- bundles ---------------------------------------------------------------
+
+    def add_bundle(self, bundle: BundleRecord) -> None:
+        with self._transaction():
+            self._require_cycle_row(bundle.cycle_id)
+            if self._one("SELECT 1 FROM bundles WHERE id = ?", (bundle.id,)):
+                raise RegistryError(f"bundle {bundle.id!r} already exists")
+            self._db.execute(
+                "INSERT INTO bundles (id, cycle_id, folder_hash, reference, schema_json) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    bundle.id,
+                    bundle.cycle_id,
+                    bundle.folder_hash,
+                    bundle.reference,
+                    json.dumps(bundle.schema, ensure_ascii=False, sort_keys=True),
                 ),
             )
 
-    def list_llm_calls(self, cycle_id: str) -> list[LlmCallEntry]:
+    @staticmethod
+    def _bundle(row) -> BundleRecord:
+        return BundleRecord(row[0], row[1], row[2], row[3], json.loads(row[4]))
+
+    def get_bundle(self, bundle_id: str) -> BundleRecord:
+        row = self._one(
+            "SELECT id, cycle_id, folder_hash, reference, schema_json FROM bundles WHERE id = ?",
+            (bundle_id,),
+        )
+        if row is None:
+            raise NotFoundError(f"bundle {bundle_id!r} does not exist")
+        return self._bundle(row)
+
+    def list_bundles(self, cycle_id: str) -> list[BundleRecord]:
         self._require_cycle_row(cycle_id)
         rows = self._db.execute(
-            "SELECT cycle_id, purpose, outcome, started_at, duration_seconds, "
-            "input_tokens, output_tokens, attempt, model, rejection_reason FROM llm_calls "
+            "SELECT id, cycle_id, folder_hash, reference, schema_json FROM bundles "
             "WHERE cycle_id = ? ORDER BY rowid",
             (cycle_id,),
         ).fetchall()
-        return [LlmCallEntry(*row) for row in rows]
+        return [self._bundle(r) for r in rows]
+
+    # -- reviewer reports, guidance and role traces ------------------------------
+
+    def add_reviewer_report(self, report: ReviewerReport) -> None:
+        with self._transaction():
+            if not self._one("SELECT 1 FROM rounds WHERE id = ?", (report.round_id,)):
+                raise NotFoundError(f"round {report.round_id!r} does not exist")
+            if self._one("SELECT 1 FROM reviewer_reports WHERE id = ?", (report.id,)):
+                raise RegistryError(f"reviewer report {report.id!r} already exists")
+            self._db.execute(
+                "INSERT INTO reviewer_reports (id, round_id, text, created_at) "
+                "VALUES (?, ?, ?, ?)",
+                (report.id, report.round_id, report.text, report.created_at),
+            )
+
+    def list_reviewer_reports(
+        self, cycle_id: str, round_id: str | None = None
+    ) -> list[ReviewerReport]:
+        self._require_cycle_row(cycle_id)
+        if round_id is not None:
+            self._require_round_in_cycle(round_id, cycle_id)
+        sql = (
+            "SELECT p.id, p.round_id, p.text, p.created_at FROM reviewer_reports p "
+            "JOIN rounds r ON r.id = p.round_id WHERE r.cycle_id = ?"
+        )
+        args: list = [cycle_id]
+        if round_id is not None:
+            sql += " AND p.round_id = ?"
+            args.append(round_id)
+        rows = self._db.execute(sql + " ORDER BY p.rowid", args).fetchall()
+        return [ReviewerReport(*r) for r in rows]
+
+    def add_guidance(self, cycle_id: str, guidance: Guidance) -> None:
+        with self._transaction():
+            self._require_cycle_row(cycle_id)
+            self._require_round_in_cycle(guidance.round_id, cycle_id)
+            if self._one("SELECT 1 FROM lead_guidance WHERE id = ?", (guidance.id,)):
+                raise RegistryError(f"guidance {guidance.id!r} already exists")
+            # raises when the suggestion id is taken, before anything is written
+            self._insert_suggestion(Suggestion(guidance.id, guidance.text, cycle_id))
+            self._db.execute(
+                "INSERT INTO lead_guidance (id, cycle_id, round_id, text, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (guidance.id, cycle_id, guidance.round_id, guidance.text, guidance.created_at),
+            )
+
+    def list_guidance(self, cycle_id: str) -> list[Guidance]:
+        self._require_cycle_row(cycle_id)
+        rows = self._db.execute(
+            "SELECT id, round_id, text, created_at FROM lead_guidance "
+            "WHERE cycle_id = ? ORDER BY rowid",
+            (cycle_id,),
+        ).fetchall()
+        return [Guidance(*r) for r in rows]
+
+    def add_role_trace(self, trace: RoleTrace) -> None:
+        with self._transaction():
+            self._require_cycle_row(trace.cycle_id)
+            self._require_round_in_cycle(trace.round_id, trace.cycle_id)
+            if trace.candidate_id is not None:
+                row = self._one("SELECT cycle_id FROM attempts WHERE id = ?", (trace.candidate_id,))
+                if row is None:
+                    raise NotFoundError(f"candidate {trace.candidate_id!r} does not exist")
+                if row[0] != trace.cycle_id:
+                    raise RegistryError(
+                        f"candidate {trace.candidate_id!r} is not an attempt of cycle "
+                        f"{trace.cycle_id!r}"
+                    )
+            if trace.llm_call_id is not None:
+                row = self._one("SELECT cycle_id FROM llm_calls WHERE rowid = ?", (trace.llm_call_id,))
+                if row is None:
+                    raise NotFoundError(f"llm call {trace.llm_call_id} does not exist")
+                if row[0] != trace.cycle_id:
+                    raise RegistryError(
+                        f"llm call {trace.llm_call_id} belongs to another cycle"
+                    )
+            dump = lambda value: json.dumps(value, ensure_ascii=False, sort_keys=True)  # noqa: E731
+            self._db.execute(
+                "INSERT INTO role_traces (cycle_id, role, round_id, candidate_id, input_type, "
+                "input, output_type, output, outcome, llm_call_id, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    trace.cycle_id,
+                    trace.role,
+                    trace.round_id,
+                    trace.candidate_id,
+                    trace.input_type,
+                    dump(trace.input),
+                    trace.output_type,
+                    None if trace.output is None else dump(trace.output),
+                    trace.outcome,
+                    trace.llm_call_id,
+                    trace.created_at,
+                ),
+            )
+
+    def list_role_traces(
+        self, cycle_id: str, role: str | None = None, round_id: str | None = None
+    ) -> list[RoleTrace]:
+        if role is not None:
+            validate_role(role)
+        self._require_cycle_row(cycle_id)
+        sql = (
+            "SELECT cycle_id, role, round_id, candidate_id, input_type, input, output_type, "
+            "output, outcome, llm_call_id, created_at FROM role_traces WHERE cycle_id = ?"
+        )
+        args: list = [cycle_id]
+        for column, value in (("role", role), ("round_id", round_id)):
+            if value is not None:
+                sql += f" AND {column} = ?"
+                args.append(value)
+        out = []
+        for r in self._db.execute(sql + " ORDER BY rowid", args).fetchall():
+            out.append(
+                RoleTrace(
+                    cycle_id=r[0], role=r[1], round_id=r[2], candidate_id=r[3],
+                    input_type=r[4], input=json.loads(r[5]), output_type=r[6],
+                    output=None if r[7] is None else json.loads(r[7]),
+                    outcome=r[8], llm_call_id=r[9], created_at=r[10],
+                )
+            )
+        return out

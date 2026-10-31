@@ -246,3 +246,25 @@ def test_no_test_builds_a_real_client_without_a_runner():
                 if name == "RealClaudeClient":
                     keys = {k.arg for k in node.keywords}
                     assert "runner" in keys, f"{path.name}:{node.lineno}"
+
+
+def test_evaluation_imports_neither_tests_nor_llm_and_no_unpinned_library_anywhere():
+    pinned = {"kaggle", "pandas", "numpy", "sklearn"}
+    stdlib = set(sys.stdlib_module_names)
+    for path in _modules():
+        for top, full in _imports(path):
+            assert top in stdlib | pinned | {"kaggle_agent", "<relative>"}, f"{path}: {full}"
+    for path in sorted(EVALUATION.glob("*.py")):
+        for top, full in _imports(path):
+            assert top not in {"tests", "evaluation_helpers", "registry_helpers", "pytest"}, path
+            assert not full.startswith("kaggle_agent.llm"), f"{path}: {full}"
+            assert "llm" not in full.lstrip(".").split("."), f"{path}: {full}"
+
+
+def test_nothing_of_tickets_6_to_16_exists():
+    for package in ("sandbox", "loop", "review", "budget"):
+        files = [p for p in (SRC / package).rglob("*.py")]
+        assert [p.name for p in files] == ["__init__.py"], package
+    names = {p.stem for p in SRC.rglob("*.py")}
+    assert not names & {"runner", "bundle", "agents", "pipeline", "web", "app", "server"}
+    assert not [p for p in SRC.iterdir() if p.is_dir() and p.name in {"web", "agents", "runner"}]

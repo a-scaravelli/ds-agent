@@ -1,6 +1,6 @@
 # kaggle-agent
 
-An agent that does the iterative work of a data scientist on tabular Kaggle competitions, from downloading the data to the submission. The design (not yet implemented) has three levels with the same five role agents (coordinator, data, feature engineering, modeling, reviewer); level 1 is built first. The lead approves a short initial plan; then the agent works autonomously in rounds of several candidates (validation/test holdout split, baseline, rounds with early stop; provisional defaults: 5 rounds of 3 candidates) and the lead gives guidance after each round and steps in at the end of the cycle: accept the report or give suggestions, which start a new cycle from the existing state. The code of tickets 1 to 5 still follows the earlier single-agent cycle (10 iterations by default) and is not yet adapted. The model that reasons is headless Claude Code with the subscription (no paid API); it runs on a Mac without GPU.
+An agent that does the iterative work of a data scientist on tabular Kaggle competitions, from downloading the data to the submission. The design (not yet implemented) has three levels with the same five role agents (coordinator, data, feature engineering, modeling, reviewer); level 1 is built first. The lead approves a short initial plan; then the agent works autonomously in rounds of several candidates (validation/test holdout split, baseline, rounds with early stop; provisional defaults: 5 rounds of 3 candidates) and the lead gives guidance after each round and steps in at the end of the cycle: accept the report or give suggestions, which start a new cycle from the existing state. The code of tickets 1 to 5 now has the types, tables and arguments that the three-level design needs (rounds, goal criteria, guidance, reports, bundles, role traces); the sandbox, the bundle runner, the role agents, the round pipeline and the web interface are tickets 6 onward and are not built. The model that reasons is headless Claude Code with the subscription (no paid API); it runs on a Mac without GPU.
 
 Convention: the entire repository is in English (code, documentation, comments, tests, commit and PR messages).
 
@@ -19,6 +19,10 @@ All classes are immutable dataclasses. Invalid data raises `ValidationError` (a 
 - `ShortPlan`: the short initial plan with five mandatory items: `metric`, `validation`, `feature_engineering` (list), `models` (list) and `baseline`. Empty or wrongly typed items are rejected, and so are plans longer than `MAX_PLAN_WORDS` (300 words over the five items).
 - `Attempt`: a falsifiable hypothesis. Mandatory and non-empty: `id`, `phase`, `hypothesis`, `rationale`, `what_changed`, `measure`. Optional: `parent_id` (different from `id`), `evidence`, `exploratory`, `expected_effect`, `estimated_cost`, `risks`, `artifacts`. An attempt without `evidence` must have `exploratory=True`, otherwise it is rejected.
 - `Suggestion`: `id`, `text`, `origin_cycle` and `spawned_cycles` (no duplicates, never containing `origin_cycle`).
+- `GoalCriteria`: one or more `GoalCriterion` (`metric` name, finite `threshold`, `direction` `maximize` or `minimize`), with unique metrics and the order kept. It is the stop condition of the design; `proposals` does not know which metrics exist, `evaluation` checks that.
+- `Guidance` (`id`, `round_id`, `text`, `created_at`), `Round` (`id`, `tasks` assigned by the coordinator, `candidates` as attempt ids without duplicates) and `ReviewerReport` (`id`, `round_id`, `text`, `created_at`). The report has no run ids: runs are reached through the round, its candidates and their executions.
+- `ROLES` (`coordinator`, `data`, `feature_engineering`, `modeling`, `reviewer`) and `validate_role`.
+- `Attempt` also takes an optional `bundle_id`; JSON written before it existed stays valid.
 
 Each class has `to_dict`, `from_dict`, `to_json` and `from_json`. Rereading gives an identical object, the JSON is deterministic, and unknown keys or malformed JSON are rejected with `ValidationError`.
 
@@ -41,6 +45,20 @@ except ValidationError as error:
     print(error)  # what_changed: is required
 ```
 
+```python
+from kaggle_agent.proposals import GoalCriteria, Guidance, ReviewerReport, Round
+
+goal = GoalCriteria.from_dict({"criteria": [
+    {"metric": "accuracy", "threshold": 0.8, "direction": "maximize"},
+    {"metric": "log_loss", "threshold": 0.4, "direction": "minimize"},
+]})
+round_ = Round(id="R1", tasks=("try a tree model",), candidates=("A1", "A2"))
+report = ReviewerReport(id="P1", round_id="R1", text="A2 is better", created_at="2026-10-30T10:00:00+00:00")
+guidance = Guidance(id="G1", round_id="R1", text="try target encoding", created_at="2026-10-30T11:00:00+00:00")
+for item in (goal, round_, report, guidance):
+    assert type(item).from_json(item.to_json()) == item  # identical after rereading
+```
+
 ## Registry (`kaggle_agent.registry`)
 
 The registry stores cycles, attempts, execution records and suggestions behind the replaceable `Registry` interface. `SqliteRegistry` is the implementation and the source of truth: standard library `sqlite3` only, no network. MLflow and JSONL were evaluated and not adopted (see section 7 of the design).
@@ -50,6 +68,12 @@ The registry stores cycles, attempts, execution records and suggestions behind t
 - Code fixes are not attempts: `add_execution` accepts a rerun only after a `failed` / `code_error` execution, up to 1 + `Cycle.max_fix_retries` executions (3 fix retries by default). `close_attempt` refuses to close a `code_error` attempt before that cap, so at attempt level `code_error` means "still failing after the cap".
 - `compute_fingerprint(config, code_hash, data_hash, protocol_hash)` is a deterministic SHA-256 of the normalized configuration and the three hashes. `add_attempt` raises `DuplicateAttemptError` (with `existing_attempt_id`) if any earlier attempt, of any cycle and outcome, has the same fingerprint.
 - Queries: `list_attempts`, `get_attempt`, `metric_series`, `list_failures(failure_kind=None)`, `list_suggestions` and `cycles_of_suggestion`. Only closed attempts appear in outcome and failure queries.
+- Projects and rounds: `Cycle.project_id` (nullable), `add_round` / `get_round` / `list_rounds_with_candidates` (`RoundDetail`) and `add_attempt(..., round_id=None)`. The candidates of a round are the attempts stored with its `round_id` (candidate id = attempt id). `metric_series_by_round(cycle_id, partition)` returns, per round, the metric points of its candidates (`RoundMetrics`); it does not pick the best, because the registry does not know the direction of the metric.
+- Bundles: `BundleRecord` (`id`, `cycle_id`, `folder_hash`, `reference`, `schema`) with `add_bundle`, `get_bundle` and `list_bundles`; an attempt with a `bundle_id` needs the bundle to exist.
+- Reports and guidance: `add_reviewer_report` / `list_reviewer_reports(cycle_id, round_id=None)` and `add_guidance(cycle_id, guidance)` / `list_guidance`. `add_guidance` also creates the `Suggestion` with the same id and text and the cycle as origin, in the same transaction; a rejected guidance writes neither.
+- Role traces: `RoleTrace` (`cycle_id`, `role`, `round_id`, `candidate_id` or None, `input_type` and `input`, `output_type` and `output`, `outcome`, `llm_call_id`, `created_at`) with `add_role_trace` and `list_role_traces(cycle_id, role=None, round_id=None)`. They are append-only (there is no method to edit or delete them) and every reference must exist. `llm_call_id` is the row id that `add_llm_call` now returns. Input and output are typed JSON objects and the record has no field for a prompt, a raw response or a credential; keeping free text out of the dicts is a rule for the caller, which the tests cannot check.
+- `LlmCallEntry.role` (nullable, validated against `ROLES`) and `list_llm_calls(cycle_id, role=None)`.
+- Old SQLite files open as before: the new tables are created and the nullable columns `cycles.project_id`, `attempts.round_id` and `llm_calls.role` are added when missing, without `REFERENCES` (SQLite limits that for added columns), so the code checks those references.
 
 ```python
 from kaggle_agent.proposals import Attempt, ShortPlan
@@ -90,7 +114,9 @@ with engine.holdout_session(frame) as session:  # one session per cycle
     session.evaluate_holdout(candidate, "A1")
 ```
 
-A candidate implements `fit_predict(x_train, y_train, x_valid, seed)`. The engine does not persist executions: `result.execution` goes to `Registry.add_execution` (the loop ticket does that).
+A candidate implements `fit_predict(x_train, y_train, x_valid, seed)` (the `Candidate` interface in `evaluation/candidate.py`; the engine assumes nothing else about the object). The bundle runner of ticket 7 will implement it as `fit(train)` followed by `predict(bundle_id, X)`, so the labels and the metric stay in the engine. The engine does not persist executions: `result.execution` goes to `Registry.add_execution` (the loop ticket does that).
+
+**Goal criteria.** `Protocol` takes an optional `goal` (`GoalCriteria`): several metrics with a threshold and a direction, for example a minimum accuracy and a minimum balanced accuracy. Each metric must be registered in `METRICS` and have its natural direction. `evaluate_validation` scores every goal metric on the same validation predictions and adds a `goal/<metric>` partition metric (mean and dispersion) to the execution record; `EvaluationResult.goal_scores` and `EvaluationResult.goal` (a `GoalStatus`) carry the result. `evaluate_goal(goal, observed)` is a pure function: maximize needs value >= threshold, minimize value <= threshold, all criteria must be met, and a missing metric is an error. `EvaluationEngine.goal_values_from_execution` reads the values back. The goal is part of the protocol JSON and hash only when present, so a protocol without a goal is unchanged. No metric was added to `METRICS` (so there is still no precision or recall); a task that needs one adds it with a later ticket. **Limit:** because the goal metrics are computed on the same predictions as the main metric, they must have the same `input_kind` as the main metric (labels with labels, probabilities with probabilities); a goal that mixes them is refused. This limit is to be reviewed at ticket 12, with the first real competition. The goal is evaluated on validation, not on the holdout.
 
 ## Kaggle client (`kaggle_agent.kaggle`)
 
@@ -160,14 +186,15 @@ Check in particular that a competition whose rules you have not accepted gives `
 
 ## Claude adapter (`kaggle_agent.llm`)
 
-Headless Claude Code with the user's subscription, never the paid API. `LlmClient.ask(prompt, output_type, permissions, purpose, model=None)` asks the model for a JSON object, validates it with a proposal type (`ShortPlan`, `Attempt`, ...) and returns an `LlmResult` with the validated `value`, the `calls` (one `CallRecord` per CLI invocation) and the `consumption` (`Consumption`: calls, tokens when reported, duration, rate limit events). Details and the verified CLI facts (version 2.1.296) are in section 8 of the design.
+Headless Claude Code with the user's subscription, never the paid API. `LlmClient.ask(prompt, output_type, permissions, purpose, model=None, role=None)` asks the model for a JSON object, validates it with a proposal type (`ShortPlan`, `Attempt`, ...) and returns an `LlmResult` with the validated `value`, the `calls` (one `CallRecord` per CLI invocation) and the `consumption` (`Consumption`: calls, tokens when reported, duration, rate limit events). Details and the verified CLI facts (version 2.1.296) are in section 8 of the design.
 
 - `FakeLlmClient(script)`: deterministic fake used by all tests. The script is a list of steps: `Reply`, `Malformed`, `RateLimited`, `QuotaExhausted` and `CliCrash`. `valid_plan_json()` and `valid_attempt_json()` build valid payloads.
 - `RealClaudeClient`: runs `claude -p --output-format json` with the prompt on stdin. It is not exported by `kaggle_agent.llm`; import it from `kaggle_agent.llm.real`. It strips `ANTHROPIC_API_KEY` (and the other paid-API variables) from the environment of the process and logs a WARNING that names the variable and never its value; the names removed appear in `stripped_variables`. The access token (for example `CLAUDE_CODE_OAUTH_TOKEN`) is never logged, stored or passed on.
 - `ToolPermissions(working_dir, allowed_tools=())`: the explicit, minimal set of tools and the working directory chosen by the caller. The default allows no tool. It is the only interface the sandbox (ticket 6) will need.
 - `model`: optional on the client and on each call; `None` is the default of the CLI. No model name is in the code; the model used by each call is recorded.
+- `role`: optional, one of `ROLES`, last after `model`. It is copied into every `CallRecord` of the call (retries included) and stored in `llm_calls.role`; an unknown role raises `ValidationError` before any invocation. It does not select a model: the caller chooses the model per role.
 - Errors: `LlmError` and its subclasses `RateLimitError`, `QuotaExhaustedError`, `CliFailureError` and `InvalidResponseError`. An invalid answer is retried a bounded number of times with the validation error passed back; a rate limit is retried with `BackoffPolicy` and an injected sleep; an exhausted quota is raised at once. The client reports consumption and enforces no budget.
-- `record_call(registry, cycle_id, call)` stores a `CallRecord` in the registry (`llm_calls` table, `LlmCallEntry`): outcome, duration, tokens, model and `rejection_reason`, never a prompt, a response or a token.
+- `record_call(registry, cycle_id, call)` stores a `CallRecord` in the registry (`llm_calls` table, `LlmCallEntry`): outcome, duration, tokens, model, `role` and `rejection_reason`, never a prompt, a response or a token.
 - Rich JSON contract: `json_contract(output_type)` states for each field its JSON type, taken from the annotations (`str` is a string, `tuple[str, ...]` a list of strings, `bool` a boolean, `X | None` is X or null; any other annotation falls back to "any JSON value"), whether it is required, and the validation constraints. The constraints live next to the types, in an optional classmethod `contract_hints()` that returns `{field: text}` plus the special key `__all__` for rules on the whole object (`ShortPlan` and `Attempt` have one; `Suggestion` has none). `llm` knows no concrete type, so to add constraints to a new proposal type, give it a `contract_hints()` and test that a payload violating each hint is really rejected.
 - `rejection_reason`: when an answer is rejected (`invalid_output`), the `CallRecord` and the `llm_calls` row hold a sanitized 'field: reason' taken from the `ValidationError`, at most 200 characters, never the model's text. A field name that is not a field of the type, the type name or an object label (`OBJECT_LABELS`) becomes `response`. Examples: `what_changed: is required`; `response: unknown key (allowed: ...)`; `plan: invalid JSON: ...` (`attempt: ...` for an `Attempt`); `plan: has 312 words, over the limit of 300`. It is `None` for every other outcome. Existing registry files gain the nullable column when opened.
 
@@ -234,6 +261,8 @@ Result of a manual run on macOS (Claude Code with the subscription, Python 3.14;
 ## Known limits
 
 - The placeholder import in `load_api_class()` depends on the internals of the pinned `kaggle` version (it skips the package `__init__` and supplies only `__version__`). Recheck it, together with the source-scan test in `tests/test_kaggle_real.py`, whenever the pin in `pyproject.toml` changes.
+- Adding the goal and the new modules changes the hash of the `evaluation` sources, so a protocol frozen earlier in an open cycle no longer passes `verify`.
+- `Kaggle` needed no change; the data hash and the per-file SHA-256 are already in `DownloadResult`, and there is no separate snapshot accessor (the data role of a later ticket will read these).
 - There is still no runnable command of the agent: only the data model, the registry, the evaluation engine, the Kaggle client and the Claude adapter exist.
 - The real Kaggle adapter is checked only by the manual smoke test: its mapping of responses is tested against a stub built from the source of the official package, and the exact error for unaccepted rules is to be confirmed by hand. The policy of when a submission is worthwhile and the reserve for the last hours are not implemented (loop and review tickets); the key-like-string check of the artifacts belongs to the tickets that save artifacts. The official package has several transitive dependencies that are not pinned individually.
 - The holdout guarantee is one of interface and log (one session per cycle, every read logged in the registry). Real isolation from generated code arrives with the sandbox (ticket 6).

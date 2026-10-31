@@ -166,3 +166,72 @@ def test_llm_call_entry_rejection_reason_validation():
     for outcome, reason in (("invalid_output", ""), ("invalid_output", "  "), ("ok", "x: y")):
         with pytest.raises(ValidationError):
             make(outcome, reason)
+
+
+def test_cycle_project_id_roundtrip_and_validation():
+    cycle = make_cycle("C1", project_id="P1", state="AWAITING_GUIDANCE")
+    assert Cycle.from_json(cycle.to_json()) == cycle
+    assert Cycle.from_json(cycle.to_json()).to_json() == cycle.to_json()
+    assert make_cycle("C2").project_id is None
+    with pytest.raises(ValidationError, match="project_id"):
+        make_cycle("C3", project_id=" ")
+
+
+def test_role_trace_validation_and_no_raw_text_fields():
+    from registry_helpers import make_trace
+
+    from kaggle_agent.registry import RoleTrace
+
+    names = {f.name for f in dataclasses.fields(RoleTrace)}
+    forbidden = ("prompt", "response", "raw", "text", "token", "secret", "password", "credential", "key")
+    assert not [n for n in names if any(w in n for w in forbidden)]
+    bad = [
+        ({"role": "planner"}, "role"),
+        ({"role": ""}, "role"),
+        ({"outcome": "done"}, "outcome"),
+        ({"input": "free text"}, "input"),
+        ({"input": {"x": float("nan")}}, "input"),
+        ({"output": "free text"}, "output"),
+        ({"output": {"x": float("inf")}}, "output"),
+        ({"output": None}, "output_type"),
+        ({"output_type": None}, "output_type"),
+        ({"round_id": ""}, "round_id"),
+        ({"llm_call_id": 0}, "llm_call_id"),
+        ({"candidate_id": ""}, "candidate_id"),
+    ]
+    for kwargs, field in bad:
+        with pytest.raises(ValidationError) as exc:
+            make_trace(**kwargs)
+        assert exc.value.field == field
+    ok = make_trace(candidate_id="A1", llm_call_id=3)
+    assert RoleTrace.from_json(ok.to_json()) == ok
+    failed = make_trace(outcome="quota", output=None, output_type=None)
+    assert RoleTrace.from_json(failed.to_json()) == failed
+
+
+def test_bundle_record_validation_and_roundtrip():
+    from kaggle_agent.registry import BundleRecord
+
+    bundle = BundleRecord("B1", "C1", "hash", "bundles/B1", {"columns": ["a", "b"]})
+    assert BundleRecord.from_json(bundle.to_json()) == bundle
+    for kwargs, field in (
+        ({"folder_hash": ""}, "folder_hash"),
+        ({"schema": "x"}, "schema"),
+        ({"schema": {"a": float("nan")}}, "schema"),
+        ({"reference": None}, "reference"),
+    ):
+        data = {"id": "B1", "cycle_id": "C1", "folder_hash": "h", "reference": "r", "schema": {}, **kwargs}
+        with pytest.raises(ValidationError) as exc:
+            BundleRecord(**data)
+        assert exc.value.field == field
+
+
+def test_llm_call_entry_role_nullable_and_validated():
+    from kaggle_agent.registry import LlmCallEntry
+
+    base = dict(cycle_id="C1", purpose="plan", outcome="ok", started_at="t", duration_seconds=1.0)
+    assert LlmCallEntry(**base).role is None
+    assert LlmCallEntry(**base, role="reviewer").role == "reviewer"
+    with pytest.raises(ValidationError) as exc:
+        LlmCallEntry(**base, role="planner")
+    assert exc.value.field == "role"

@@ -626,3 +626,380 @@ def test_llm_calls_without_rejection_reason_column_is_migrated(tmp_path):
         assert [c.rejection_reason for c in r.list_llm_calls("C1")] == [None, "models: must not be empty"]
     with SqliteRegistry(path) as r:  # reopening a migrated file is a no-op
         assert len(r.list_llm_calls("C1")) == 2
+
+
+# -- three-level design: rounds, bundles, reports, guidance, traces ---------------------------
+
+import sqlite3  # noqa: E402
+
+from registry_helpers import T0, add_round, crash, make_trace  # noqa: E402
+
+from kaggle_agent.proposals import Guidance, ReviewerReport, Round  # noqa: E402
+from kaggle_agent.registry import BundleRecord, Cycle, PartitionMetric  # noqa: E402
+
+NEW_TABLES = ("rounds", "bundles", "reviewer_reports", "lead_guidance", "role_traces")
+
+
+def _rows(path, table):
+    db = sqlite3.connect(path)
+    try:
+        return db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+    finally:
+        db.close()
+
+
+def _columns(path, table):
+    db = sqlite3.connect(path)
+    try:
+        return [r[1] for r in db.execute(f"PRAGMA table_info({table})")]
+    finally:
+        db.close()
+
+
+def _tables(path):
+    db = sqlite3.connect(path)
+    try:
+        return {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    finally:
+        db.close()
+
+
+def _write_old_file(path):
+    """A file with the schema of tickets 1-5: no new columns, no new tables."""
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("OLD"))
+        new_attempt(r, "A1", "OLD")
+        r.add_llm_call(_call(cycle_id="OLD"))
+    db = sqlite3.connect(path)
+    for table in NEW_TABLES:
+        db.execute(f"DROP TABLE {table}")
+    db.execute("ALTER TABLE cycles DROP COLUMN project_id")
+    db.execute("ALTER TABLE attempts DROP COLUMN round_id")
+    db.execute("ALTER TABLE llm_calls DROP COLUMN role")
+    db.commit()
+    db.close()
+
+
+def test_old_files_open_and_gain_tables_and_columns(tmp_path):
+    path = tmp_path / "old.db"
+    _write_old_file(path)
+    assert not set(NEW_TABLES) & _tables(path)
+    for _ in range(2):  # the second opening is a no-op
+        with SqliteRegistry(path) as r:
+            assert r.get_cycle("OLD").project_id is None
+            assert r.list_llm_calls("OLD")[0].role is None
+            assert r.list_rounds_with_candidates("OLD") == []
+            assert r.get_attempt("A1").attempt.bundle_id is None
+    assert set(NEW_TABLES) <= _tables(path)
+    assert "project_id" in _columns(path, "cycles")
+    assert "round_id" in _columns(path, "attempts")
+    assert "role" in _columns(path, "llm_calls")
+    with SqliteRegistry(path) as r:
+        add_round(r, "R1", "OLD", candidates=["A1"])
+        assert r.list_rounds_with_candidates("OLD")[0].candidates[0].attempt_id == "A1"
+
+
+def test_project_id_and_awaiting_guidance_state_persist(tmp_path):
+    path = tmp_path / "r.db"
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1", project_id="P1"))
+        r.add_cycle(make_cycle("C2"))
+        r.set_cycle_state("C2", "AWAITING_GUIDANCE")
+    with SqliteRegistry(path) as r:
+        assert r.get_cycle("C1").project_id == "P1"
+        assert r.get_cycle("C2").project_id is None
+        assert r.get_cycle("C2").state == "AWAITING_GUIDANCE"
+        assert Cycle.from_json(r.get_cycle("C1").to_json()) == r.get_cycle("C1")
+
+
+def test_rounds_list_their_own_candidates(tmp_path):
+    path = tmp_path / "r.db"
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1"))
+        add_round(r, "R1", tasks=("profile", "baseline"))
+        add_round(r, "R2", tasks=("trees",))
+        r.add_attempt("C1", make_attempt("A1"), "f1", round_id="R1")
+        r.add_attempt("C1", make_attempt("A2"), "f2", round_id="R2")
+        r.add_attempt("C1", make_attempt("A3"), "f3", round_id="R1")
+        r.add_attempt("C1", make_attempt("A4"), "f4")
+        before = _counts(r)
+        with pytest.raises(NotFoundError):
+            r.add_attempt("C1", make_attempt("A5"), "f5", round_id="ghost")
+        assert _counts(r) == before
+    with SqliteRegistry(path) as r:
+        details = r.list_rounds_with_candidates("C1")
+        assert [d.round.id for d in details] == ["R1", "R2"]
+        assert [d.position for d in details] == [1, 2]
+        assert [[c.attempt_id for c in d.candidates] for d in details] == [["A1", "A3"], ["A2"]]
+        assert details[0].round.tasks == ("profile", "baseline")
+        assert details[0].round.candidates == ("A1", "A3")
+        assert r.get_round("R2") == Round("R2", ("trees",), ("A2",))
+        with pytest.raises(NotFoundError):
+            r.get_round("ghost")
+        with pytest.raises(NotFoundError):
+            r.list_rounds_with_candidates("ghost")
+
+
+def test_add_round_rules(reg):
+    new_attempt(reg, "A1")
+    reg.add_cycle(make_cycle("C2"))
+    new_attempt(reg, "B1", "C2")
+    assert add_round(reg, "R1", candidates=["A1"]) == 1
+    for round_ in (Round("R1", ("t",)), Round("R9", ("t",), ("ghost",)), Round("R9", ("t",), ("B1",)),
+                   Round("R9", ("t",), ("A1",))):
+        with pytest.raises((NotFoundError, RegistryError)):
+            reg.add_round("C1", round_)
+    with pytest.raises(NotFoundError):
+        reg.add_round("ghost", Round("R9", ("t",)))
+    assert [d.round.id for d in reg.list_rounds_with_candidates("C1")] == ["R1"]
+    with pytest.raises(NotFoundError):  # a round of another cycle is not usable
+        reg.add_attempt("C2", make_attempt("B2"), "fb2", round_id="R1")
+
+
+def test_bundles_and_attempt_reference(tmp_path):
+    path = tmp_path / "r.db"
+    bundle = BundleRecord("B1", "C1", "hash1", "bundles/B1", {"inputs": ["a"], "n": 2})
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1"))
+        with pytest.raises(NotFoundError):
+            r.add_attempt("C1", make_attempt("A0", bundle_id="B1"), "f0")
+        r.add_bundle(bundle)
+        with pytest.raises(RegistryError):
+            r.add_bundle(bundle)
+        with pytest.raises(NotFoundError):
+            r.add_bundle(BundleRecord("B2", "ghost", "h", "r", {}))
+        assert r.add_attempt("C1", make_attempt("A1", bundle_id="B1"), "f1") == 1
+        with pytest.raises(NotFoundError):
+            r.add_attempt("C1", make_attempt("A2", bundle_id="B9"), "f2")
+        assert r.list_attempts("C1")[0].attempt_id == "A1" and len(r.list_attempts("C1")) == 1
+    with SqliteRegistry(path) as r:
+        assert r.get_bundle("B1") == bundle
+        assert r.get_bundle("B1").to_json() == bundle.to_json()
+        assert r.list_bundles("C1") == [bundle]
+        assert r.get_attempt("A1").attempt.bundle_id == "B1"
+        with pytest.raises(NotFoundError):
+            r.get_bundle("B9")
+
+
+def test_reviewer_reports_per_round(tmp_path):
+    path = tmp_path / "r.db"
+    reports = [
+        ReviewerReport("P1", "R1", "first", T0),
+        ReviewerReport("P2", "R2", "second", "2026-10-30T11:00:00+00:00"),
+        ReviewerReport("P3", "R1", "third", "2026-10-30T12:00:00+00:00"),
+    ]
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1"))
+        add_round(r, "R1")
+        add_round(r, "R2")
+        for report in reports:
+            r.add_reviewer_report(report)
+        before = _rows(path, "reviewer_reports")
+        with pytest.raises(NotFoundError):
+            r.add_reviewer_report(ReviewerReport("P9", "ghost", "x", T0))
+        with pytest.raises(RegistryError):
+            r.add_reviewer_report(ReviewerReport("P1", "R2", "x", T0))
+        with pytest.raises(NotFoundError):
+            r.list_reviewer_reports("C1", "ghost")
+        assert _rows(path, "reviewer_reports") == before == 3
+    with SqliteRegistry(path) as r:
+        assert r.list_reviewer_reports("C1") == reports
+        assert r.list_reviewer_reports("C1", "R1") == [reports[0], reports[2]]
+        assert [x.to_json() for x in r.list_reviewer_reports("C1", "R2")] == [reports[1].to_json()]
+
+
+def test_guidance_roundtrip_and_creates_suggestion(tmp_path):
+    path = tmp_path / "r.db"
+    guidance = Guidance("G1", "R1", "try target encoding", T0)
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1", state="AWAITING_GUIDANCE"))
+        add_round(r, "R1")
+        r.add_guidance("C1", guidance)
+    with SqliteRegistry(path) as r:
+        assert r.list_guidance("C1") == [guidance]
+        assert r.list_guidance("C1")[0].to_json() == guidance.to_json()
+        suggestion = r.get_suggestion("G1")
+        assert (suggestion.text, suggestion.origin_cycle, suggestion.spawned_cycles) == (
+            "try target encoding", "C1", ())
+        assert r.list_suggestions() == [suggestion]
+
+
+def test_rejected_guidance_writes_nothing(tmp_path):
+    path = tmp_path / "r.db"
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1"))
+        r.add_cycle(make_cycle("C2"))
+        add_round(r, "R1")
+        add_round(r, "R2", cycle_id="C2")
+        r.add_suggestion(Suggestion("S1", "old", "C1"))
+        r.add_guidance("C1", Guidance("G1", "R1", "ok", T0))
+        counts = (_rows(path, "lead_guidance"), _rows(path, "suggestions"))
+        cases = [
+            Guidance("G2", "ghost", "x", T0),
+            Guidance("G3", "R2", "x", T0),
+            Guidance("S1", "R1", "x", T0),
+            Guidance("G1", "R1", "x", T0),
+        ]
+        for guidance in cases:
+            with pytest.raises((NotFoundError, RegistryError)):
+                r.add_guidance("C1", guidance)
+            assert (_rows(path, "lead_guidance"), _rows(path, "suggestions")) == counts
+        with pytest.raises(NotFoundError):
+            r.add_guidance("ghost", Guidance("G4", "R1", "x", T0))
+        assert (_rows(path, "lead_guidance"), _rows(path, "suggestions")) == counts
+
+
+def test_role_traces_are_append_only_and_roundtrip(tmp_path):
+    path = tmp_path / "r.db"
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1"))
+        new_attempt(r, "A1")
+        add_round(r, "R1", candidates=["A1"])
+        call_id = r.add_llm_call(_call(role="modeling"))
+        first = make_trace(candidate_id="A1", llm_call_id=call_id)
+        second = make_trace(role="coordinator", input_type="Plan", input={"goal": "x"},
+                            output_type="Round", output={"tasks": ["a"]})
+        r.add_role_trace(first)
+        r.add_role_trace(second)
+    with SqliteRegistry(path) as r:
+        got = r.list_role_traces("C1")
+        assert got == [first, second]
+        assert [t.to_json() for t in got] == [first.to_json(), second.to_json()]
+        assert got[0].llm_call_id == call_id and got[1].candidate_id is None
+        names = [n for n in dir(Registry) if "trace" in n]
+        assert sorted(names) == ["add_role_trace", "list_role_traces"]
+
+
+def test_role_traces_filtered_by_role_and_round(reg):
+    reg.add_cycle(make_cycle("C2"))
+    add_round(reg, "R1")
+    add_round(reg, "R2")
+    add_round(reg, "R3", cycle_id="C2")
+    traces = [
+        make_trace(role="modeling", round_id="R1"),
+        make_trace(role="reviewer", round_id="R1"),
+        make_trace(role="reviewer", round_id="R2"),
+        make_trace(role="data", round_id="R2"),
+    ]
+    for trace in traces:
+        reg.add_role_trace(trace)
+    other = make_trace("C2", role="reviewer", round_id="R3")
+    reg.add_role_trace(other)
+    assert reg.list_role_traces("C1") == traces
+    assert reg.list_role_traces("C1", role="reviewer") == traces[1:3]
+    assert reg.list_role_traces("C1", round_id="R2") == traces[2:]
+    assert reg.list_role_traces("C1", role="reviewer", round_id="R2") == [traces[2]]
+    assert reg.list_role_traces("C2") == [other]
+    with pytest.raises(ValidationError):
+        reg.list_role_traces("C1", role="planner")
+
+
+def test_trace_llm_call_link_is_checked(tmp_path):
+    path = tmp_path / "r.db"
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1"))
+        r.add_cycle(make_cycle("C2"))
+        add_round(r, "R1")
+        mine = r.add_llm_call(_call(role="modeling"))
+        theirs = r.add_llm_call(_call(cycle_id="C2"))
+        assert isinstance(mine, int) and mine != theirs
+        r.add_role_trace(make_trace(llm_call_id=mine))
+        for call_id in (9999, theirs):
+            with pytest.raises((NotFoundError, RegistryError)):
+                r.add_role_trace(make_trace(llm_call_id=call_id))
+        assert _rows(path, "role_traces") == 1
+        assert r.list_role_traces("C1")[0].llm_call_id == mine
+
+
+def test_trace_references_are_checked(tmp_path):
+    path = tmp_path / "r.db"
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1"))
+        r.add_cycle(make_cycle("C2"))
+        new_attempt(r, "B1", "C2")
+        add_round(r, "R1")
+        add_round(r, "R2", cycle_id="C2")
+        bad = [
+            make_trace(round_id="ghost"),
+            make_trace(round_id="R2"),
+            make_trace(candidate_id="ghost"),
+            make_trace(candidate_id="B1"),
+            make_trace(cycle_id="ghost"),
+        ]
+        for trace in bad:
+            with pytest.raises((NotFoundError, RegistryError)):
+                r.add_role_trace(trace)
+        for kwargs in ({"role": "planner"}, {"outcome": "done"}, {"input": "text"},
+                       {"input": {"x": float("nan")}}):
+            with pytest.raises(ValidationError):
+                make_trace(**kwargs)
+        assert _rows(path, "role_traces") == 0
+        r.add_role_trace(make_trace())
+        assert _rows(path, "role_traces") == 1
+
+
+def test_llm_calls_filtered_by_role(reg):
+    reg.add_llm_call(_call(role="modeling"))
+    reg.add_llm_call(_call(role="reviewer"))
+    reg.add_llm_call(_call())
+    assert [c.role for c in reg.list_llm_calls("C1")] == ["modeling", "reviewer", None]
+    assert [c.role for c in reg.list_llm_calls("C1", role="modeling")] == ["modeling"]
+    with pytest.raises(ValidationError):
+        reg.list_llm_calls("C1", role="planner")
+
+
+def test_llm_call_role_survives_reopening(tmp_path):
+    path = tmp_path / "r.db"
+    entries = [_call(role="data"), _call()]
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1"))
+        for entry in entries:
+            r.add_llm_call(entry)
+    with SqliteRegistry(path) as r:
+        assert r.list_llm_calls("C1") == entries
+
+
+def test_metric_series_by_round(reg):
+    add_round(reg, "R1")
+    add_round(reg, "R2")
+    add_round(reg, "R3")
+    for name, rnd, mean in (("A1", "R1", 0.7), ("A2", "R1", 0.75), ("A3", "R2", 0.8)):
+        reg.add_attempt("C1", make_attempt(name), f"fp-{name}", round_id=rnd)
+        reg.add_execution(make_execution(name, metrics=[PartitionMetric("validation", mean, 0.01)]))
+    reg.add_attempt("C1", make_attempt("A4"), "fp-A4", round_id="R2")
+    reg.add_execution(crash("A4"))
+    series = reg.metric_series_by_round("C1", "validation")
+    assert [(s.round_id, s.position) for s in series] == [("R1", 1), ("R2", 2), ("R3", 3)]
+    assert [[(p.attempt_id, p.mean, p.dispersion) for p in s.points] for s in series] == [
+        [("A1", 0.7, 0.01), ("A2", 0.75, 0.01)],
+        [("A3", 0.8, 0.01)],
+        [],
+    ]
+    assert reg.metric_series_by_round("C1", "holdout")[0].points == ()
+    with pytest.raises(NotFoundError):
+        reg.metric_series_by_round("ghost", "validation")
+
+
+def test_new_records_are_unchanged_after_reopening(tmp_path):
+    path = tmp_path / "r.db"
+    round_ = Round("R1", ("a", "b"), ("A1",))
+    bundle = BundleRecord("B1", "C1", "h", "ref", {"k": [1, 2]})
+    report = ReviewerReport("P1", "R1", "text", T0)
+    guidance = Guidance("G1", "R1", "go", T0)
+    trace = make_trace(candidate_id="A1")
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1"))
+        new_attempt(r, "A1")
+        r.add_round("C1", round_)
+        r.add_bundle(bundle)
+        r.add_reviewer_report(report)
+        r.add_guidance("C1", guidance)
+        r.add_role_trace(trace)
+        r.add_llm_call(_call(role="reviewer"))
+    with SqliteRegistry(path) as r:
+        assert r.get_round("R1") == round_ and r.get_round("R1").to_json() == round_.to_json()
+        assert r.get_bundle("B1").to_json() == bundle.to_json()
+        assert r.list_reviewer_reports("C1")[0].to_json() == report.to_json()
+        assert r.list_guidance("C1")[0].to_json() == guidance.to_json()
+        assert r.list_role_traces("C1")[0].to_json() == trace.to_json()
+        assert r.list_llm_calls("C1")[0] == _call(role="reviewer")

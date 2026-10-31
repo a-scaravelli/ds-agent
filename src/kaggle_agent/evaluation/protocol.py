@@ -8,7 +8,7 @@ import json
 import math
 from dataclasses import dataclass
 
-from kaggle_agent.proposals import ValidationError
+from kaggle_agent.proposals import GoalCriteria, ValidationError
 from kaggle_agent.proposals.errors import check_keys, loads_object, require_text
 
 from .metrics import DIRECTIONS, get_metric
@@ -28,6 +28,7 @@ _FIELDS = (
     "repetitions",
     "threshold_k",
 )
+_GOAL = "goal"
 MIN_PARTITIONS = 2
 
 
@@ -58,6 +59,12 @@ class Protocol:
     ``threshold_k`` is the factor of the significance threshold: an improvement
     is real only if it exceeds ``threshold_k`` times the dispersion of the
     baseline across partitions (design section 6).
+
+    ``goal`` is optional: criteria on metrics registered in ``METRICS``,
+    evaluated on the same validation predictions as the main metric, so every
+    goal metric has the direction of its natural one and the same
+    ``input_kind`` as the main metric (a limit to review in ticket 12). It
+    is part of the frozen content and of the hash only when present.
     """
 
     metric: str
@@ -72,6 +79,7 @@ class Protocol:
     seed: int
     repetitions: int
     threshold_k: float
+    goal: GoalCriteria | None = None
 
     def __post_init__(self) -> None:
         for name in ("metric", "direction", "target", "validation_scheme", "holdout_scheme"):
@@ -91,6 +99,7 @@ class Protocol:
                 f"metric {self.metric!r} is naturally {spec.direction}; "
                 f"got {self.direction!r} (register a separate metric for a different direction)",
             )
+        self._validate_goal(spec)
         validation = get_scheme(self.validation_scheme, "validation_scheme")
         validation.validate_params(self.validation_params, "validation")
         get_scheme(self.holdout_scheme, "holdout_scheme").validate_params(
@@ -117,13 +126,41 @@ class Protocol:
                 f"baseline needs at least {MIN_PARTITIONS}",
             )
 
+    def _validate_goal(self, main) -> None:
+        if self.goal is None:
+            return
+        if not isinstance(self.goal, GoalCriteria):
+            raise ValidationError(_GOAL, "must be GoalCriteria")
+        for criterion in self.goal.criteria:
+            spec = get_metric(criterion.metric)
+            if criterion.direction != spec.direction:
+                raise ValidationError(
+                    _GOAL,
+                    f"metric {criterion.metric!r} is naturally {spec.direction}; "
+                    f"got {criterion.direction!r}",
+                )
+            if spec.input_kind != main.input_kind:
+                raise ValidationError(
+                    _GOAL,
+                    f"metric {criterion.metric!r} takes {spec.input_kind} but the main "
+                    f"metric {self.metric!r} takes {main.input_kind}: goal metrics are "
+                    "computed on the same predictions",
+                )
+
     def to_dict(self) -> dict:
-        return {name: getattr(self, name) for name in _FIELDS}
+        out = {name: getattr(self, name) for name in _FIELDS}
+        if self.goal is not None:
+            out[_GOAL] = self.goal.to_dict()
+        return out
 
     @classmethod
     def from_dict(cls, data: dict) -> "Protocol":
-        check_keys("protocol", data, _FIELDS)
-        return cls(**{name: data.get(name) for name in _FIELDS})
+        check_keys("protocol", data, _FIELDS + (_GOAL,))
+        kwargs = {name: data.get(name) for name in _FIELDS}
+        goal = data.get(_GOAL)
+        if goal is not None:
+            kwargs[_GOAL] = GoalCriteria.from_dict(goal) if isinstance(goal, dict) else goal
+        return cls(**kwargs)
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, sort_keys=True)

@@ -8,12 +8,15 @@ from .interface import (
     FailureRecord,
     MetricPoint,
     Registry,
+    RoundDetail,
+    RoundMetrics,
 )
 from .records import (
     DEFAULT_MAX_FIX_RETRIES,
     FAILURE_KINDS,
     LLM_OUTCOMES,
     OUTCOMES,
+    BundleRecord,
     ComparisonRecord,
     Cycle,
     ExecutionRecord,
@@ -21,6 +24,7 @@ from .records import (
     HoldoutSession,
     LlmCallEntry,
     PartitionMetric,
+    RoleTrace,
     SubmissionEntry,
 )
 from .sqlite import SqliteRegistry
@@ -28,6 +32,7 @@ from .sqlite import SqliteRegistry
 __all__ = [
     "AttemptDetail",
     "AttemptSummary",
+    "BundleRecord",
     "ComparisonRecord",
     "Cycle",
     "DEFAULT_MAX_FIX_RETRIES",
@@ -45,6 +50,9 @@ __all__ = [
     "PartitionMetric",
     "Registry",
     "RegistryError",
+    "RoleTrace",
+    "RoundDetail",
+    "RoundMetrics",
     "SqliteRegistry",
     "SubmissionEntry",
     "compute_fingerprint",

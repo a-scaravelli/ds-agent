@@ -11,7 +11,7 @@ from .models import CallRecord
 
 
 def record_call(registry: Registry, cycle_id: str, call: CallRecord) -> LlmCallEntry:
-    """Store one call under a cycle: outcome, duration, tokens and model, nothing else."""
+    """Store one call under a cycle: outcome, duration, tokens, model and role, nothing else."""
     entry = LlmCallEntry(
         cycle_id=cycle_id,
         purpose=call.purpose,
@@ -23,6 +23,7 @@ def record_call(registry: Registry, cycle_id: str, call: CallRecord) -> LlmCallE
         attempt=call.attempt,
         model=call.model,
         rejection_reason=call.rejection_reason,
+        role=call.role,
     )
     registry.add_llm_call(entry)
     return entry
