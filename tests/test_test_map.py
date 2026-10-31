@@ -10,7 +10,9 @@ TEST_MAP = ROOT / ".asl" / "test-map.json"
 
 def test_test_map_entries_exist():
     cases = json.loads(TEST_MAP.read_text(encoding="utf-8"))["cases"]
-    assert sorted(int(k) for k in cases) == list(range(1, 37))
+    keys = sorted(int(k) for k in cases)
+    assert keys == list(range(1, keys[-1] + 1))  # consecutive; other tickets may add theirs
+    assert keys[-1] >= 64 and all(str(k) in cases for k in range(37, 65))  # the sandbox ticket
     for case, entries in cases.items():
         assert entries, f"case {case} has no test"
         for entry in entries:

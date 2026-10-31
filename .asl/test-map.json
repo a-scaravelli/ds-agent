@@ -291,6 +291,230 @@
     "file": "tests/test_repo_language.py",
     "name": "test_code_identifiers_are_english"
    }
+  ],
+  "37": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_interface_is_small_and_replaceable"
+   }
+  ],
+  "38": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_python_entry_point_with_captured_output"
+   }
+  ],
+  "39": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_command_and_exclusive_request"
+   }
+  ],
+  "40": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_timeout_kills_child_and_process_group"
+   }
+  ],
+  "41": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_leftover_descendants_are_killed_after_a_normal_exit"
+   }
+  ],
+  "42": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_timeout_is_mandatory_and_positive"
+   }
+  ],
+  "43": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_own_working_directory_that_is_empty_and_removed"
+   }
+  ],
+  "44": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_output_is_limited_without_blocking"
+   }
+  ],
+  "45": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_child_sees_no_credentials_or_inherited_secrets"
+   },
+   {
+    "file": "tests/test_sandbox_environment.py",
+    "name": "test_environment_has_only_minimal_keys_and_is_not_a_copy"
+   }
+  ],
+  "46": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_pythonpath_is_not_inherited_and_paths_must_be_explicit"
+   }
+  ],
+  "47": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_sensitive_extra_env_rejected_and_harmless_one_reaches_child"
+   },
+   {
+    "file": "tests/test_sandbox_environment.py",
+    "name": "test_sensitive_or_reserved_extra_env_is_rejected"
+   },
+   {
+    "file": "tests/test_sandbox_environment.py",
+    "name": "test_harmless_extra_env_is_added"
+   }
+  ],
+  "48": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_home_is_redirected_and_credentials_are_not_reachable_through_it"
+   }
+  ],
+  "49": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_child_gets_neither_holdout_nor_registry_nor_credential_paths"
+   },
+   {
+    "file": "tests/test_sandbox_protected.py",
+    "name": "test_copies_only_of_exposed_entries_and_read_only"
+   }
+  ],
+  "50": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_hashes_before_and_after_are_recorded_and_equal"
+   },
+   {
+    "file": "tests/test_sandbox_protected.py",
+    "name": "test_hash_of_file_and_folder_matches_a_hand_computed_sha256"
+   },
+   {
+    "file": "tests/test_sandbox_protected.py",
+    "name": "test_pycache_is_ignored_and_content_changes_the_hash"
+   }
+  ],
+  "51": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_writing_to_protected_copy_is_impossible"
+   }
+  ],
+  "52": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_modifying_an_original_is_protected_modified_even_with_exit_0"
+   },
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_modifying_the_holdout_original_is_detected"
+   }
+  ],
+  "53": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_modified_copy_is_detected"
+   }
+  ],
+  "54": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_expected_hash_mismatch_blocks_the_run_before_starting"
+   }
+  ],
+  "55": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_diff_touching_protected_files_is_rejected_before_running"
+   },
+   {
+    "file": "tests/test_sandbox_protected.py",
+    "name": "test_diff_touching_protected_entries_is_reported"
+   },
+   {
+    "file": "tests/test_sandbox_protected.py",
+    "name": "test_paths_escaping_the_root_are_suspicious"
+   }
+  ],
+  "56": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_diff_on_other_files_is_accepted"
+   },
+   {
+    "file": "tests/test_sandbox_protected.py",
+    "name": "test_diff_on_other_files_is_not_reported"
+   }
+  ],
+  "57": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_integrity_failures_are_distinguishable_from_a_plain_crash"
+   },
+   {
+    "file": "tests/test_sandbox_docs.py",
+    "name": "test_never_retry_rule_is_in_the_result_docstring_and_the_readme"
+   }
+  ],
+  "58": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_failure_kinds_come_from_the_existing_vocabulary"
+   }
+  ],
+  "59": [
+   {
+    "file": "tests/test_sandbox_subprocess.py",
+    "name": "test_a_failed_result_can_feed_an_execution_record"
+   }
+  ],
+  "60": [
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_sandbox_imports_only_stdlib_and_itself_and_subprocess_only_in_its_runner"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_runtime_dependencies_are_the_pinned_libraries"
+   }
+  ],
+  "61": [
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_nothing_of_tickets_6_to_16_exists"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_sandbox_defines_no_bundle_contract"
+   }
+  ],
+  "62": [
+   {
+    "file": "tests/test_sandbox_docs.py",
+    "name": "test_readme_states_enforced_convention_and_limits"
+   },
+   {
+    "file": "tests/test_sandbox_docs.py",
+    "name": "test_design_mentions_the_light_sandbox_in_sections_8_15_16"
+   }
+  ],
+  "63": [
+   {
+    "file": "tests/test_test_map.py",
+    "name": "test_test_map_entries_exist"
+   }
+  ],
+  "64": [
+   {
+    "file": "tests/test_test_map.py",
+    "name": "test_test_map_entries_exist"
+   }
   ]
  }
 }
