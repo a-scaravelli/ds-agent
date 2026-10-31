@@ -49,7 +49,7 @@ PURPOSES = {
 }
 
 
-def _utc_now() -> datetime:
+def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
@@ -145,7 +145,7 @@ def invoke_role(
     permissions: ToolPermissions,
     model: str | None = None,
     finalize: Callable[[object], object] | None = None,
-    now: Callable[[], datetime] = _utc_now,
+    now: Callable[[], datetime] = utc_now,
 ) -> InvokedRole:
     """Ask the model, store the ``llm_calls`` rows and return the value with a pending trace.
 
@@ -217,7 +217,7 @@ def call_role(
     permissions: ToolPermissions,
     model: str | None = None,
     finalize: Callable[[object], object] | None = None,
-    now: Callable[[], datetime] = _utc_now,
+    now: Callable[[], datetime] = utc_now,
 ) -> object:
     """``invoke_role`` plus ``record_trace`` with no candidate; returns the typed result."""
     invoked = invoke_role(

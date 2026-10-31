@@ -13,9 +13,8 @@ from typing import ClassVar
 from kaggle_agent.llm import LlmClient, ToolPermissions
 from kaggle_agent.proposals import GoalCriteria, ReviewerReport, ShortPlan
 from kaggle_agent.proposals.errors import check_keys, require_text
-from kaggle_agent.registry import Registry
 
-from .call import PURPOSES, TraceContext, _utc_now, call_role
+from .call import PURPOSES, Registry, TraceContext, utc_now, call_role
 from .prompting import render_prompt
 from .summaries import JsonObject, MetricValue, items_from, object_from, require_items
 
@@ -25,9 +24,10 @@ INSTRUCTIONS = """\
 You are the reviewer of a data science team. You interpret the results of one
 round: what the candidates tried, what the validation metrics suggest about the
 hypotheses, how far the results are from the goal criteria, and what looks
-fragile or worth checking. You write plain text only. You interpret and do not
-decide: you do not accept or reject candidates, you do not pick a winner and you
-do not say whether the goal is met; the fixed code does that."""
+fragile or worth checking. You write plain text only.
+The reviewer interprets and does not decide.
+You do not accept or reject candidates, you do not pick a winner and you do not
+say whether the goal is met; the fixed code does that."""
 
 
 @dataclass(frozen=True)
@@ -140,7 +140,7 @@ def run_reviewer(
     permissions: ToolPermissions,
     report_id: str,
     model: str | None = None,
-    now: Callable[[], datetime] = _utc_now,
+    now: Callable[[], datetime] = utc_now,
 ) -> ReviewerReport:
     """Ask the reviewer and return a ``ReviewerReport`` with the given id.
 

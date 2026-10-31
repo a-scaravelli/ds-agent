@@ -11,9 +11,8 @@ from typing import ClassVar
 
 from kaggle_agent.llm import LlmClient, ToolPermissions
 from kaggle_agent.proposals.errors import check_keys, require_text
-from kaggle_agent.registry import Registry
 
-from .call import PURPOSES, TraceContext, _utc_now, call_role
+from .call import PURPOSES, Registry, TraceContext, utc_now, call_role
 from .prompting import render_prompt
 from .summaries import DataFindings, DataSummary, JsonObject, object_from
 
@@ -68,7 +67,7 @@ def run_data(
     role_input: DataInput,
     permissions: ToolPermissions,
     model: str | None = None,
-    now: Callable[[], datetime] = _utc_now,
+    now: Callable[[], datetime] = utc_now,
 ) -> DataFindings:
     """Ask the data role, validate the findings and write its trace (no candidate).
 

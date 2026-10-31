@@ -15,9 +15,8 @@ from typing import ClassVar
 from kaggle_agent.llm import LlmClient, ToolPermissions
 from kaggle_agent.proposals import Attempt, ShortPlan
 from kaggle_agent.proposals.errors import check_keys, require_text
-from kaggle_agent.registry import Registry
 
-from .call import PURPOSES, CandidateRoleResult, TraceContext, _utc_now, invoke_role
+from .call import PURPOSES, Registry, CandidateRoleResult, TraceContext, utc_now, invoke_role
 from .prompting import render_prompt
 from .summaries import DataFindings, JsonObject, RegistrySummary, object_from
 
@@ -96,7 +95,7 @@ def run_modeling(
     role_input: ModelingInput,
     permissions: ToolPermissions,
     model: str | None = None,
-    now: Callable[[], datetime] = _utc_now,
+    now: Callable[[], datetime] = utc_now,
 ) -> CandidateRoleResult:
     """Ask the role for an ``Attempt`` whose id is ``role_input.candidate_id``.
 

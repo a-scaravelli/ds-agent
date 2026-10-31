@@ -13,9 +13,8 @@ from typing import ClassVar
 from kaggle_agent.llm import LlmClient, ToolPermissions
 from kaggle_agent.proposals import GoalCriteria, ReviewerReport, ShortPlan
 from kaggle_agent.proposals.errors import check_keys, require_text, require_text_list
-from kaggle_agent.registry import Registry
 
-from .call import PURPOSES, TraceContext, _utc_now, call_role
+from .call import PURPOSES, Registry, TraceContext, utc_now, call_role
 from .prompting import render_prompt
 from .summaries import DataSummary, JsonObject, RegistrySummary, items_from, object_from
 
@@ -141,7 +140,7 @@ def run_coordinator(
     role_input: CoordinatorInput,
     permissions: ToolPermissions,
     model: str | None = None,
-    now: Callable[[], datetime] = _utc_now,
+    now: Callable[[], datetime] = utc_now,
 ) -> CoordinatorOutput:
     """Ask the coordinator, validate the output and write its trace (no candidate).
 
