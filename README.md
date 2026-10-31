@@ -6,7 +6,7 @@ Convention: the entire repository is in English (code, documentation, comments, 
 
 ## Current status
 
-Design plus the first pieces of code: the design document is in [docs/design.md](docs/design.md), the `proposals` subpackage of `kaggle_agent` holds the data model of plan, attempt and suggestion (ticket 1 of section 15 of the design) the `registry` subpackage holds the attempt registry with traceability (ticket 2), the `evaluation` subpackage the frozen evaluation engine (ticket 3) the `kaggle` subpackage the Kaggle client with its fake (ticket 4) and the `llm` subpackage the headless Claude adapter with its fake (ticket 5). The other subpackages are still empty. There is no modeling logic yet.
+Design plus the first pieces of code: the design document is in [docs/design.md](docs/design.md), the `proposals` subpackage of `kaggle_agent` holds the data model of plan, attempt and suggestion (ticket 1 of section 15 of the design) the `registry` subpackage holds the attempt registry with traceability (ticket 2), the `evaluation` subpackage the frozen evaluation engine (ticket 3) the `kaggle` subpackage the Kaggle client with its fake (ticket 4) and the `llm` subpackage the headless Claude adapter with its fake (ticket 5); the `agents` subpackage holds the five role agents as typed prompts (step 8 of the design). The other subpackages are still empty. There is no modeling logic yet.
 
 ## Stack
 
@@ -236,6 +236,54 @@ print(result.value, result.consumption, result.calls[0].model, result.stripped_v
 4. Check that the answer is a valid `ShortPlan`, that tokens and the model are reported (if not, they stay `None`), that no token appears in any output, and, with `ANTHROPIC_API_KEY` exported, that a WARNING names it and the call still uses the subscription.
 5. Rate limit and quota messages are not verified: if you hit one, check that it is classified as `RateLimitError` or `QuotaExhaustedError` and report the exact message so the patterns in `llm/real.py` can be fixed.
 
+## Role agents (`kaggle_agent.agents`)
+
+The five roles (coordinator, data, feature engineering, modeling, reviewer) as prompts with a typed input and a typed output on `LlmClient`. Each role has a typed input made of summaries (`DataSummary`, `RegistrySummary`, ...: numbers and short text, never labels, holdout data, credentials, paths or the registry), a typed output that reuses the proposal types (`CoordinatorOutput` with `ShortPlan` and `GoalCriteria`; `DataFindings`; `Attempt` for feature engineering and modeling; `ReviewerReport`), a `build_<role>_prompt` and a `run_<role>` function. `run_<role>` calls `LlmClient.ask` with the role and a purpose, validates the output, and relies on the client for retries (`rejection_reason`) and rate limits. Invalid output after the retries raises `RoleRejectedError` (role, attempts and the sanitized reason; never the model text). The model is the caller's choice (`model=` argument).
+
+- Roles do not call or import each other: the caller passes the output of one role to the next (the pipeline is a later step).
+- The reviewer writes text only: the model fills `ReviewerNotes(text)` and `run_reviewer(..., report_id=...)` builds the `ReviewerReport` with the given id, the round of the input and the date. No field of it can decide anything.
+- Feature engineering and modeling get their `id` from the caller (`candidate_id` in the input), not from the model.
+- Every call writes a `RoleTrace` (typed input and output, outcome, link to the `llm_calls` row). Feature engineering and modeling return a `CandidateRoleResult` with a `PendingTrace`: register the attempt, then call `record_trace(registry, result.trace, candidate_id=attempt.id)`. Nothing is written for a successful candidate call until you do. A failed or rejected call is always traced at once, with no candidate and no output.
+- The helpers store the `llm_calls` rows themselves (the trace needs their id). Do not also build the client with `on_call=functools.partial(record_call, registry, ...)` for the same registry: that is refused with `RoleConfigurationError`. Other wrappers (a lambda, a custom function) are not detected and would store every row twice.
+
+```python
+import tempfile
+from datetime import datetime, timezone
+
+from kaggle_agent.agents import (
+    AttemptDigest, ColumnSummary, DataInput, DataSummary, FeatureEngineeringInput,
+    DataFindings, RegistrySummary, TraceContext, record_trace, run_data, run_feature_engineering,
+)
+from kaggle_agent.llm import FakeLlmClient, Reply, ToolPermissions, valid_attempt_json, valid_plan_json
+from kaggle_agent.proposals import Round, ShortPlan
+from kaggle_agent.registry import Cycle, SqliteRegistry
+
+registry = SqliteRegistry(":memory:")
+plan = ShortPlan.from_json(valid_plan_json())
+registry.add_cycle(Cycle(id="C1", plan=plan, iterations=10, stagnation_k=3, state="ITERATING"))
+registry.add_round("C1", Round("R1", ("task",)))
+context = TraceContext("C1", "R1")
+permissions = ToolPermissions(working_dir=tempfile.gettempdir())
+summary = DataSummary(100, "y", (ColumnSummary("age", "int64", 0.1, 40),))
+
+# a one-step role: the call and its trace are written together
+reply = '{"profile": "100 rows", "quality_issues": [], "leakage_hints": [], "proposed_cleaning": []}'
+findings = run_data(FakeLlmClient([Reply(reply)]), registry, context,
+                    DataInput(summary, "profile the data"), permissions)
+assert isinstance(findings, DataFindings) and len(registry.list_role_traces("C1", role="data")) == 1
+
+# a role with a candidate: the trace is written after the attempt is registered
+role_input = FeatureEngineeringInput("A1", plan, findings, "add features", RegistrySummary())
+result = run_feature_engineering(FakeLlmClient([Reply(valid_attempt_json(id="ignored"))]),
+                                 registry, context, role_input, permissions)
+assert result.output.id == "A1" and registry.list_role_traces("C1", role="feature_engineering") == []
+registry.add_attempt("C1", result.output, "fingerprint-A1")
+record_trace(registry, result.trace, candidate_id="A1")
+assert registry.list_role_traces("C1", role="feature_engineering")[0].candidate_id == "A1"
+```
+
+Known limits of the roles: the prompts, `PURPOSES` and the shape of the inputs are provisional until the round pipeline; the output contract was not measured with the real model (no Claude call here), so first-try rejections may still happen; the coordinator covers plan, tasks and goal criteria but not yet the final report; nothing stops a caller from putting sensitive data in a free-text field of a summary (the guarantee is by structure); a trace of a successful candidate call that is never committed with `record_trace` cannot be repaired later (traces are append-only).
+
 ## Deliverable and traceability
 
 The output of every cycle is an end-to-end Python pipeline that runs with a single command and is reproducible (or several pipelines, to compare variants), linked to the attempt it comes from. Every attempt records hypothesis and rationale, originating attempt and what changed, configuration, metrics, duration, outcome and artifacts; a web interface (list/timeline, metric chart, detail, suggestions and cycles) makes them consultable without reading code. The polished graphic design is deferred to a later ticket.
@@ -253,7 +301,7 @@ The tests do not use the network.
 ## Structure
 
 - `docs/design.md`: design in 16 sections (cycle, frozen evaluation, registry, Kaggle, ticket plan).
-- `src/kaggle_agent/`: package with the subpackages `proposals` (data model), `registry` (attempt registry), `evaluation` (protocol, split, holdout, threshold), `loop`, `kaggle`, `llm`, `sandbox`, `review`, `budget`; `evaluation` holds the evaluation engine, `kaggle` the Kaggle client (interface, fake, credentials, submission rules, recording, real adapter) and `llm` the Claude adapter (interface, fake, structured output, environment, recording, real adapter); `loop`, `sandbox`, `review` and `budget` are still empty.
+- `src/kaggle_agent/`: package with the subpackages `proposals` (data model), `registry` (attempt registry), `evaluation` (protocol, split, holdout, threshold), `loop`, `kaggle`, `llm`, `agents`, `sandbox`, `review`, `budget`; `agents` holds the five roles; `evaluation` holds the evaluation engine, `kaggle` the Kaggle client (interface, fake, credentials, submission rules, recording, real adapter) and `llm` the Claude adapter (interface, fake, structured output, environment, recording, real adapter); `loop`, `sandbox`, `review` and `budget` are still empty.
 - `tests/`: check the 16 sections of the design, the data model and its examples, the language convention, the test map, that the package imports, and the registry behavior (deduplication, fix retries, queries, persistence), the evaluation engine (protocol, schemes, split, holdout session, threshold, hash), the Kaggle client on the fake and on a stub of the library, the Claude adapter on the fake and on a fake process runner, and that third-party libraries are imported only by `evaluation` and by `kaggle/real.py`.
 
 Result of a manual run on macOS (Claude Code with the subscription, Python 3.14; the CLI version on that machine was not recorded): a fake `ANTHROPIC_API_KEY` was removed with a WARNING that names only the variable; the call used the subscription; the success envelope was read correctly (model `claude-sonnet-4-6`, usage reported); the result was a valid `ShortPlan`. So the format of the success envelope assumed in the design is confirmed. The first answer, however, was rejected (`invalid_output`, 7113 input and 545 output tokens) and only the retry succeeded (`ok`, 7139 and 271): about 7k input tokens per call, so a first-try failure doubles the cost. This motivated the rich contract and `rejection_reason` above; the benefit is not yet measured.
