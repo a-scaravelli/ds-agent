@@ -4,12 +4,20 @@
    {
     "file": "tests/test_proposals_goal.py",
     "name": "test_goal_criteria_roundtrip_identical"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_cycles_list_shows_every_cycle_with_its_data"
    }
   ],
   "2": [
    {
     "file": "tests/test_proposals_goal.py",
     "name": "test_goal_criteria_validation"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_empty_registry_shows_a_message"
    }
   ],
   "3": [
@@ -28,6 +36,10 @@
    {
     "file": "tests/test_proposals_round.py",
     "name": "test_malformed_json_rejected"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_cycle_view_lists_rounds_candidates_and_the_group_outside_rounds"
    }
   ],
   "4": [
@@ -38,18 +50,30 @@
    {
     "file": "tests/test_proposals_attempt.py",
     "name": "test_attempt_example_from_design_is_valid"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_round_view_shows_only_its_own_reports_guidance_and_traces"
    }
   ],
   "5": [
    {
     "file": "tests/test_proposals_goal.py",
     "name": "test_roles_are_the_five_of_the_design"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_candidate_detail_shows_rationale_hypothesis_and_what_changed"
    }
   ],
   "6": [
    {
     "file": "tests/test_registry_sqlite.py",
     "name": "test_old_files_open_and_gain_tables_and_columns"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_candidate_detail_shows_the_runs_in_order"
    }
   ],
   "7": [
@@ -60,6 +84,10 @@
    {
     "file": "tests/test_registry_records.py",
     "name": "test_cycle_project_id_roundtrip_and_validation"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_failures_show_failure_kind_and_reason"
    }
   ],
   "8": [
@@ -70,6 +98,10 @@
    {
     "file": "tests/test_registry_sqlite.py",
     "name": "test_add_round_rules"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_pipeline_link_only_when_it_exists"
    }
   ],
   "9": [
@@ -80,30 +112,66 @@
    {
     "file": "tests/test_registry_records.py",
     "name": "test_bundle_record_validation_and_roundtrip"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_pipeline_reference_never_links_local_files"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_pipeline_reference_convention"
    }
   ],
   "10": [
    {
     "file": "tests/test_registry_sqlite.py",
     "name": "test_reviewer_reports_per_round"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_metric_series_per_round_and_chart"
+   },
+   {
+    "file": "tests/test_web_chart.py",
+    "name": "test_one_circle_per_point_and_a_best_line_per_round_with_data"
    }
   ],
   "11": [
    {
     "file": "tests/test_registry_sqlite.py",
     "name": "test_guidance_roundtrip_and_creates_suggestion"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_best_is_highlighted_by_the_declared_direction"
+   },
+   {
+    "file": "tests/test_web_chart.py",
+    "name": "test_overall_best_follows_the_direction"
+   },
+   {
+    "file": "tests/test_web_chart.py",
+    "name": "test_no_data_gives_no_chart"
    }
   ],
   "12": [
    {
     "file": "tests/test_registry_sqlite.py",
     "name": "test_guidance_roundtrip_and_creates_suggestion"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_metric_series_per_iteration"
    }
   ],
   "13": [
    {
     "file": "tests/test_registry_sqlite.py",
     "name": "test_rejected_guidance_writes_nothing"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_reviewer_reports_grouped_by_round"
    }
   ],
   "14": [
@@ -114,24 +182,40 @@
    {
     "file": "tests/test_registry_sqlite.py",
     "name": "test_suggestion_queries_and_integrity"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_role_traces_show_typed_input_output_and_outcome"
    }
   ],
   "15": [
    {
     "file": "tests/test_registry_sqlite.py",
     "name": "test_role_traces_are_append_only_and_roundtrip"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_trace_filters"
    }
   ],
   "16": [
    {
     "file": "tests/test_registry_sqlite.py",
     "name": "test_role_traces_filtered_by_role_and_round"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_candidate_traces_appear_in_the_detail"
    }
   ],
   "17": [
    {
     "file": "tests/test_registry_sqlite.py",
     "name": "test_trace_llm_call_link_is_checked"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_guidance_and_suggestions"
    }
   ],
   "18": [
@@ -142,18 +226,38 @@
    {
     "file": "tests/test_registry_records.py",
     "name": "test_role_trace_validation_and_no_raw_text_fields"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_every_view_responds_and_none_is_left_out"
    }
   ],
   "19": [
    {
     "file": "tests/test_registry_sqlite.py",
     "name": "test_llm_calls_filtered_by_role"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_unknown_ids_give_a_plain_404"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_ids_with_a_slash_work_in_links_and_routes"
    }
   ],
   "20": [
    {
     "file": "tests/test_registry_sqlite.py",
     "name": "test_metric_series_by_round"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_untrusted_registry_text_is_escaped"
+   },
+   {
+    "file": "tests/test_web_chart.py",
+    "name": "test_texts_in_the_svg_are_escaped"
    }
   ],
   "21": [
@@ -164,42 +268,74 @@
    {
     "file": "tests/test_registry_sqlite.py",
     "name": "test_llm_call_role_survives_reopening"
+   },
+   {
+    "file": "tests/test_web_readonly.py",
+    "name": "test_every_rule_accepts_only_get"
    }
   ],
   "22": [
    {
     "file": "tests/test_registry_sqlite.py",
     "name": "test_new_records_are_unchanged_after_reopening"
+   },
+   {
+    "file": "tests/test_web_readonly.py",
+    "name": "test_other_methods_answer_405_and_leave_the_file_unchanged"
    }
   ],
   "23": [
    {
     "file": "tests/test_evaluation_goal.py",
     "name": "test_goal_met_only_when_every_criterion_is_met_and_is_deterministic"
+   },
+   {
+    "file": "tests/test_web_readonly.py",
+    "name": "test_no_form_or_input_in_pages_or_sources"
    }
   ],
   "24": [
    {
     "file": "tests/test_evaluation_goal.py",
     "name": "test_goal_with_registered_metrics_is_scored_on_the_validation_predictions"
+   },
+   {
+    "file": "tests/test_web_readonly.py",
+    "name": "test_the_app_calls_only_read_methods_of_the_registry"
    }
   ],
   "25": [
    {
     "file": "tests/test_evaluation_goal.py",
     "name": "test_a_goal_metric_registered_by_a_test_works_and_is_removed_afterwards"
+   },
+   {
+    "file": "tests/test_web_readonly.py",
+    "name": "test_the_file_is_untouched_and_the_read_only_instance_refuses_writes"
    }
   ],
   "26": [
    {
     "file": "tests/test_evaluation_goal.py",
     "name": "test_goal_direction_and_input_kind_are_validated"
+   },
+   {
+    "file": "tests/test_web_readonly.py",
+    "name": "test_code_inspection_finds_no_write_call_and_no_sqlite_import"
    }
   ],
   "27": [
    {
     "file": "tests/test_evaluation_hashing.py",
     "name": "test_goal_enters_the_hash_only_when_present"
+   },
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_read_only_opening_reads_the_same_data_and_never_writes"
+   },
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_read_only_rejects_memory_and_missing_file_without_creating_it"
    }
   ],
   "28": [
@@ -210,12 +346,20 @@
    {
     "file": "tests/test_evaluation_goal.py",
     "name": "test_evaluation_imports_no_tests_llm_or_fake_names"
+   },
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_list_cycles_in_insertion_order_with_all_fields"
    }
   ],
   "29": [
    {
     "file": "tests/test_evaluation_goal.py",
     "name": "test_no_builtin_metric_was_added_for_goals"
+   },
+   {
+    "file": "tests/test_web_readonly.py",
+    "name": "test_metric_direction_is_not_readable_through_the_registry"
    }
   ],
   "30": [
@@ -226,6 +370,10 @@
    {
     "file": "tests/test_kaggle_recording.py",
     "name": "test_recording_binds_to_the_cycle_only"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_views_run_with_the_network_disabled"
    }
   ],
   "31": [
@@ -236,12 +384,28 @@
    {
     "file": "tests/test_kaggle_fake.py",
     "name": "test_download_writes_files_with_hashes"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_web_imports_only_stdlib_flask_proposals_registry_and_itself"
    }
   ],
   "32": [
    {
     "file": "tests/test_llm_client.py",
     "name": "test_role_is_recorded_in_every_call_including_retries"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_runtime_dependencies_are_the_pinned_libraries"
+   },
+   {
+    "file": "tests/test_design_doc.py",
+    "name": "test_pyproject_runtime_dependencies_are_the_confirmed_libraries"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_only_the_web_start_module_imports_the_sqlite_registry"
    }
   ],
   "33": [
@@ -252,12 +416,24 @@
    {
     "file": "tests/test_llm_models.py",
     "name": "test_call_record_role_defaults_to_none_and_llm_code_has_no_model_per_role"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_nothing_of_tickets_6_to_16_exists"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle_llm"
    }
   ],
   "34": [
    {
     "file": "tests/test_llm_recording.py",
     "name": "test_role_is_stored_in_llm_calls_and_old_files_are_migrated"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_templates_are_package_resources_and_declared_in_package_data"
    }
   ],
   "35": [
@@ -276,6 +452,10 @@
    {
     "file": "tests/test_no_modeling_logic.py",
     "name": "test_no_test_builds_a_real_client_without_a_runner"
+   },
+   {
+    "file": "tests/test_web_app.py",
+    "name": "test_readme_documents_the_flask_pin_python_versions_and_unpinned_dependencies"
    }
   ],
   "36": [
@@ -290,265 +470,13 @@
    {
     "file": "tests/test_repo_language.py",
     "name": "test_code_identifiers_are_english"
-   }
-  ],
-  "37": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_cycles_list_shows_every_cycle_with_its_data"
-   }
-  ],
-  "38": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_empty_registry_shows_a_message"
-   }
-  ],
-  "39": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_cycle_view_lists_rounds_candidates_and_the_group_outside_rounds"
-   }
-  ],
-  "40": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_round_view_shows_only_its_own_reports_guidance_and_traces"
-   }
-  ],
-  "41": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_candidate_detail_shows_rationale_hypothesis_and_what_changed"
-   }
-  ],
-  "42": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_candidate_detail_shows_the_runs_in_order"
-   }
-  ],
-  "43": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_failures_show_failure_kind_and_reason"
-   }
-  ],
-  "44": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_pipeline_link_only_when_it_exists"
-   }
-  ],
-  "45": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_pipeline_reference_never_links_local_files"
    },
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_pipeline_reference_convention"
-   }
-  ],
-  "46": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_metric_series_per_round_and_chart"
-   },
-   {
-    "file": "tests/test_web_chart.py",
-    "name": "test_one_circle_per_point_and_a_best_line_per_round_with_data"
-   }
-  ],
-  "47": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_best_is_highlighted_by_the_declared_direction"
-   },
-   {
-    "file": "tests/test_web_chart.py",
-    "name": "test_overall_best_follows_the_direction"
-   },
-   {
-    "file": "tests/test_web_chart.py",
-    "name": "test_no_data_gives_no_chart"
-   }
-  ],
-  "48": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_metric_series_per_iteration"
-   }
-  ],
-  "49": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_reviewer_reports_grouped_by_round"
-   }
-  ],
-  "50": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_role_traces_show_typed_input_output_and_outcome"
-   }
-  ],
-  "51": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_trace_filters"
-   }
-  ],
-  "52": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_candidate_traces_appear_in_the_detail"
-   }
-  ],
-  "53": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_guidance_and_suggestions"
-   }
-  ],
-  "54": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_every_view_responds_and_none_is_left_out"
-   }
-  ],
-  "55": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_unknown_ids_give_a_plain_404"
-   },
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_ids_with_a_slash_work_in_links_and_routes"
-   }
-  ],
-  "56": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_untrusted_registry_text_is_escaped"
-   },
-   {
-    "file": "tests/test_web_chart.py",
-    "name": "test_texts_in_the_svg_are_escaped"
-   }
-  ],
-  "57": [
-   {
-    "file": "tests/test_web_readonly.py",
-    "name": "test_every_rule_accepts_only_get"
-   }
-  ],
-  "58": [
-   {
-    "file": "tests/test_web_readonly.py",
-    "name": "test_other_methods_answer_405_and_leave_the_file_unchanged"
-   }
-  ],
-  "59": [
-   {
-    "file": "tests/test_web_readonly.py",
-    "name": "test_no_form_or_input_in_pages_or_sources"
-   }
-  ],
-  "60": [
-   {
-    "file": "tests/test_web_readonly.py",
-    "name": "test_the_app_calls_only_read_methods_of_the_registry"
-   }
-  ],
-  "61": [
-   {
-    "file": "tests/test_web_readonly.py",
-    "name": "test_the_file_is_untouched_and_the_read_only_instance_refuses_writes"
-   }
-  ],
-  "62": [
-   {
-    "file": "tests/test_web_readonly.py",
-    "name": "test_code_inspection_finds_no_write_call_and_no_sqlite_import"
-   }
-  ],
-  "63": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_read_only_opening_reads_the_same_data_and_never_writes"
-   },
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_read_only_rejects_memory_and_missing_file_without_creating_it"
-   }
-  ],
-  "64": [
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_list_cycles_in_insertion_order_with_all_fields"
-   }
-  ],
-  "65": [
-   {
-    "file": "tests/test_web_readonly.py",
-    "name": "test_metric_direction_is_not_readable_through_the_registry"
-   }
-  ],
-  "66": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_views_run_with_the_network_disabled"
-   }
-  ],
-  "67": [
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_web_imports_only_stdlib_flask_proposals_registry_and_itself"
-   }
-  ],
-  "68": [
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_runtime_dependencies_are_the_pinned_libraries"
-   },
-   {
-    "file": "tests/test_design_doc.py",
-    "name": "test_pyproject_runtime_dependencies_are_the_confirmed_libraries"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_only_the_web_start_module_imports_the_sqlite_registry"
-   }
-  ],
-  "69": [
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_nothing_of_tickets_6_to_16_exists"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle_llm"
-   }
-  ],
-  "70": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_templates_are_package_resources_and_declared_in_package_data"
-   }
-  ],
-  "71": [
-   {
-    "file": "tests/test_web_app.py",
-    "name": "test_readme_documents_the_flask_pin_python_versions_and_unpinned_dependencies"
-   }
-  ],
-  "72": [
    {
     "file": "tests/test_web_app.py",
     "name": "test_readme_has_the_single_start_command_in_a_code_block"
    }
   ],
-  "73": [
+  "37": [
    {
     "file": "tests/test_web_cli.py",
     "name": "test_main_builds_the_app_and_starts_it_with_the_defaults"
@@ -562,31 +490,31 @@
     "name": "test_main_opens_the_registry_read_only"
    }
   ],
-  "74": [
+  "38": [
    {
     "file": "tests/test_web_cli.py",
     "name": "test_missing_file_gives_exit_code_2_and_a_message"
    }
   ],
-  "75": [
+  "39": [
    {
     "file": "tests/test_design_doc.py",
     "name": "test_web_library_decision_is_documented"
    }
   ],
-  "76": [
+  "40": [
    {
     "file": "tests/test_test_map.py",
     "name": "test_test_map_entries_exist"
    }
   ],
-  "77": [
+  "41": [
    {
     "file": "tests/test_test_map.py",
     "name": "test_test_map_entries_exist"
    }
   ],
-  "78": [
+  "42": [
    {
     "file": "tests/test_repo_language.py",
     "name": "test_code_identifiers_are_english"
