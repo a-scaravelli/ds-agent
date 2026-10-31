@@ -11,8 +11,8 @@ TEST_MAP = ROOT / ".asl" / "test-map.json"
 def test_test_map_entries_exist():
     cases = json.loads(TEST_MAP.read_text(encoding="utf-8"))["cases"]
     keys = sorted(int(k) for k in cases)
-    assert len(keys) == len(set(keys))
-    assert keys == list(range(1, max(keys) + 1))
+    assert keys == list(range(1, keys[-1] + 1))  # consecutive; other tickets may add theirs
+    assert keys[-1] >= 1  # the cases of the current plan (the numbering restarts with each plan)
     for case, entries in cases.items():
         assert entries, f"case {case} has no test"
         for entry in entries:
