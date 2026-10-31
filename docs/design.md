@@ -396,6 +396,8 @@ The web interface can be consulted without reading code and reads the data from 
 
 The polished graphic design is deferred to a later ticket: in this design the completeness and navigability of the data matter, not the appearance.
 
+**Decision (web ticket).** The web library is Flask, pinned with `==` in `pyproject.toml`, imported only by `kaggle_agent.web`. Against the criteria of section 1: server-rendered Jinja2 templates with autoescape (the registry texts come from the model and are untrusted), a test client that needs no socket, GET-only routes that answer 405 to any other method, a stable API, and no front-end build step; it runs locally with one command (`python -m kaggle_agent.web --db PATH`). Its transitive dependencies (werkzeug, jinja2, markupsafe, itsdangerous, click, blinker) are not pinned, like those of `kaggle`. Rejected: the standard library (`wsgiref`, `http.server`) with string templates (no dependency, but escaping, routing and 405 by hand over model-generated text), Bottle (small, but rare releases and no test client), FastAPI or Starlette with uvicorn (async and aimed at JSON APIs, more dependencies), Django (heavy) and Streamlit, NiceGUI or Dash (a front-end runtime and input widgets, against read-only). The app opens the registry read-only. The registry does not expose the frozen protocol, so the direction of the metric is not readable: the chart takes it from the `best` query parameter (default `max`) and says so on the page.
+
 Rejected alternatives: batch approval of proposals (contradicts autonomous work and the user does not see the effect of each one), a web interface only for approval (traceability requires mostly consultation), a chat with the lead at level 1 (a command or a file is enough and keeps the guidance recorded), a report only in Markdown (it does not allow navigating between attempts, suggestions and cycles) and a polished graphic design right away (deferred).
 
 ## 14. Architecture and repository structure
@@ -431,11 +433,12 @@ Existing subpackages under `src/kaggle_agent/`:
 - `registry`: registry of attempts, execution records, cycles and suggestions behind a replaceable interface, with a SQLite implementation, fingerprint and deduplication (section 7);
 - `kaggle`: client interface, fake, credential resolution, submission rules and recording in the registry, and the real adapter on the official package, the only module that imports it (section 10);
 - `llm`: adapter for headless Claude Code with structured output, retries, backoff and per-call consumption, the fake, and the real adapter, the only module that spawns the CLI process (section 8); `llm/recording.py` is the only module that imports the registry;
+- `web`: read-only consultation interface over the registry, GET routes only, the only package that imports Flask (section 13);
 - `sandbox`: execution of the generated code (section 8);
 - `review`: initial plan and final review (section 13);
 - `budget`: limits and stop (section 11).
 
-Future subpackages, not created in this ticket and with names to be confirmed in review: `agents` for the five role prompts (coordinator, data, feature engineering, modeling, reviewer) and their typed inputs and outputs (section 8), `bundle` for the bundle contract and the runner (section 8), `pipeline` for the round pipeline and the generation of the end-to-end pipeline (sections 2 and 13) and `web` for the consultation interface (section 13).
+Future subpackages, not created in this ticket and with names to be confirmed in review: `agents` for the five role prompts (coordinator, data, feature engineering, modeling, reviewer) and their typed inputs and outputs (section 8), `bundle` for the bundle contract and the runner (section 8) and `pipeline` for the round pipeline and the generation of the end-to-end pipeline (sections 2 and 13).
 
 **The three levels.** All levels keep the same core structure, the same five roles and the same guarantees: frozen protocol, labels and holdout owned by the evaluator, everything in the registry, tests with fakes. Level 1 is built first (tickets 6 to 12 of section 15). Levels 2 and 3 are directions.
 

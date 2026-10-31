@@ -3,6 +3,7 @@
 import json
 import sqlite3
 from contextlib import contextmanager
+from pathlib import Path
 
 from kaggle_agent.proposals import (
     Attempt,
@@ -175,9 +176,31 @@ _LAST_EXECUTION = (
 
 
 class SqliteRegistry(Registry):
-    """Registry on a SQLite file, or in memory with the default ``':memory:'``."""
+    """Registry on a SQLite file, or in memory with the default ``':memory:'``.
 
-    def __init__(self, path: str = ":memory:") -> None:
+    With ``read_only=True`` an existing file is opened with ``mode=ro``: the
+    schema is not created or migrated and every write raises ``RegistryError``.
+    A file created by an older version is not migrated in this mode, so some
+    queries may fail; open it once in write mode with the current version.
+    """
+
+    def __init__(self, path: str = ":memory:", read_only: bool = False) -> None:
+        self._read_only = read_only
+        if read_only:
+            location = str(path)
+            if location == ":memory:" or location.startswith("file:"):
+                raise RegistryError("a read-only registry needs the path of an existing file")
+            if not Path(location).is_file():
+                raise RegistryError(f"registry file {location!r} does not exist")
+            uri = Path(location).resolve().as_uri() + "?mode=ro"
+            try:
+                self._db = sqlite3.connect(uri, uri=True, isolation_level=None)
+                self._db.execute("PRAGMA query_only = ON")
+                self._db.execute("PRAGMA foreign_keys = ON")
+                self._db.execute("SELECT 1 FROM cycles LIMIT 1")
+            except sqlite3.Error as exc:
+                raise RegistryError(f"cannot open {location!r} read-only: {exc}") from exc
+            return
         # autocommit mode: transactions are explicit, see ``_transaction``
         self._db = sqlite3.connect(str(path), isolation_level=None)
         self._db.execute("PRAGMA foreign_keys = ON")
@@ -213,6 +236,8 @@ class SqliteRegistry(Registry):
 
     @contextmanager
     def _transaction(self):
+        if self._read_only:
+            raise RegistryError("registry opened read-only")
         self._db.execute("BEGIN IMMEDIATE")
         try:
             yield self._db
@@ -303,6 +328,13 @@ class SqliteRegistry(Registry):
 
     def get_cycle(self, cycle_id: str) -> Cycle:
         return self._cycle(self._require_cycle_row(cycle_id))
+
+    def list_cycles(self) -> list[Cycle]:
+        rows = self._db.execute(
+            "SELECT id, plan, iterations, stagnation_k, max_fix_retries, state, "
+            "protocol_hash, project_id FROM cycles ORDER BY rowid"
+        ).fetchall()
+        return [self._cycle(r) for r in rows]
 
     def set_cycle_state(self, cycle_id: str, state: str) -> None:
         require_text("state", state)

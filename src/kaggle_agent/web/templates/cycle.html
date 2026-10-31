@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "macros.html" import candidate_table %}
+{% block title %}Cycle {{ cycle.id }}{% endblock %}
+{% block body %}
+<h1>Cycle {{ cycle.id }}</h1>
+<p>State: {{ cycle.state }}; project: {{ cycle.project_id or '-' }}; iterations: {{ cycle.iterations }};
+stagnation k: {{ cycle.stagnation_k }}; max fix retries: {{ cycle.max_fix_retries }};
+protocol hash: {{ cycle.protocol_hash or '-' }}</p>
+<h2>Plan</h2>
+<pre>{{ cycle.plan.to_dict() | pretty }}</pre>
+
+<h2>Rounds</h2>
+{% for r in rounds %}
+<h3><a href="{{ url_for('round_view', cycle_id=cycle.id, round_id=r.detail.round.id) }}">Round {{ r.detail.position }}: {{ r.detail.round.id }}</a></h3>
+<ul>{% for task in r.detail.round.tasks %}<li>{{ task }}</li>{% endfor %}</ul>
+{% if r.candidates %}{{ candidate_table(r.candidates) }}{% else %}<p>No candidates.</p>{% endif %}
+{% else %}
+<p>No rounds.</p>
+{% endfor %}
+
+<h2>Not in a round</h2>
+{% if unrounded %}{{ candidate_table(unrounded) }}{% else %}<p>None.</p>{% endif %}
+
+<h2>Attempt timeline</h2>
+{% if timeline %}
+<table>
+<tr><th>Iteration</th><th>Attempt</th><th>Outcome</th><th>Failure kind</th></tr>
+{% for a in timeline %}
+<tr><td>{{ a.iteration }}</td>
+<td><a href="{{ url_for('attempt', attempt_id=a.attempt_id) }}">{{ a.attempt_id }}</a></td>
+<td>{{ a.outcome or 'open' }}</td><td>{{ a.failure_kind or '-' }}</td></tr>
+{% endfor %}
+</table>
+{% else %}<p>No attempts.</p>{% endif %}
+
+<h2>Bundles</h2>
+{% if bundles %}
+<ul>{% for b in bundles %}<li>{{ b.id }} (folder hash {{ b.folder_hash }}, reference {{ b.reference }})</li>{% endfor %}</ul>
+{% else %}<p>None.</p>{% endif %}
+{% endblock %}

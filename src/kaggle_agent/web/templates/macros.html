@@ -1,0 +1,38 @@
+{# shared macros: candidate rows come from views._candidate_row #}
+{% macro candidate_table(rows) %}
+<table>
+<tr><th>Iteration</th><th>Candidate</th><th>Parent</th><th>Phase</th><th>Outcome</th><th>Failure kind</th><th>Runs</th><th>Last metric</th><th>What changed</th></tr>
+{% for row in rows %}{% set s = row.summary %}
+<tr>
+<td>{{ s.iteration }}</td>
+<td><a href="{{ url_for('attempt', attempt_id=s.attempt_id) }}">{{ s.attempt_id }}</a></td>
+<td>{% if s.parent_id %}<a href="{{ url_for('attempt', attempt_id=s.parent_id) }}">{{ s.parent_id }}</a>{% else %}-{% endif %}</td>
+<td>{{ s.phase }}</td>
+<td class="{{ 'failed' if s.outcome == 'failed' }}">{{ s.outcome or 'open' }}</td>
+<td>{{ s.failure_kind or '-' }}</td>
+<td>{{ row.runs }}</td>
+<td>{% for m in row.metrics %}{{ m.partition }}: {{ '%.6g' % m.mean }} &plusmn; {{ '%.4g' % m.dispersion }}<br>{% else %}-{% endfor %}</td>
+<td>{{ row.what_changed }}</td>
+</tr>
+{% endfor %}
+</table>
+{% endmacro %}
+
+{% macro trace_list(traces) %}
+{% for t in traces %}
+<table>
+<tr><th>Role</th><td>{{ t.role }}</td><th>Round</th>
+<td><a href="{{ url_for('round_view', cycle_id=t.cycle_id, round_id=t.round_id) }}">{{ t.round_id }}</a></td></tr>
+<tr><th>Candidate</th>
+<td>{% if t.candidate_id %}<a href="{{ url_for('attempt', attempt_id=t.candidate_id) }}">{{ t.candidate_id }}</a>{% else %}-{% endif %}</td>
+<th>Outcome</th><td>{{ t.outcome }}</td></tr>
+<tr><th>LLM call id</th><td>{{ t.llm_call_id if t.llm_call_id is not none else '-' }}</td>
+<th>Created</th><td>{{ t.created_at }}</td></tr>
+<tr><th>Input ({{ t.input_type }})</th><td colspan="3"><pre>{{ t.input | pretty }}</pre></td></tr>
+<tr><th>Output {% if t.output_type %}({{ t.output_type }}){% endif %}</th>
+<td colspan="3">{% if t.output is none %}no output{% else %}<pre>{{ t.output | pretty }}</pre>{% endif %}</td></tr>
+</table>
+{% else %}
+<p>No traces.</p>
+{% endfor %}
+{% endmacro %}

@@ -1003,3 +1003,53 @@ def test_new_records_are_unchanged_after_reopening(tmp_path):
         assert r.list_guidance("C1")[0].to_json() == guidance.to_json()
         assert r.list_role_traces("C1")[0].to_json() == trace.to_json()
         assert r.list_llm_calls("C1")[0] == _call(role="reviewer")
+
+
+# --- list_cycles and read-only opening (web ticket) ---
+
+
+def test_list_cycles_in_insertion_order_with_all_fields():
+    with SqliteRegistry() as registry:
+        assert registry.list_cycles() == []
+        registry.add_cycle(make_cycle("C2", project_id="P1", protocol_hash="h"))
+        registry.add_cycle(make_cycle("C1"))
+        registry.add_cycle(make_cycle("C3", state="DONE"))
+        new_attempt(registry, "A1", cycle_id="C2")
+        cycles = registry.list_cycles()
+        assert [c.id for c in cycles] == ["C2", "C1", "C3"]
+        assert cycles == [registry.get_cycle(c) for c in ("C2", "C1", "C3")]
+        assert cycles[0].project_id == "P1" and cycles[0].protocol_hash == "h"
+
+
+def test_read_only_opening_reads_the_same_data_and_never_writes(tmp_path):
+    path = tmp_path / "registry.db"
+    with SqliteRegistry(path) as writable:
+        writable.add_cycle(make_cycle("C1"))
+        new_attempt(writable, "A1")
+        writable.add_execution(make_execution("A1"))
+        writable.close_attempt("A1", "ok")
+        expected = (writable.list_cycles(), writable.list_attempts(), writable.get_attempt("A1"))
+    before = path.read_bytes()
+    with SqliteRegistry(path, read_only=True) as ro:
+        assert (ro.list_cycles(), ro.list_attempts(), ro.get_attempt("A1")) == expected
+        with pytest.raises(RegistryError, match="read-only"):
+            ro.add_cycle(make_cycle("C9"))
+        with pytest.raises(RegistryError, match="read-only"):
+            ro.set_cycle_state("C1", "DONE")
+        with pytest.raises(RegistryError, match="read-only"):
+            new_attempt(ro, "A2")
+    assert path.read_bytes() == before
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["registry.db"]
+
+
+def test_read_only_rejects_memory_and_missing_file_without_creating_it(tmp_path):
+    with pytest.raises(RegistryError):
+        SqliteRegistry(":memory:", read_only=True)
+    missing = tmp_path / "missing.db"
+    with pytest.raises(RegistryError, match="does not exist"):
+        SqliteRegistry(missing, read_only=True)
+    assert not missing.exists()
+    empty = tmp_path / "empty.db"
+    empty.write_bytes(b"")
+    with pytest.raises(RegistryError):
+        SqliteRegistry(empty, read_only=True)

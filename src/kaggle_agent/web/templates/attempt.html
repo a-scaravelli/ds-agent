@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "macros.html" import trace_list %}
+{% set a = detail.attempt %}
+{% block title %}Candidate {{ a.id }}{% endblock %}
+{% block body %}
+<h1>Candidate {{ a.id }}</h1>
+<p>Cycle <a href="{{ url_for('cycle', cycle_id=detail.cycle_id) }}">{{ detail.cycle_id }}</a>;
+{% if round_id %}round <a href="{{ url_for('round_view', cycle_id=detail.cycle_id, round_id=round_id) }}">{{ round_id }}</a>{% else %}not in a round{% endif %};
+iteration {{ detail.iteration }}; phase {{ a.phase }};
+{% if detail.closed %}closed{% else %}open{% endif %}</p>
+<table>
+<tr><th>Parent</th><td>{% if a.parent_id %}<a href="{{ url_for('attempt', attempt_id=a.parent_id) }}">{{ a.parent_id }}</a>{% else %}-{% endif %}</td></tr>
+<tr><th>Outcome</th><td class="{{ 'failed' if detail.outcome == 'failed' }}">{{ detail.outcome or 'open' }}</td></tr>
+<tr><th>Failure kind</th><td>{{ detail.failure_kind or '-' }}</td></tr>
+<tr><th>Reason</th><td>{{ detail.reason or '-' }}</td></tr>
+<tr><th>Fingerprint</th><td>{{ detail.fingerprint }}</td></tr>
+<tr><th>Bundle</th><td>{% if bundle_id %}{{ bundle_id }}{% if bundle %} (folder hash {{ bundle.folder_hash }}, reference {{ bundle.reference }}){% endif %}{% else %}-{% endif %}</td></tr>
+</table>
+
+<h2>Rationale</h2>
+<pre>{{ a.rationale }}</pre>
+<h2>Hypothesis</h2>
+<pre>{{ a.hypothesis }}</pre>
+<h2>What changed</h2>
+<pre>{{ a.what_changed }}</pre>
+<h2>Proposal details</h2>
+<table>
+<tr><th>Measure</th><td>{{ a.measure }}</td></tr>
+<tr><th>Exploratory</th><td>{{ 'yes' if a.exploratory else 'no' }}</td></tr>
+<tr><th>Expected effect</th><td>{{ a.expected_effect or '-' }}</td></tr>
+<tr><th>Estimated cost</th><td>{{ a.estimated_cost or '-' }}</td></tr>
+<tr><th>Evidence</th><td>{% for e in a.evidence %}{{ e }}<br>{% else %}-{% endfor %}</td></tr>
+<tr><th>Risks</th><td>{% for r in a.risks %}{{ r }}<br>{% else %}-{% endfor %}</td></tr>
+<tr><th>Artifacts (proposal)</th><td>{% for r in a.artifacts %}{{ r }}<br>{% else %}-{% endfor %}</td></tr>
+</table>
+<h2>Conclusion</h2>
+<pre>{{ detail.conclusion or 'No conclusion yet.' }}</pre>
+
+<h2>Pipeline</h2>
+{% if pipeline %}
+<p>{% if pipeline.url %}<a href="{{ pipeline.url }}">{{ pipeline.ref }}</a>{% else %}{{ pipeline.ref }}{% endif %}</p>
+{% else %}
+<p>no pipeline yet</p>
+{% endif %}
+
+<h2>Runs</h2>
+{% for e in detail.executions %}
+<h3>Run {{ loop.index }}: {{ e.id }}</h3>
+<table>
+<tr><th>Outcome</th><td class="{{ 'failed' if e.outcome == 'failed' }}">{{ e.outcome }}</td></tr>
+<tr><th>Failure kind</th><td>{{ e.failure_kind or '-' }}</td></tr>
+<tr><th>Reason</th><td>{{ e.reason or '-' }}</td></tr>
+<tr><th>Seed</th><td>{{ e.seed }}</td></tr>
+<tr><th>Code hash</th><td>{{ e.code_hash }}</td></tr>
+<tr><th>Data hash</th><td>{{ e.data_hash }}</td></tr>
+<tr><th>Protocol hash</th><td>{{ e.protocol_hash }}</td></tr>
+<tr><th>Duration (s)</th><td>{{ e.duration_seconds }}</td></tr>
+<tr><th>Config</th><td><pre>{{ e.config | pretty }}</pre></td></tr>
+<tr><th>Resources</th><td>{% if e.resources is none %}-{% else %}<pre>{{ e.resources | pretty }}</pre>{% endif %}</td></tr>
+<tr><th>Metrics</th><td>{% for m in e.metrics %}{{ m.partition }}: mean {{ '%.6g' % m.mean }}, dispersion {{ '%.4g' % m.dispersion }}<br>{% else %}-{% endfor %}</td></tr>
+<tr><th>Artifacts</th><td>{% for r in e.artifacts %}{{ r }}<br>{% else %}-{% endfor %}</td></tr>
+</table>
+{% else %}
+<p>No runs yet.</p>
+{% endfor %}
+
+<h2>Role traces of this candidate</h2>
+{{ trace_list(traces) }}
+{% endblock %}

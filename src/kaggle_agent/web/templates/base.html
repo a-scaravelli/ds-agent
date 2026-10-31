@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{% block title %}Registry{% endblock %} - kaggle_agent</title>
+<style>
+body { font-family: sans-serif; margin: 1.5em; max-width: 70em; color: #222; }
+nav a { margin-right: 1em; }
+table { border-collapse: collapse; margin: 0.5em 0 1em; }
+th, td { border: 1px solid #bbb; padding: 0.25em 0.6em; text-align: left; vertical-align: top; }
+pre { background: #f4f4f4; padding: 0.5em; overflow-x: auto; white-space: pre-wrap; }
+.note { color: #555; font-size: 0.9em; }
+.failed { color: #a00; }
+</style>
+</head>
+<body>
+<nav>
+<a href="{{ url_for('cycles') }}">Cycles</a>
+<a href="{{ url_for('suggestions') }}">Suggestions</a>
+{% if cycle is defined and cycle %}
+| cycle <b>{{ cycle.id }}</b>:
+<a href="{{ url_for('cycle', cycle_id=cycle.id) }}">rounds</a>
+<a href="{{ url_for('metrics', cycle_id=cycle.id) }}">metrics</a>
+<a href="{{ url_for('reports', cycle_id=cycle.id) }}">reports</a>
+<a href="{{ url_for('traces', cycle_id=cycle.id) }}">traces</a>
+<a href="{{ url_for('guidance', cycle_id=cycle.id) }}">guidance</a>
+{% endif %}
+</nav>
+<hr>
+{% block body %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Cycles{% endblock %}
+{% block body %}
+<h1>Cycles</h1>
+{% if not cycles %}
+<p>No cycles in the registry.</p>
+{% else %}
+<table>
+<tr><th>Cycle</th><th>State</th><th>Project</th><th>Iterations</th><th>Stagnation k</th><th>Max fix retries</th><th>Protocol hash</th></tr>
+{% for c in cycles %}
+<tr>
+<td><a href="{{ url_for('cycle', cycle_id=c.id) }}">{{ c.id }}</a></td>
+<td>{{ c.state }}</td>
+<td>{{ c.project_id or '-' }}</td>
+<td>{{ c.iterations }}</td>
+<td>{{ c.stagnation_k }}</td>
+<td>{{ c.max_fix_retries }}</td>
+<td>{{ c.protocol_hash or '-' }}</td>
+</tr>
+{% endfor %}
+</table>
+{% endif %}
+{% endblock %}
