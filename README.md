@@ -274,6 +274,8 @@ Failure kinds. No new kind was added: `timed_out` is `timeout`, and `crashed`, `
 | Diffs touching protected files are rejected before running; arguments and variables that mention a hidden path are refused | |
 | Output limit, stdin closed, working directory removed afterwards | |
 
+On macOS the system adds `__CF_USER_TEXT_ENCODING` to every child process (and the interpreter may add `LC_CTYPE`): these are not set by the sandbox and are not credentials, and the sandbox tests allow them as platform-added keys. The sandbox tests also do not depend on `/proc`, which does not exist on macOS.
+
 The child runs with `python -I` (and `-B`), which ignores `PYTHONPATH` and the user site, and the environment never carries import paths. So step 7 cannot rely on the environment for imports: it must pass every import path explicitly, for example through `SANDBOX_PROTECTED_DIR` or absolute paths in the arguments.
 
 What the light sandbox does **not** guarantee:
