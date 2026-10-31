@@ -1,4 +1,4 @@
-"""Only proposals, registry, evaluation, kaggle and llm have code; the rest is docstrings and stdlib."""
+"""Only proposals, registry, evaluation, kaggle, llm and sandbox have code; the rest is docstrings and stdlib."""
 
 import ast
 import sys
@@ -11,6 +11,8 @@ EVALUATION = SRC / "evaluation"
 KAGGLE = SRC / "kaggle"
 LLM = SRC / "llm"
 LLM_REAL = LLM / "real.py"
+SANDBOX = SRC / "sandbox"
+SANDBOX_RUNNER = SANDBOX / "subprocess_sandbox.py"
 TESTS = Path(__file__).resolve().parent
 REAL_ADAPTER = KAGGLE / "real.py"
 KAGGLE_LIBRARY = {"kaggle"}
@@ -54,9 +56,9 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
             assert top in allowed, f"{path}: {top}"
 
 
-def test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle_llm():
+def test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle_llm_sandbox():
     for path in _modules():
-        if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM)):
+        if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM, SANDBOX)):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -196,13 +198,13 @@ def test_only_llm_real_imports_subprocess_and_llm_uses_no_network_or_third_party
             if top == "subprocess":
                 assert path == LLM_REAL, f"{path}: {full}"
     for path in _modules():
-        if LLM not in path.parents:
+        if LLM not in path.parents and path != SANDBOX_RUNNER:
             assert "subprocess" not in {top for top, _ in _imports(path)}, path
     for path in sorted(TESTS.glob("*.py")):
         if path.name != Path(__file__).name:
             assert "subprocess" not in {top for top, _ in _imports(path)} or path.name in {
                 "llm_helpers.py", "test_llm_real.py",
-            }, path
+            } or "sandbox" in path.name, path
 
 
 def test_importing_the_llm_package_does_not_import_subprocess_real_module():
@@ -262,9 +264,32 @@ def test_evaluation_imports_neither_tests_nor_llm_and_no_unpinned_library_anywhe
 
 
 def test_nothing_of_tickets_6_to_16_exists():
-    for package in ("sandbox", "loop", "review", "budget"):
+    for package in ("loop", "review", "budget"):
         files = [p for p in (SRC / package).rglob("*.py")]
         assert [p.name for p in files] == ["__init__.py"], package
     names = {p.stem for p in SRC.rglob("*.py")}
     assert not names & {"runner", "bundle", "agents", "pipeline", "web", "app", "server"}
     assert not [p for p in SRC.iterdir() if p.is_dir() and p.name in {"web", "agents", "runner"}]
+
+
+def test_sandbox_imports_only_stdlib_and_itself_and_subprocess_only_in_its_runner():
+    stdlib = set(sys.stdlib_module_names)
+    forbidden = {"registry", "evaluation", "kaggle", "llm", "loop", "review", "budget", "proposals"}
+    for path in sorted(SANDBOX.glob("*.py")):
+        for top, full in _imports(path):
+            parts = full.lstrip(".").split(".")
+            assert top in stdlib | {"kaggle_agent", "<relative>"}, f"{path}: {full}"
+            assert top not in NETWORK_MODULES | THIRD_PARTY | KAGGLE_LIBRARY, f"{path}: {full}"
+            assert "credentials" not in parts, f"{path}: {full}"
+            if top == "kaggle_agent":
+                assert parts[1] == "sandbox", f"{path}: {full}"
+            if top == "<relative>":
+                assert parts[0] not in forbidden, f"{path}: {full}"
+            if top == "subprocess":
+                assert path == SANDBOX_RUNNER, f"{path}: {full}"
+
+
+def test_sandbox_defines_no_bundle_contract():
+    text = "\n".join(p.read_text(encoding="utf-8") for p in SANDBOX.glob("*.py"))
+    for word in ("def fit", "def predict", "class Bundle", "class Runner"):
+        assert word not in text, word
