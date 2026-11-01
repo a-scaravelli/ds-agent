@@ -1,0 +1,183 @@
+"""The bundle runner: fixed code that runs a bundle through the sandbox (design section 8).
+
+``BundleRunner`` implements ``evaluation.Candidate``, so the frozen evaluation engine
+scores a bundle without changes. Per call it stages the data in a temporary folder, runs
+``child.py`` through the injected ``Sandbox`` (the only way a process is started),
+validates the predictions the child wrote and removes the folder.
+
+What the child receives: the training rows with their target and the rows to predict
+without it. The validation and holdout labels stay with the engine and are never staged.
+The runner protects its own package and the evaluation package, and passes the hashes
+taken when the runner was built as ``expected_hashes``: a protected file changed since
+then blocks the run before the child starts. Data goes through CSV and predictions come
+back as JSON (never pickle), so the bundle cannot run code in the parent.
+"""
+
+import dataclasses
+import json
+import math
+import shutil
+import tempfile
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+import kaggle_agent
+from kaggle_agent import evaluation
+from kaggle_agent.evaluation.metrics import INPUT_KINDS
+from kaggle_agent.sandbox import (
+    SUCCEEDED,
+    ProtectedPath,
+    Sandbox,
+    SandboxPolicy,
+    SandboxRequest,
+    hash_paths,
+)
+
+from .contract import FOLDER_CHANGED, MALFORMED_PREDICTIONS
+from .errors import BundleError, BundleRunError
+from .layout import LoadedBundle, folder_hash_of
+
+BUNDLE_DIR = Path(__file__).resolve().parent
+CHILD_SCRIPT = BUNDLE_DIR / "child.py"
+CODE_ERROR = "code_error"
+NUMERIC_KINDS = ("values", "scores", "probabilities")
+
+
+def _is_number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def validate_predictions(raw, rows: int, input_kind: str) -> np.ndarray:
+    """Check the raw predictions of a bundle and return them as an array.
+
+    One dimension, ``rows`` values, none null. ``values``, ``scores`` and ``probabilities``
+    need finite numbers, ``probabilities`` within [0, 1]; ``labels`` accept any scalar
+    labels of one kind (text or numbers). Raises ``BundleRunError`` otherwise.
+    """
+    def bad(reason):
+        return BundleRunError(MALFORMED_PREDICTIONS, CODE_ERROR, "malformed predictions: " + reason)
+
+    if not isinstance(raw, list):
+        raise bad("expected a one-dimensional list")
+    if len(raw) != rows:
+        raise bad(f"expected {rows} predictions, got {len(raw)}")
+    if any(v is None for v in raw):
+        raise bad("null value")
+    if any(isinstance(v, (list, dict)) for v in raw):
+        raise bad("expected one-dimensional predictions")
+    if input_kind in NUMERIC_KINDS:
+        if not all(_is_number(v) for v in raw):
+            raise bad(f"{input_kind} must be numbers")
+    elif not all(_is_number(v) or isinstance(v, (str, bool)) for v in raw):
+        raise bad("labels must be scalars")
+    elif any(isinstance(v, str) for v in raw) and not all(isinstance(v, str) for v in raw):
+        raise bad("labels mix text and numbers")
+    if any(isinstance(v, float) and not math.isfinite(v) for v in raw):
+        raise bad("NaN or infinite value")
+    values = np.asarray(raw)
+    if input_kind == "probabilities" and ((values < 0).any() or (values > 1).any()):
+        raise bad("probabilities must be within [0, 1]")
+    return values
+
+
+def _dtypes(frame: pd.DataFrame) -> dict:
+    return {str(column): str(dtype) for column, dtype in frame.dtypes.items()}
+
+
+class BundleRunner:
+    """Runs ``fit`` and ``predict`` of one bundle in a child process; a ``Candidate``.
+
+    ``policy`` carries the timeout (and any protected paths) of the caller; the runner adds
+    its own two packages. A protected name that the caller already uses with the same path
+    is kept once; with a different path ``BundleError`` is raised. ``input_kind`` is the
+    prediction kind of the metric (``INPUT_KINDS``).
+    """
+
+    def __init__(self, sandbox: Sandbox, policy: SandboxPolicy, bundle: LoadedBundle, *,
+                 target_column: str, input_kind: str) -> None:
+        if input_kind not in INPUT_KINDS:
+            raise BundleError(f"unknown input_kind {input_kind!r}")
+        self.sandbox = sandbox
+        self.bundle = bundle
+        self.target_column = target_column
+        self.input_kind = input_kind
+        self.policy = self._extend(policy)
+        self.baseline = hash_paths(self.policy.protected)
+
+    @staticmethod
+    def _own_paths() -> tuple[ProtectedPath, ...]:
+        evaluation_dir = Path(evaluation.__file__).resolve().parent
+        return tuple(
+            ProtectedPath(f"{kaggle_agent.__name__}/{name}", path)
+            for name, path in (("bundle", BUNDLE_DIR), ("evaluation", evaluation_dir))
+        )
+
+    def _extend(self, policy: SandboxPolicy) -> SandboxPolicy:
+        existing = {p.name: p for p in policy.protected}
+        added = []
+        for own in self._own_paths():
+            current = existing.get(own.name)
+            if current is None:
+                added.append(own)
+            elif current.path.resolve() != own.path:
+                raise BundleError(
+                    f"protected name {own.name!r} is already used for a different path: {current.path}"
+                )
+        return dataclasses.replace(policy, protected=(*policy.protected, *added))
+
+    def fit_predict(self, x_train: pd.DataFrame, y_train: pd.Series, x_valid: pd.DataFrame,
+                    seed: int) -> np.ndarray:
+        """Fit on the training rows, predict ``x_valid``; the labels of ``x_valid`` are not known here."""
+        current = folder_hash_of(self.bundle.folder)
+        if current != self.bundle.folder_hash:
+            raise BundleRunError(
+                FOLDER_CHANGED, CODE_ERROR,
+                f"the bundle folder hash changed since it was registered ({current} != {self.bundle.folder_hash})",
+            )
+        staging = Path(tempfile.mkdtemp(prefix="bundle-run-")).resolve()
+        try:
+            return self._run(staging, x_train, y_train, x_valid, seed)
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+
+    def _run(self, staging: Path, x_train, y_train, x_valid, seed) -> np.ndarray:
+        train = x_train.reset_index(drop=True)
+        train[self.target_column] = np.asarray(y_train)
+        x = x_valid.drop(columns=[self.target_column], errors="ignore").reset_index(drop=True)
+        train.to_csv(staging / "train.csv", index=False)
+        x.to_csv(staging / "x.csv", index=False)
+        (staging / "dtypes.json").write_text(
+            json.dumps({"train": _dtypes(train), "x": _dtypes(x)}), encoding="utf-8"
+        )
+        (staging / "request.json").write_text(json.dumps({
+            "bundle_id": self.bundle.bundle_id,
+            "entry_points": self.bundle.manifest.entry_points,
+            "seed": int(seed),
+            "target_column": self.target_column,
+            "input_kind": self.input_kind,
+        }), encoding="utf-8")
+        shutil.copytree(self.bundle.folder, staging / "bundle", ignore=shutil.ignore_patterns("__pycache__"))
+        if folder_hash_of(staging / "bundle") != self.bundle.folder_hash:
+            raise BundleRunError(FOLDER_CHANGED, CODE_ERROR, "the staged copy differs from the registered folder hash")
+
+        request = SandboxRequest(
+            entry_point=CHILD_SCRIPT,
+            args=(str(staging),),
+            expected_hashes=self.baseline,
+        )
+        result = self.sandbox.run(self.policy, request)
+        if result.status != SUCCEEDED:
+            raise BundleRunError(result.status, result.failure_kind, result.reason, result)
+        try:
+            raw = json.loads((staging / "predictions.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raise BundleRunError(
+                MALFORMED_PREDICTIONS, CODE_ERROR, "malformed predictions: no readable predictions.json", result
+            ) from None
+        try:
+            return validate_predictions(raw, len(x), self.input_kind)
+        except BundleRunError as error:
+            error.result = result
+            raise

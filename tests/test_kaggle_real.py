@@ -70,8 +70,7 @@ def test_package_and_adapter_import_without_the_library(monkeypatch, tmp_path):
 
 
 def test_loading_the_api_class_does_not_authenticate(monkeypatch, clean_library_modules):
-    if importlib.util.find_spec("kaggle") is None:
-        pytest.skip("the kaggle library is not installed")
+    _needs_library()
     monkeypatch.setenv("KAGGLE_API_TOKEN", SECRET)
     cls = real.load_api_class()
     assert cls.__name__ == "KaggleApi"
@@ -196,6 +195,16 @@ def test_unconfirmed_submission_is_an_error(tmp_path):
 def _needs_library():
     if importlib.util.find_spec("kaggle") is None:
         pytest.skip("the kaggle library is not installed")
+    # the pinned package does not declare every import (for example `six`): skip, do not fail
+    saved = {k: v for k, v in sys.modules.items() if k == "kaggle" or k.startswith("kaggle.")}
+    try:
+        real.load_api_class()
+    except KaggleError:
+        pytest.skip("the kaggle library is installed but incomplete (an undeclared dependency is missing)")
+    finally:
+        for name in [k for k in sys.modules if k == "kaggle" or k.startswith("kaggle.")]:
+            del sys.modules[name]
+        sys.modules.update(saved)
 
 
 def test_placeholder_carries_the_installed_version(clean_library_modules):

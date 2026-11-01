@@ -14,6 +14,7 @@ WEB = SRC / "web"
 LLM_REAL = LLM / "real.py"
 AGENTS = SRC / "agents"
 SANDBOX = SRC / "sandbox"
+BUNDLE = SRC / "bundle"
 SANDBOX_RUNNER = SANDBOX / "subprocess_sandbox.py"
 TESTS = Path(__file__).resolve().parent
 REAL_ADAPTER = KAGGLE / "real.py"
@@ -52,6 +53,8 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
         allowed = stdlib | {"kaggle_agent", "<relative>"}
         if EVALUATION in path.parents:
             allowed |= THIRD_PARTY
+        if BUNDLE in path.parents:
+            allowed |= {"pandas", "numpy"}
         if path == REAL_ADAPTER:
             allowed |= KAGGLE_LIBRARY
         if WEB in path.parents:
@@ -62,7 +65,7 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
 
 def test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle_llm_sandbox():
     for path in _modules():
-        if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM, AGENTS, SANDBOX, WEB)):
+        if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM, AGENTS, SANDBOX, WEB, BUNDLE)):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -271,9 +274,11 @@ def test_nothing_of_tickets_6_to_16_exists():
     for package in ("loop", "review", "budget"):
         files = [p for p in (SRC / package).rglob("*.py")]
         assert [p.name for p in files] == ["__init__.py"], package
-    names = {p.stem for p in SRC.rglob("*.py")}
+    # `runner` and `bundle` modules exist only inside the bundle package (step 7)
+    names = {p.stem for p in SRC.rglob("*.py") if BUNDLE not in p.parents}
     assert not names & {"runner", "bundle", "pipeline"}
-    assert not [p for p in SRC.iterdir() if p.is_dir() and p.name in {"runner"}]
+    assert not {p.stem for p in BUNDLE.rglob("*.py")} & {"pipeline", "report", "orchestrator"}
+    assert not [p for p in SRC.iterdir() if p.is_dir() and p.name in {"runner", "pipeline"}]
 
 
 # --- web package (step 10) ---
@@ -330,3 +335,25 @@ def test_sandbox_defines_no_bundle_contract():
     text = "\n".join(p.read_text(encoding="utf-8") for p in SANDBOX.glob("*.py"))
     for word in ("def fit", "def predict", "class Bundle", "class Runner"):
         assert word not in text, word
+
+
+# --- bundle package (step 7) ---
+
+
+def test_bundle_imports_only_stdlib_pandas_numpy_and_allowed_packages():
+    stdlib = set(sys.stdlib_module_names)
+    allowed_packages = {"bundle", "sandbox", "registry", "evaluation", "proposals"}
+    forbidden = {"llm", "kaggle", "web", "agents", "loop", "review", "budget"}
+    assert list(BUNDLE.glob("*.py"))
+    for path in sorted(BUNDLE.glob("*.py")):
+        for top, full in _imports(path):
+            parts = full.lstrip(".").split(".")
+            assert top in stdlib | {"pandas", "numpy", "kaggle_agent", "<relative>"}, f"{path}: {full}"
+            assert top not in NETWORK_MODULES | KAGGLE_LIBRARY | {"sklearn", "flask"}, f"{path}: {full}"
+            assert "credentials" not in parts, f"{path}: {full}"
+            if top == "kaggle_agent":
+                assert len(parts) == 1 or parts[1] in allowed_packages, f"{path}: {full}"
+            if top == "<relative>":
+                assert parts[0] not in forbidden, f"{path}: {full}"
+            if path.name == "child.py":
+                assert top in stdlib | {"pandas", "numpy"}, f"{path}: {full}"

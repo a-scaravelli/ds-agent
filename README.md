@@ -6,7 +6,7 @@ Convention: the entire repository is in English (code, documentation, comments, 
 
 ## Current status
 
-Design plus the first pieces of code: the design document is in [docs/design.md](docs/design.md), the `proposals` subpackage of `kaggle_agent` holds the data model of plan, attempt and suggestion (ticket 1 of section 15 of the design) the `registry` subpackage holds the attempt registry with traceability (ticket 2), the `evaluation` subpackage the frozen evaluation engine (ticket 3) the `kaggle` subpackage the Kaggle client with its fake (ticket 4) and the `llm` subpackage the headless Claude adapter with its fake (ticket 5); the `sandbox` subpackage holds the light sandbox (ticket 6, level 1); the `web` subpackage holds the read-only web interface (step 10 of the design); the `agents` subpackage holds the five role agents as typed prompts (step 8 of the design). The other subpackages are still empty. There is no modeling logic yet.
+Design plus the first pieces of code: the design document is in [docs/design.md](docs/design.md), the `proposals` subpackage of `kaggle_agent` holds the data model of plan, attempt and suggestion (ticket 1 of section 15 of the design) the `registry` subpackage holds the attempt registry with traceability (ticket 2), the `evaluation` subpackage the frozen evaluation engine (ticket 3) the `kaggle` subpackage the Kaggle client with its fake (ticket 4) and the `llm` subpackage the headless Claude adapter with its fake (ticket 5); the `sandbox` subpackage holds the light sandbox (ticket 6, level 1); the `web` subpackage holds the read-only web interface (step 10 of the design); the `agents` subpackage holds the five role agents as typed prompts (step 8 of the design); the `bundle` subpackage holds the bundle contract and runner (step 7 of the design). The other subpackages are still empty. There is no modeling logic yet.
 
 ## Stack
 
@@ -254,7 +254,7 @@ Views: the list of cycles (`/`); a cycle with its rounds, their candidates and t
 
 ## Light sandbox (`kaggle_agent.sandbox`)
 
-Level 1 of the design (step 6): run generated code in a child process with a timeout, a minimal environment and a SHA-256 hash of the protected files. There are no containers. `Sandbox` is the small interface (one method, `run(policy, request)`) that a container implementation can replace at level 3; `SubprocessSandbox` is the standard-library implementation (POSIX only). The bundle contract and runner (step 7) are not built.
+Level 1 of the design (step 6): run generated code in a child process with a timeout, a minimal environment and a SHA-256 hash of the protected files. There are no containers. `Sandbox` is the small interface (one method, `run(policy, request)`) that a container implementation can replace at level 3; `SubprocessSandbox` is the standard-library implementation (POSIX only). The bundle contract and runner (step 7) are in `kaggle_agent.bundle`.
 
 ```python
 from pathlib import Path
@@ -302,6 +302,53 @@ What the light sandbox does **not** guarantee:
 - a process that calls `setsid` escapes the group kill;
 - on a Mac without containers the isolation is partial; real isolation needs level 3;
 - diff parsing reads the paths declared in headers only.
+
+## Bundle contract and runner (`kaggle_agent.bundle`)
+
+Step 7 of the design, level 1. A bundle is a folder with the code, the declared dependencies and two entry points, `fit(train)` and `predict(bundle_id, X)`. `BundleRunner` is fixed code that runs it in a child process through `kaggle_agent.sandbox` (the only way a process is started) with the policy timeout, and implements the `Candidate` interface of the evaluation engine, so the frozen engine scores a bundle without changes. The bundle never reports a score: the parent computes every metric from the validated predictions.
+
+Layout of a bundle folder:
+
+```
+my_bundle/
+    bundle.json   {"bundle_id": "B1", "dependencies": ["pandas"],
+                   "entry_points": {"fit": "model:fit", "predict": "model:predict"}}
+    model.py      def fit(train): ...   def predict(bundle_id, X): ...
+```
+
+`fit(train)` gets a DataFrame with the features and the target column (training rows only) and returns nothing; `predict(bundle_id, X)` gets a DataFrame without the target column and returns one prediction per row. Fit and predict run in the same child process, so the model lives in memory. `load_bundle(folder)` rejects a folder with a missing or invalid manifest, without `fit` or `predict` (checked with `ast`, the code is not imported), with a path or link that escapes the folder, or with a static import of a third-party library that `dependencies` does not declare (a heuristic: dynamic imports are not seen; declared dependencies are not installed, that is level 2). The folder hash reuses the sandbox hashing helper.
+
+```python
+from pathlib import Path
+from kaggle_agent.bundle import BundleRunner, load_bundle, score_bundle
+from kaggle_agent.sandbox import SandboxPolicy, SubprocessSandbox
+
+loaded = load_bundle(Path("my_bundle"))
+runner = BundleRunner(
+    SubprocessSandbox(), SandboxPolicy(timeout_seconds=120), loaded,
+    target_column="y", input_kind="labels",  # the prediction kind of the metric
+)
+outcome = score_bundle(engine, runner, frame, attempt_id="A1", execution_id="E1",
+                       config={}, data_hash="...")  # engine: a frozen EvaluationEngine
+print(outcome.execution.outcome, outcome.execution.failure_kind)
+```
+
+Data passing. Per call the runner stages a temporary folder with `train.csv` (features and target of the training rows), `x.csv` (features of the rows to predict, no target column), the dtypes and a copy of the bundle, then removes it. Validation and holdout labels stay with the engine: they are never staged, never in the environment, and the tests prove it for the staging folder, the working directory, the environment and the captured output on both paths. Because the child starts with `python -I`, which ignores `PYTHONPATH`, the child script (`bundle/child.py`) adds the staged copy of the bundle to `sys.path` itself. Predictions come back as JSON, never pickle.
+
+Validation before scoring: one dimension, one value per row, no null; finite numbers for `values`, `scores` and `probabilities` (within [0, 1] for the last); scalar labels of one kind for `labels`. Anything else is `malformed_predictions`.
+
+Failures become a failed `ExecutionRecord` (`score_bundle` catches only `BundleRunError`; a protocol hash problem still propagates):
+
+| Cause | `resources.sandbox_status` | `failure_kind` | Retry as code fix |
+| --- | --- | --- | --- |
+| time limit | `timed_out` | `timeout` | no |
+| exception, non-zero exit | `crashed` | `code_error` | yes |
+| wrong length, NaN, null, 2-D, wrong type | `malformed_predictions` | `code_error` | yes |
+| protected file changed (before or during the run) | `protected_modified` | `code_error` | never retried |
+| diff touching protected files | `diff_rejected` | `code_error` | never retried |
+| bundle folder changed since registration | `folder_changed` | `code_error` | never retried |
+
+`protected_modified` and `diff_rejected` are integrity failures: they map to `code_error` only because no new kind exists, and are never retried as code fixes (`resources.retryable` is False). The runner protects its own package and the evaluation package (named `kaggle_agent/bundle` and `kaggle_agent/evaluation`) next to the caller's protected paths, and takes the hashes when it is built: it passes them as `expected_hashes` on every run, so a protected file edited after that blocks the run before the child starts. A caller path with the same name and the same location is kept once; the same name with another location raises `BundleError`. `register_bundle` stores the `BundleRecord` (id, folder hash, reference, schema) and `attempt_with_bundle` sets `Attempt.bundle_id` (the bundle must be stored before the attempt). Nothing of the round pipeline (step 9) is built. The evaluation package is unchanged, so its code hash is unchanged.
 
 ## Role agents (`kaggle_agent.agents`)
 
@@ -368,7 +415,7 @@ The tests do not use the network.
 ## Structure
 
 - `docs/design.md`: design in 16 sections (cycle, frozen evaluation, registry, Kaggle, ticket plan).
-- `src/kaggle_agent/`: package with the subpackages `proposals` (data model), `registry` (attempt registry), `evaluation` (protocol, split, holdout, threshold), `loop`, `kaggle`, `llm`, `agents`, `sandbox`, `review`, `budget`, `web`; `evaluation` holds the evaluation engine, `kaggle` the Kaggle client (interface, fake, credentials, submission rules, recording, real adapter) and `llm` the Claude adapter (interface, fake, structured output, environment, recording, real adapter); `agents` holds the five roles; `sandbox` holds the light sandbox (interface, subprocess implementation, protected files, environment); `loop`, `review` and `budget` are still empty; `web` holds the read-only web interface.
+- `src/kaggle_agent/`: package with the subpackages `proposals` (data model), `registry` (attempt registry), `evaluation` (protocol, split, holdout, threshold), `loop`, `kaggle`, `llm`, `agents`, `sandbox`, `bundle`, `review`, `budget`, `web`; `evaluation` holds the evaluation engine, `kaggle` the Kaggle client (interface, fake, credentials, submission rules, recording, real adapter) and `llm` the Claude adapter (interface, fake, structured output, environment, recording, real adapter); `agents` holds the five roles; `sandbox` holds the light sandbox (interface, subprocess implementation, protected files, environment); `bundle` holds the bundle contract, the loader, the fixed-code runner and the scoring helpers; `loop`, `review` and `budget` are still empty; `web` holds the read-only web interface.
 - `tests/`: check the 16 sections of the design, the data model and its examples, the language convention, the test map, that the package imports, and the registry behavior (deduplication, fix retries, queries, persistence), the evaluation engine (protocol, schemes, split, holdout session, threshold, hash), the Kaggle client on the fake and on a stub of the library, the Claude adapter on the fake and on a fake process runner, and that third-party libraries are imported only by `evaluation` and by `kaggle/real.py`.
 
 Result of a manual run on macOS (Claude Code with the subscription, Python 3.14; the CLI version on that machine was not recorded): a fake `ANTHROPIC_API_KEY` was removed with a WARNING that names only the variable; the call used the subscription; the success envelope was read correctly (model `claude-sonnet-4-6`, usage reported); the result was a valid `ShortPlan`. So the format of the success envelope assumed in the design is confirmed. The first answer, however, was rejected (`invalid_output`, 7113 input and 545 output tokens) and only the retry succeeded (`ok`, 7139 and 271): about 7k input tokens per call, so a first-try failure doubles the cost. This motivated the rich contract and `rejection_reason` above; the benefit is not yet measured.
@@ -389,3 +436,4 @@ Result of a manual run on macOS (Claude Code with the subscription, Python 3.14;
 - The web interface has no pagination and finds the metric partitions with one registry read per attempt: fine for tens of candidates, not for thousands. It has no login, so do not expose it on a network.
 - The guard on third-party dependencies is relaxed one package at a time: `evaluation` may import pandas, numpy and scikit-learn, and only `kaggle/real.py` may import the official `kaggle` package.
 - The Claude adapter was designed against the CLI help and an error envelope only (the CLI was not logged in when it was written). The envelope of a successful call and the reported model are now verified by a manual run (`claude-sonnet-4-6`). The reporting of rate limit and quota and the effect of `CLAUDE_CODE_OAUTH_TOKEN` (it is unclear whether the run used the token or the login) are *not verified*; the tests use canned envelopes built from those assumptions, so only a manual run can confirm them. The contract may still not prevent every first-try rejection: `rejection_reason` tells which constraint is missing. Session resume is documented but not used (the validation retry is stateless). The backoff defaults are provisional until the budget ticket, and the WARNING for a stripped variable appears at every call. Tool isolation relies on CLI flags and the working directory until the sandbox exists.
+- The bundle child needs pandas (and numpy) to be importable by `sys.executable` without the user site and without `PYTHONPATH`, because the child runs with `python -I`: a virtual environment or a system install works, a user-site install does not. Data crosses the process boundary as CSV, so exotic dtypes (categoricals, datetimes, mixed types) and the row index can be lost; predictions are matched by position and must be one-dimensional (no multiclass probability matrices yet). One child process runs fit and predict of one partition, with a single timeout and no model saved on disk. Isolation is the partial isolation of the light sandbox; the undeclared-import check is a static heuristic. The hashes taken when the runner is built are the baseline, so a protected file edited legitimately afterwards blocks every later run until a new runner is built.
