@@ -5,7 +5,7 @@ candidates per round C, the rounds without real improvement K, the rounds in a
 row without a pause for guidance M, the fix retries per attempt, the cap on
 consecutive failed attempts and the cap on consecutive rejected proposals per
 candidate. The defaults are provisional and configurable. Time, submission and
-subscription limits arrive at level 2. This package is pure: standard library
+subscription limits arrive at level 2. N, K and the fix cap live in the dedicated ``Cycle`` fields; the other values are stored once in ``Cycle.parameters``. Stop reasons, in priority order: ``target_reached``, ``consecutive_failures``, ``max_rounds``, ``stagnation``. This package is pure: standard library
 and ``proposals`` only.
 """
 
