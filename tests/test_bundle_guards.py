@@ -57,8 +57,9 @@ def test_dependencies_unchanged_and_nothing_of_later_steps_exists():
     text = "\n".join(p.read_text(encoding="utf-8") for p in sources()).lower()
     for word in ("virtualenv", "venv", "docker", "pip install", "immutable"):
         assert word not in text.replace("(immutable bundles, virtual environments, containers)", ""), word
-    for package in ("loop", "review", "budget"):
-        assert [p.name for p in (SRC / package).rglob("*.py")] == ["__init__.py"]
+    for package in ("loop", "review", "budget"):  # filled by step 9, each with a documented package
+        init = SRC / package / "__init__.py"
+        assert init.is_file() and ast.get_docstring(ast.parse(init.read_text(encoding="utf-8")))
 
 
 def test_readme_documents_the_bundle_contract_and_known_limits():

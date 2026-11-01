@@ -218,6 +218,7 @@ class SqliteRegistry(Registry):
         # nullable columns without REFERENCES: the code checks the references
         for table, column in (
             ("cycles", "project_id"),
+            ("cycles", "parameters"),
             ("attempts", "round_id"),
             ("llm_calls", "role"),
         ):
@@ -254,7 +255,7 @@ class SqliteRegistry(Registry):
     def _require_cycle_row(self, cycle_id: str):
         row = self._one(
             "SELECT id, plan, iterations, stagnation_k, max_fix_retries, state, "
-            "protocol_hash, project_id FROM cycles WHERE id = ?",
+            "protocol_hash, project_id, parameters FROM cycles WHERE id = ?",
             (cycle_id,),
         )
         if row is None:
@@ -272,6 +273,7 @@ class SqliteRegistry(Registry):
             state=row[5],
             protocol_hash=row[6],
             project_id=row[7],
+            parameters=None if row[8] is None else json.loads(row[8]),
         )
 
     def _require_attempt_row(self, attempt_id: str):
@@ -313,7 +315,7 @@ class SqliteRegistry(Registry):
                 raise RegistryError(f"cycle {cycle.id!r} already exists")
             self._db.execute(
                 "INSERT INTO cycles (id, plan, iterations, stagnation_k, max_fix_retries, "
-                "state, protocol_hash, project_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "state, protocol_hash, project_id, parameters) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     cycle.id,
                     cycle.plan.to_json(),
@@ -323,6 +325,9 @@ class SqliteRegistry(Registry):
                     cycle.state,
                     cycle.protocol_hash,
                     cycle.project_id,
+                    None
+                    if cycle.parameters is None
+                    else json.dumps(cycle.parameters, sort_keys=True),
                 ),
             )
 
@@ -332,7 +337,7 @@ class SqliteRegistry(Registry):
     def list_cycles(self) -> list[Cycle]:
         rows = self._db.execute(
             "SELECT id, plan, iterations, stagnation_k, max_fix_retries, state, "
-            "protocol_hash, project_id FROM cycles ORDER BY rowid"
+            "protocol_hash, project_id, parameters FROM cycles ORDER BY rowid"
         ).fetchall()
         return [self._cycle(r) for r in rows]
 
@@ -351,6 +356,21 @@ class SqliteRegistry(Registry):
             self._db.execute(
                 "UPDATE cycles SET protocol_hash = ? WHERE id = ?", (protocol_hash, cycle_id)
             )
+
+    def set_cycle_parameters(self, cycle_id: str, parameters: dict) -> None:
+        if not isinstance(parameters, dict):
+            raise ValidationError("parameters", "must be an object")
+        try:
+            text = json.dumps(parameters, sort_keys=True, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("parameters", f"must be JSON-compatible: {exc}") from exc
+        with self._transaction():
+            current = self._require_cycle_row(cycle_id)[8]
+            if current is not None:
+                if json.loads(current) == json.loads(text):
+                    return
+                raise RegistryError(f"cycle {cycle_id!r} already has different parameters")
+            self._db.execute("UPDATE cycles SET parameters = ? WHERE id = ?", (text, cycle_id))
 
     # -- attempts ----------------------------------------------------------
 
@@ -443,7 +463,15 @@ class SqliteRegistry(Registry):
             if last is None:
                 raise RegistryError(f"attempt {attempt_id!r} has no executions")
             cap = self._require_cycle_row(attempt[1])[4]
-            if (last[1], last[2]) == ("failed", "code_error") and last[0] < 1 + cap:
+            retryable = True
+            if (last[1], last[2]) == ("failed", "code_error"):
+                last_record = self._one(
+                    "SELECT record FROM executions WHERE attempt_id = ? AND sequence = ?",
+                    (attempt_id, last[0]),
+                )
+                resources = ExecutionRecord.from_json(last_record[0]).resources or {}
+                retryable = resources.get("retryable") is not False
+            if (last[1], last[2]) == ("failed", "code_error") and last[0] < 1 + cap and retryable:
                 raise RegistryError(
                     "code_error is final only after the fix-retry cap: "
                     f"{last[0]} of {1 + cap} executions used"

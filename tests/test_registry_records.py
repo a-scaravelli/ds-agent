@@ -235,3 +235,13 @@ def test_llm_call_entry_role_nullable_and_validated():
     with pytest.raises(ValidationError) as exc:
         LlmCallEntry(**base, role="planner")
     assert exc.value.field == "role"
+
+
+def test_cycle_parameters_are_optional_json_and_round_trip():
+    assert make_cycle("C1").parameters is None
+    cycle = make_cycle("C1", parameters={"candidates": 2})
+    assert type(cycle).from_dict(cycle.to_dict()) == cycle
+    assert type(cycle).from_json(cycle.to_json()).parameters == {"candidates": 2}
+    for bad in ([1], "x", {"x": float("nan")}, {"x": object()}):
+        with pytest.raises(ValidationError, match="parameters"):
+            make_cycle("C1", parameters=bad)

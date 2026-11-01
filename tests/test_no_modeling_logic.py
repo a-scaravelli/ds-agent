@@ -15,6 +15,9 @@ LLM_REAL = LLM / "real.py"
 AGENTS = SRC / "agents"
 SANDBOX = SRC / "sandbox"
 BUNDLE = SRC / "bundle"
+LOOP = SRC / "loop"
+BUDGET = SRC / "budget"
+REVIEW = SRC / "review"
 SANDBOX_RUNNER = SANDBOX / "subprocess_sandbox.py"
 TESTS = Path(__file__).resolve().parent
 REAL_ADAPTER = KAGGLE / "real.py"
@@ -65,7 +68,8 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
 
 def test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle_llm_sandbox():
     for path in _modules():
-        if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM, AGENTS, SANDBOX, WEB, BUNDLE)):
+        if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM, AGENTS, SANDBOX, WEB, BUNDLE,
+                                       LOOP, BUDGET, REVIEW)):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -270,14 +274,18 @@ def test_evaluation_imports_neither_tests_nor_llm_and_no_unpinned_library_anywhe
             assert "llm" not in full.lstrip(".").split("."), f"{path}: {full}"
 
 
-def test_nothing_of_tickets_6_to_16_exists():
+def test_nothing_of_tickets_10_to_16_exists():
+    # `loop`, `budget` and `review` are filled by step 9; the later steps are still absent
     for package in ("loop", "review", "budget"):
-        files = [p for p in (SRC / package).rglob("*.py")]
-        assert [p.name for p in files] == ["__init__.py"], package
-    # `runner` and `bundle` modules exist only inside the bundle package (step 7)
+        assert (SRC / package / "__init__.py").is_file()
+    # `runner`, `bundle` and `pipeline` modules exist only inside the bundle package (step 7)
     names = {p.stem for p in SRC.rglob("*.py") if BUNDLE not in p.parents}
     assert not names & {"runner", "bundle", "pipeline"}
     assert not {p.stem for p in BUNDLE.rglob("*.py")} & {"pipeline", "report", "orchestrator"}
+    # step 11 (report, holdout, export) and step 12 (orchestrator) are not in the loop
+    later = {p.stem for p in LOOP.rglob("*.py")} | {p.stem for p in BUDGET.rglob("*.py")}
+    later |= {p.stem for p in REVIEW.rglob("*.py")}
+    assert not later & {"report", "orchestrator", "holdout", "pipeline", "runner", "bundle"}
     assert not [p for p in SRC.iterdir() if p.is_dir() and p.name in {"runner", "pipeline"}]
 
 
