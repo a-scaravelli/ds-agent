@@ -245,3 +245,47 @@ def test_cycle_parameters_are_optional_json_and_round_trip():
     for bad in ([1], "x", {"x": float("nan")}, {"x": object()}):
         with pytest.raises(ValidationError, match="parameters"):
             make_cycle("C1", parameters=bad)
+
+
+# -- holdout outcome and report records (ticket 20, case 30) ------------------------------------
+
+from kaggle_agent.registry import HoldoutOutcome, ReportRecord  # noqa: E402
+
+STAMP = "2026-10-30T10:00:00+00:00"
+
+
+def _outcome(**kwargs):
+    data = {"cycle_id": "C1", "metric": "accuracy", "status": "succeeded", "recorded_at": STAMP,
+            "attempt_id": "A1", "bundle_id": "B1", "score": 0.9, "rows": 20, **kwargs}
+    return HoldoutOutcome(**data)
+
+
+def test_holdout_outcome_validation_and_round_trip():
+    ok = _outcome()
+    assert HoldoutOutcome.from_json(ok.to_json()) == ok
+    failed = _outcome(status="failed", score=None, rows=None, failure_kind="code_error", reason="boom")
+    assert HoldoutOutcome.from_dict(failed.to_dict()) == failed
+    skipped = _outcome(status="skipped", attempt_id=None, bundle_id=None, score=None, rows=None,
+                       reason="no usable attempt")
+    assert skipped.attempt_id is None
+    for bad in ({"status": "failed", "score": None, "rows": None, "reason": None},
+                {"status": "failed", "score": None, "rows": None, "reason": "  "},
+                {"status": "skipped", "score": None, "rows": None},
+                {"status": "weird"}, {"score": None}, {"score": float("nan")},
+                {"failure_kind": "code_error"}, {"status": "failed", "reason": "x"}):
+        with pytest.raises(ValidationError):
+            _outcome(**bad)
+    with pytest.raises(ValidationError):
+        HoldoutOutcome.from_dict({**ok.to_dict(), "extra": 1})
+    with pytest.raises(ValidationError):
+        HoldoutOutcome.from_json("[1]")
+
+
+def test_report_record_validation_and_round_trip():
+    record = ReportRecord("C1", STAMP, {"a": [1, 2], "b": {"c": "d"}})
+    assert ReportRecord.from_json(record.to_json()) == record
+    for bad in ({"content": [1]}, {"content": {"x": float("nan")}}, {"cycle_id": ""}):
+        with pytest.raises(ValidationError):
+            ReportRecord(**{"cycle_id": "C1", "created_at": STAMP, "content": {}, **bad})
+    with pytest.raises(ValidationError):
+        ReportRecord.from_dict({"cycle_id": "C1", "created_at": STAMP, "content": {}, "x": 1})

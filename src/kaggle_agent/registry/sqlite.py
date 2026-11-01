@@ -1,5 +1,6 @@
 """SQLite implementation of the registry, standard library only (design section 7)."""
 
+import dataclasses
 import json
 import sqlite3
 from contextlib import contextmanager
@@ -34,9 +35,11 @@ from .records import (
     ComparisonRecord,
     Cycle,
     ExecutionRecord,
+    HoldoutOutcome,
     HoldoutRead,
     HoldoutSession,
     LlmCallEntry,
+    ReportRecord,
     RoleTrace,
     SubmissionEntry,
     _finite,
@@ -152,6 +155,14 @@ CREATE TABLE IF NOT EXISTS lead_guidance (
     round_id TEXT NOT NULL REFERENCES rounds(id),
     text TEXT NOT NULL,
     created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS holdout_outcomes (
+    cycle_id TEXT PRIMARY KEY REFERENCES cycles(id),
+    record TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS final_reports (
+    cycle_id TEXT PRIMARY KEY REFERENCES cycles(id),
+    record TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS role_traces (
     cycle_id TEXT NOT NULL REFERENCES cycles(id),
@@ -448,6 +459,27 @@ class SqliteRegistry(Registry):
                 ),
             )
             return sequence
+
+    def add_execution_artifact(self, attempt_id: str, artifact: str) -> None:
+        if not isinstance(artifact, str) or not artifact.strip():
+            raise RegistryError("an artifact must be a non-empty string")
+        with self._transaction():
+            self._require_attempt_row(attempt_id)
+            last = self._one(
+                "SELECT sequence, record FROM executions WHERE attempt_id = ? "
+                "ORDER BY sequence DESC LIMIT 1",
+                (attempt_id,),
+            )
+            if last is None:
+                raise RegistryError(f"attempt {attempt_id!r} has no executions")
+            record = ExecutionRecord.from_json(last[1])
+            if artifact in record.artifacts:
+                return
+            updated = dataclasses.replace(record, artifacts=(*record.artifacts, artifact))
+            self._db.execute(
+                "UPDATE executions SET record = ? WHERE attempt_id = ? AND sequence = ?",
+                (updated.to_json(), attempt_id, last[0]),
+            )
 
     def close_attempt(self, attempt_id: str, conclusion: str) -> None:
         require_text("conclusion", conclusion)
@@ -954,6 +986,42 @@ class SqliteRegistry(Registry):
             (cycle_id,),
         ).fetchall()
         return [self._bundle(r) for r in rows]
+
+    # -- holdout outcome and final report ----------------------------------------
+
+    def _write_once(self, table: str, cycle_id: str, text: str, what: str) -> None:
+        with self._transaction():
+            self._require_cycle_row(cycle_id)
+            row = self._one(f"SELECT record FROM {table} WHERE cycle_id = ?", (cycle_id,))
+            if row is not None:
+                if json.loads(row[0]) == json.loads(text):
+                    return
+                raise RegistryError(f"cycle {cycle_id!r} already has a different {what}")
+            self._db.execute(f"INSERT INTO {table} (cycle_id, record) VALUES (?, ?)", (cycle_id, text))
+
+    def _read_record(self, table: str, cycle_id: str) -> str | None:
+        self._require_cycle_row(cycle_id)
+        try:
+            row = self._one(f"SELECT record FROM {table} WHERE cycle_id = ?", (cycle_id,))
+        except sqlite3.OperationalError:
+            if self._read_only:  # a file written before this table existed, never migrated here
+                return None
+            raise
+        return row[0] if row else None
+
+    def add_holdout_outcome(self, outcome: HoldoutOutcome) -> None:
+        self._write_once("holdout_outcomes", outcome.cycle_id, outcome.to_json(), "holdout outcome")
+
+    def get_holdout_outcome(self, cycle_id: str) -> HoldoutOutcome | None:
+        text = self._read_record("holdout_outcomes", cycle_id)
+        return HoldoutOutcome.from_json(text) if text else None
+
+    def add_final_report(self, report: ReportRecord) -> None:
+        self._write_once("final_reports", report.cycle_id, report.to_json(), "final report")
+
+    def get_final_report(self, cycle_id: str) -> ReportRecord | None:
+        text = self._read_record("final_reports", cycle_id)
+        return ReportRecord.from_json(text) if text else None
 
     # -- reviewer reports, guidance and role traces ------------------------------
 

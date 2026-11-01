@@ -1,5 +1,6 @@
 """SQLite registry: traceability, deduplication, fix retries, queries (no network)."""
 
+import dataclasses
 import inspect
 
 import pytest
@@ -1116,3 +1117,110 @@ def test_cycle_parameters_round_trip_migration_and_write_once(tmp_path):
         assert registry.list_cycles()[0] == expected
         assert registry.get_cycle("C2").parameters == {"x": 1}
         assert registry.get_cycle("C1").protocol_hash == "h1"
+
+
+# -- holdout outcome, final report and execution artifacts (ticket 20, cases 23 and 30) ------------
+
+from kaggle_agent.registry import HoldoutOutcome, NotFoundError, ReportRecord  # noqa: E402
+
+
+def _holdout(**kwargs):
+    data = {"cycle_id": "C1", "metric": "accuracy", "status": "succeeded", "recorded_at": T0,
+            "attempt_id": "A1", "score": 0.9, "rows": 20, **kwargs}
+    return HoldoutOutcome(**data)
+
+
+def test_add_execution_artifact_appends_to_the_last_execution_only(reg):
+    new_attempt(reg, "A1")
+    reg.add_execution(crash("A1", 1))
+    reg.add_execution(make_execution("A1", "A1-ok"))
+    reg.close_attempt("A1", "done")
+    new_attempt(reg, "A2")
+    reg.add_execution(make_execution("A2"))
+    before = reg.get_attempt("A1")
+    reg.add_execution_artifact("A1", "pipeline:/some/dir")
+    after = reg.get_attempt("A1")
+    assert after.executions[-1].artifacts == ("pipeline:/some/dir",)
+    assert after.executions[0] == before.executions[0]
+    assert dataclasses.replace(after.executions[-1], artifacts=()) == before.executions[-1]
+    assert (after.closed, after.conclusion, after.outcome) == (before.closed, before.conclusion, before.outcome)
+    assert reg.get_attempt("A2").executions[-1].artifacts == ()
+    reg.add_execution_artifact("A1", "pipeline:/some/dir")  # duplicate: no-op
+    reg.add_execution_artifact("A1", "second")
+    assert reg.get_attempt("A1").executions[-1].artifacts == ("pipeline:/some/dir", "second")
+    # on an open attempt too
+    reg.add_execution_artifact("A2", "x")
+    assert reg.get_attempt("A2").executions[-1].artifacts == ("x",)
+
+
+def test_add_execution_artifact_refusals(reg, tmp_path):
+    new_attempt(reg, "A1")
+    new_attempt(reg, "A2")
+    reg.add_execution(make_execution("A2"))
+    with pytest.raises(RegistryError):
+        reg.add_execution_artifact("A1", "x")  # no execution
+    for empty in ("", "   "):
+        with pytest.raises(RegistryError):
+            reg.add_execution_artifact("A2", empty)
+    with pytest.raises(NotFoundError):
+        reg.add_execution_artifact("nope", "x")
+    assert reg.get_attempt("A2").executions[-1].artifacts == ()
+    path = tmp_path / "r.db"
+    with SqliteRegistry(path) as writable:
+        writable.add_cycle(make_cycle("C1"))
+        new_attempt(writable, "A1")
+        writable.add_execution(make_execution("A1"))
+    with SqliteRegistry(path, read_only=True) as ro:
+        with pytest.raises(RegistryError):
+            ro.add_execution_artifact("A1", "x")
+        assert ro.get_attempt("A1").executions[-1].artifacts == ()
+
+
+def test_holdout_outcome_and_report_persist_and_are_written_once(tmp_path):
+    path = tmp_path / "r.db"
+    report = ReportRecord("C1", T0, {"k": 1})
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("C1"))
+        assert r.get_holdout_outcome("C1") is None and r.get_final_report("C1") is None
+        r.add_holdout_outcome(_holdout())
+        r.add_holdout_outcome(_holdout())  # same value: no-op
+        with pytest.raises(RegistryError):
+            r.add_holdout_outcome(_holdout(score=0.5))
+        r.add_final_report(report)
+        r.add_final_report(report)
+        with pytest.raises(RegistryError):
+            r.add_final_report(ReportRecord("C1", T0, {"k": 2}))
+        with pytest.raises(NotFoundError):
+            r.add_holdout_outcome(_holdout(cycle_id="nope"))
+        with pytest.raises(NotFoundError):
+            r.get_final_report("nope")
+    with SqliteRegistry(path) as r:
+        assert r.get_holdout_outcome("C1") == _holdout()
+        assert r.get_final_report("C1") == report
+        failed = HoldoutOutcome("C1", "accuracy", "failed", T0, reason="boom", failure_kind="code_error")
+        with pytest.raises(RegistryError):
+            r.add_holdout_outcome(failed)
+    with SqliteRegistry(path, read_only=True) as ro:
+        assert ro.get_final_report("C1") == report
+        with pytest.raises(RegistryError):
+            ro.add_holdout_outcome(_holdout())
+        with pytest.raises(RegistryError):
+            ro.add_final_report(report)
+
+
+def test_old_files_gain_the_holdout_outcome_and_report_tables(tmp_path):
+    path = tmp_path / "old.db"
+    with SqliteRegistry(path) as r:
+        r.add_cycle(make_cycle("OLD"))
+    db = sqlite3.connect(path)
+    db.execute("DROP TABLE holdout_outcomes")
+    db.execute("DROP TABLE final_reports")
+    db.commit()
+    db.close()
+    assert not {"holdout_outcomes", "final_reports"} & _tables(path)
+    with SqliteRegistry(path, read_only=True) as ro:  # an unmigrated file reads as 'none yet'
+        assert ro.get_holdout_outcome("OLD") is None and ro.get_final_report("OLD") is None
+    with SqliteRegistry(path) as r:
+        assert r.get_holdout_outcome("OLD") is None
+        r.add_holdout_outcome(_holdout(cycle_id="OLD"))
+    assert {"holdout_outcomes", "final_reports"} <= _tables(path)
