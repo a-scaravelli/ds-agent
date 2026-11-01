@@ -200,3 +200,44 @@ def protected_writer_bundle(root, target: str, chmod_first=False) -> Path:
         return [0] * len(X)
         """,
     ))
+
+
+MEAN_MODEL = model(
+    """
+    import json, os
+    with open(os.path.join(os.environ["BUNDLE_MODEL_DIR"], "params.json")) as handle:
+        value = json.load(handle)["value"]
+    return [value] * len(X)
+    """,
+    """
+    import json, os
+    with open(os.path.join(os.environ["BUNDLE_MODEL_DIR"], "params.json"), "w") as handle:
+        json.dump({"value": float(train["y"].mean()), "pid": os.getpid()}, handle)
+    """,
+)
+
+
+def mean_bundle(root, **kwargs) -> Path:
+    """A bundle whose fit saves the training mean (and the pid of the fit process) under BUNDLE_MODEL_DIR."""
+    return write_bundle(root, MEAN_MODEL, **kwargs)
+
+
+PRIORS_MODEL = model(
+    """
+    import json, os
+    with open(os.path.join(os.environ["BUNDLE_MODEL_DIR"], "priors.json")) as handle:
+        priors = json.load(handle)
+    return [priors] * len(X)
+    """,
+    """
+    import json, os
+    shares = train["y"].value_counts(normalize=True).sort_index()
+    with open(os.path.join(os.environ["BUNDLE_MODEL_DIR"], "priors.json"), "w") as handle:
+        json.dump([float(v) for v in shares], handle)
+    """,
+)
+
+
+def priors_bundle(root) -> Path:
+    """A multiclass bundle: every row gets the class shares of the training rows."""
+    return write_bundle(root, PRIORS_MODEL)
