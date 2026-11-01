@@ -21,17 +21,24 @@ Entry points are ``dotted.module:function`` names relative to the bundle folder.
 The two functions:
 
 - ``fit(train)``: ``train`` is a ``pandas.DataFrame`` with the features and the target
-  column, rows of the training partition only. The return value is ignored; the model
-  lives in memory, because fit and predict run in the same child process.
+  column, rows of the training partition only. The return value is ignored. The trained
+  model is saved under the directory named by the environment variable ``BUNDLE_MODEL_DIR``
+  (any file format of the bundle's choice): ``fit`` and ``predict`` run in different
+  processes, so nothing kept in memory survives between them.
 - ``predict(bundle_id, X)``: ``X`` is a ``pandas.DataFrame`` with the same feature
-  columns and no target column. It returns a one-dimensional sequence with one
-  prediction per row, in order: numbers for ``values``, ``scores`` and
-  ``probabilities`` (the latter within [0, 1]), any scalar label for ``labels``.
+  columns and no target column. It loads the model from ``BUNDLE_MODEL_DIR`` and returns
+  one prediction per row, in order: numbers for ``values``, ``scores`` and ``probabilities``
+  (the latter within [0, 1]), any scalar label for ``labels``. For ``probabilities`` and
+  ``scores`` it may also return a matrix (a list of rows, or a 2-D array or DataFrame) with
+  one row per input row, the same width of at least 2 in every row, and for
+  ``probabilities`` each row summing to 1 (multiclass).
 
 The child seeds ``random`` and ``numpy.random`` with the seed derived by the evaluation
-engine. A bundle never reports its own score: the parent computes every metric.
-Declared dependencies are checked against the imports of the code but are not installed
-(level 2).
+engine in both processes. A bundle never reports its own score: the parent computes every
+metric. Predictions cross the process boundary as JSON only, never pickle; a bundle may use
+any format, pickle included, for its own files under ``BUNDLE_MODEL_DIR``, because only the
+bundle code in the child reads them. Declared dependencies are checked against the imports
+of the code but are not installed (level 2).
 """
 
 import re
@@ -47,6 +54,8 @@ ENTRY_POINT_NAMES = ("fit", "predict")
 # Statuses the runner adds to the sandbox ones (see ``BundleRunError``).
 MALFORMED_PREDICTIONS = "malformed_predictions"
 FOLDER_CHANGED = "folder_changed"
+MODEL_DIR_ENV = "BUNDLE_MODEL_DIR"
+MODEL_FOLDER = "model"  # top-level folder of a bundle that holds the persisted model
 
 _MANIFEST_FIELDS = ("bundle_id", "dependencies", "entry_points", "description")
 _ENTRY_POINT = re.compile(r"^([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*):([A-Za-z_]\w*)$")

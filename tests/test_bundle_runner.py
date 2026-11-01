@@ -115,11 +115,12 @@ class WritingSandbox(Sandbox):
 
     def run(self, policy, request):
         self.calls.append((policy, request))
-        Path(request.args[0], "predictions.json").write_text(json.dumps(self.predictions))
+        if request.args[1] == "predict":
+            Path(request.args[0], "predictions.json").write_text(json.dumps(self.predictions))
         return SandboxResult(status="succeeded", exit_code=0)
 
 
-def test_runner_makes_one_sandbox_call_with_protected_packages_and_baseline(tmp_path):
+def test_runner_makes_two_sandbox_calls_with_protected_packages_and_baseline(tmp_path):
     fake = WritingSandbox([0, 0, 0])
     caller = policy(timeout=7)
     loaded = load_bundle(constant_bundle(tmp_path))
@@ -127,7 +128,9 @@ def test_runner_makes_one_sandbox_call_with_protected_packages_and_baseline(tmp_
     x = FRAME.drop(columns="y").iloc[:3]
     out = runner.fit_predict(x, FRAME["y"].iloc[:3], x, 3)
     assert out.tolist() == [0, 0, 0]
-    ((used, request),) = fake.calls
+    ((used, fit_request), (used_again, request)) = fake.calls
+    assert [fit_request.args[1], request.args[1]] == ["fit", "predict"]
+    assert used_again is used and fit_request.entry_point == request.entry_point
     assert request.entry_point == BUNDLE_DIR / "child.py" and request.command is None
     assert used.timeout_seconds == 7
     names = {p.name for p in used.protected}

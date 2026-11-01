@@ -21,13 +21,16 @@ def needles(values):
 def assert_clean(recording, result_count_needles, label_values):
     """Nothing the parent staged or the child printed holds a label; x.csv has no target column."""
     for files in recording.staged:
-        assert files["x.csv"].decode().splitlines()[0].split(",") == ["x1", "t"]
+        if "x.csv" in files:  # the predict stage
+            assert files["x.csv"].decode().splitlines()[0].split(",") == ["x1", "t"]
+        else:  # the fit stage stages the training rows only
+            assert "train.csv" in files
         blob = b"\n".join(files.values()).decode("utf-8", "replace")
         assert not any(n in blob for n in result_count_needles)
     for result in recording.results:
         out = result.stdout + result.stderr
         assert not any(n in out for n in result_count_needles)
-        assert "snoop finished" in out
+    assert any("snoop finished" in r.stdout + r.stderr for r in recording.results)
     assert label_values
 
 

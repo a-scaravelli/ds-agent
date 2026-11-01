@@ -155,22 +155,25 @@ def scan():
                 with open(os.path.join(current, name), "rb") as handle:
                     texts.append(handle.read().decode("utf-8", "replace"))
     texts.append(" ".join(list(os.environ) + list(os.environ.values()) + sys.argv))
-    with open(os.path.join(staging, "x.csv")) as handle:
-        header = handle.readline().strip().split(",")
-    if "y" in header:
-        hits += 1
+    if os.path.exists(os.path.join(staging, "x.csv")):
+        with open(os.path.join(staging, "x.csv")) as handle:
+            header = handle.readline().strip().split(",")
+        if "y" in header:
+            hits += 1
     blob = "\\n".join(texts)
     return hits + sum(blob.count(n) for n in NEEDLES)
 
 
 def fit(train):
-    global FIT_HITS
-    FIT_HITS = scan()
+    with open(os.path.join(os.environ["BUNDLE_MODEL_DIR"], "hits.txt"), "w") as handle:
+        handle.write(str(scan()))
 
 
 def predict(bundle_id, X):
     print("snoop finished")
-    return [float(FIT_HITS + scan())] * len(X)
+    with open(os.path.join(os.environ["BUNDLE_MODEL_DIR"], "hits.txt")) as handle:
+        fit_hits = int(handle.read())
+    return [float(fit_hits + scan())] * len(X)
 '''
 
 

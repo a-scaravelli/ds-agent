@@ -5,6 +5,7 @@ or run here.
 """
 
 import ast
+import hashlib
 import json
 import os
 import re
@@ -13,9 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kaggle_agent.proposals import ValidationError
-from kaggle_agent.sandbox import ProtectedPath, hash_paths
 
-from .contract import ENTRY_POINT_NAMES, MANIFEST_NAME, Manifest, parse_entry_point
+from .contract import ENTRY_POINT_NAMES, MANIFEST_NAME, MODEL_FOLDER, Manifest, parse_entry_point
 from .errors import BundleLayoutError
 
 # Import names that differ from the distribution name (normalized: lower case, ``_``).
@@ -43,8 +43,22 @@ class LoadedBundle:
 
 
 def folder_hash_of(folder: Path) -> str:
-    """SHA-256 of a bundle folder, computed by the sandbox hashing helper."""
-    return hash_paths([ProtectedPath("bundle", Path(folder))])["bundle"]
+    """SHA-256 of a bundle folder, ignoring ``__pycache__`` and a top-level ``model/`` folder.
+
+    For a folder without ``model/`` it equals ``kaggle_agent.sandbox.hash_path`` (sorted
+    relative paths and bytes; a test pins it), so a persisted model never changes the hash.
+    """
+    root = Path(folder)
+    files = []
+    for path in root.rglob("*"):
+        parts = path.relative_to(root).parts
+        if path.is_file() and "__pycache__" not in parts and not (parts[0] == MODEL_FOLDER and len(parts) > 1):
+            files.append(path)
+    digest = hashlib.sha256()
+    for item in sorted(files, key=lambda p: p.relative_to(root).as_posix()):
+        digest.update(item.relative_to(root).as_posix().encode("utf-8") + b"\0")
+        digest.update(item.read_bytes() + b"\0")
+    return digest.hexdigest()
 
 
 def schema_of(manifest: Manifest) -> dict:
@@ -53,9 +67,9 @@ def schema_of(manifest: Manifest) -> dict:
         "bundle_id": manifest.bundle_id,
         "entry_points": dict(manifest.entry_points),
         "dependencies": list(manifest.dependencies),
-        "fit": {"input": "DataFrame with the target column", "output": "none"},
+        "fit": {"input": "DataFrame with the target column", "output": "model saved under BUNDLE_MODEL_DIR"},
         "predict": {"input": "bundle_id and a DataFrame without the target column",
-                    "output": "one prediction per row"},
+                    "output": "one prediction per row (or one row of probabilities per row)"},
     }
 
 
