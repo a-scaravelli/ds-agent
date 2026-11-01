@@ -417,7 +417,7 @@ flowchart LR
     E --> G
     P --> G
     L -.-> AG[agents]
-    AG -.-> BU[bundle, future]
+    AG -.-> BU[bundle]
     BU -.-> S
     L -.-> PL[pipeline, future]
     G -.-> W[web, future]
@@ -436,10 +436,11 @@ Existing subpackages under `src/kaggle_agent/`:
 - `agents`: the five role prompts (coordinator, data, feature engineering, modeling, reviewer) with typed inputs and outputs on `LlmClient`, the shared call helper and the role traces; roles never import or call each other, and `agents/call.py` is the only module that imports the registry (section 8);
 - `web`: read-only consultation interface over the registry, GET routes only, the only package that imports Flask (section 13);
 - `sandbox`: execution of the generated code (section 8);
+- `bundle`: the bundle contract, the loader and validator of the folder, the fixed-code runner that executes a bundle through the sandbox and implements the evaluation `Candidate`, and the scoring and registration helpers (section 8);
 - `review`: initial plan and final review (section 13);
 - `budget`: limits and stop (section 11).
 
-Future subpackages, not created in this ticket and with names to be confirmed in review: `bundle` for the bundle contract and the runner (section 8) and `pipeline` for the round pipeline and the generation of the end-to-end pipeline (sections 2 and 13).
+Future subpackage, not created yet and with the name to be confirmed in review: `pipeline` for the round pipeline and the generation of the end-to-end pipeline (sections 2 and 13).
 
 **The three levels.** All levels keep the same core structure, the same five roles and the same guarantees: frozen protocol, labels and holdout owned by the evaluator, everything in the registry, tests with fakes. Level 1 is built first (tickets 6 to 12 of section 15). Levels 2 and 3 are directions.
 
@@ -476,7 +477,7 @@ Sequence of successive tickets, in three levels (section 14). Tickets 1 to 5 are
 **Level 1**
 
 6. **Light sandbox.** Goal: run the generated code in a subprocess with reduced permissions, a timeout and a hash of the protected files. Acceptance criteria: timeout applied; writing to protected files impossible and diff touching them rejected; changed protected-file hash blocks the run; no access to credentials and holdout; tests without network with fakes. Done: the light sandbox is built (`kaggle_agent.sandbox`, section 8); the bundle runner is step 7.
-7. **Bundle contract and runner.** Goal: define the bundle (folder with code, transformations, model, declared dependencies, `fit(train)` and `predict(bundle_id, X)`) and the fixed-code runner that executes it in a subprocess with a timeout, passes data without labels and computes the metrics itself. Acceptance criteria: a fake bundle runs and is scored by the runner; a bundle that times out or crashes yields an execution record with `failure_kind`; labels never reach the bundle; tests without network with fakes.
+7. **Bundle contract and runner.** Goal: define the bundle (folder with code, transformations, model, declared dependencies, `fit(train)` and `predict(bundle_id, X)`) and the fixed-code runner that executes it in a subprocess with a timeout, passes data without labels and computes the metrics itself. Acceptance criteria: a fake bundle runs and is scored by the runner; a bundle that times out or crashes yields an execution record with `failure_kind`; labels never reach the bundle; tests without network with fakes. Done: the bundle contract and the runner are built (`kaggle_agent.bundle`, section 8); the round pipeline is step 9.
 8. **Role agents as typed prompts.** Goal: the five roles (coordinator, data, feature engineering, modeling, reviewer) as prompts with typed input and output on `LlmClient`, with role traces in the registry. Acceptance criteria: each role is tested alone with `FakeLlmClient`; invalid output is retried and then rejected; the reviewer output has no field that decides; roles do not call each other; no test calls Claude.
 9. **Round pipeline and guidance.** Goal: the autonomous cycle as a sequential pipeline (coordinator, data, feature engineering, modeling, runner, reviewer, coordinator), rounds with C candidates, the state `AWAITING_GUIDANCE`, the parameters N, C, K and M, early stop and resume. Acceptance criteria: happy path with fake roles and a simulated lead; guidance recorded as a suggestion and read in the next round; M rounds in a row without pause; stop after K rounds without improvement; code errors fixed inside the attempt up to the cap, then closed as `failed` with `code_error`; a protocol change needs a new plan approval; resume from the saved state.
 10. **Read-only web interface.** Goal: web interface with views of rounds, candidates, runs, metrics, reviewer reports and agent traces, plus the existing list/timeline, metric chart, detail and suggestions. Acceptance criteria: every view shows the registry data; the detail shows the rationale and the link to the pipeline; no input from the web; tests without network.
