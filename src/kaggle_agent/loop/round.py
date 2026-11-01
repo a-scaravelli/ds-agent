@@ -14,7 +14,7 @@ from kaggle_agent.agents import (
     RoleRejectedError,
     TraceContext,
 )
-from kaggle_agent.budget import CycleLimits, pause_due
+from kaggle_agent.budget import CONSECUTIVE_FAILURES, CycleLimits, pause_due
 from kaggle_agent.proposals import GoalCriteria, GoalCriterion, Guidance, ReviewerReport, Round
 from kaggle_agent.review import CONTINUE, GUIDANCE, PROTOCOL_CHANGE, LeadContext
 
@@ -43,21 +43,27 @@ class RoundPipeline:
     # -- ITERATING ----------------------------------------------------------------
 
     def iterate(self) -> str:
-        """Advance the iteration phase by the next unfinished step; return the next state."""
+        """Advance the iteration phase by the next unfinished step; return the next state.
+
+        After a finished round the lead is asked for guidance when a pause is due, also after
+        the last round (the guidance then feeds the next cycle). A cap on consecutive failed
+        attempts stops the cycle at once, in the middle of a round, with no pause.
+        """
         view, limits = self.view, self.limits
-        if view.stop_reason(limits):
+        reason = view.stop_reason(limits)
+        if reason == CONSECUTIVE_FAILURES:
             return REPORTING
         state = view.last_round()
         if state is None or (state.complete and state.has_direction):
+            if reason:
+                return REPORTING
             state = self._open_round(1 if state is None else state.index + 1)
         round_id = state.round_id
         tasks = state.round.round.tasks
         for index in range(1, limits.candidates + 1):
-            if view.stop_reason(limits):
-                return REPORTING
             self.candidates.run(round_id, index, tasks[(index - 1) % len(tasks)])
-        if view.stop_reason(limits):
-            return REPORTING
+            if view.stop_reason(limits) == CONSECUTIVE_FAILURES:
+                return REPORTING
         state = view.last_round()
         if not state.has_report:
             self._review(state)
@@ -65,11 +71,12 @@ class RoundPipeline:
         if not state.complete:
             self._compare(state)
             state = view.last_round()
-        if view.stop_reason(limits):
-            return REPORTING
+        reason = view.stop_reason(limits)
         if not state.has_direction:
             if pause_due(state.index, limits.pause_every):
                 return AWAITING_GUIDANCE
+            if reason:
+                return REPORTING
             self._direct(state)
         return ITERATING
 
@@ -158,7 +165,7 @@ class RoundPipeline:
     # -- AWAITING_GUIDANCE ---------------------------------------------------------
 
     def guidance(self) -> str | None:
-        """Ask the lead, record the guidance, let the coordinator set the next tasks.
+        """Ask the lead, record the guidance, then stop or let the coordinator set the next tasks.
 
         Returns the next state, or None when the lead has not answered yet.
         """
@@ -166,11 +173,15 @@ class RoundPipeline:
         state = view.last_round()
         if state is None or not state.complete:
             return ITERATING
-        if not state.has_direction:
-            recorded = any(g.round_id == state.round_id for g in self.registry.list_guidance(ctx.cycle_id))
-            if not recorded and not self._ask_lead(state):
-                return None
-            self._direct(state)
+        reason = view.stop_reason(self.limits)
+        if state.has_direction and not reason:
+            return ITERATING
+        recorded = any(g.round_id == state.round_id for g in self.registry.list_guidance(ctx.cycle_id))
+        if not recorded and not self._ask_lead(state):
+            return None
+        if reason:
+            return REPORTING
+        self._direct(state)
         return ITERATING
 
     def _ask_lead(self, state: RoundState) -> bool:
