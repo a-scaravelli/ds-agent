@@ -33,6 +33,8 @@ PROTOCOL_NOTICE = (
 
 
 class RoundPipeline:
+    """The ITERATING and AWAITING_GUIDANCE steps of the cycle, driven by the derived view."""
+
     def __init__(self, ctx: CycleContext, limits: CycleLimits, view: CycleView) -> None:
         self.ctx = ctx
         self.limits = limits

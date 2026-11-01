@@ -2,198 +2,334 @@
  "cases": {
   "1": [
    {
-    "file": "tests/test_bundle_contract.py",
-    "name": "test_load_valid_bundle_and_manifest_round_trip"
+    "file": "tests/test_budget_limits.py",
+    "name": "test_defaults_overrides_cycle_values_and_validation"
+   },
+   {
+    "file": "tests/test_budget_limits.py",
+    "name": "test_to_dict_from_dict_round_trip_and_stored_values_win"
    }
   ],
   "2": [
    {
-    "file": "tests/test_bundle_contract.py",
-    "name": "test_reject_bundle_without_fit_or_predict"
-   },
-   {
-    "file": "tests/test_bundle_contract.py",
-    "name": "test_reject_missing_manifest_and_non_folder"
+    "file": "tests/test_budget_stops.py",
+    "name": "test_pause_due_every_m_rounds"
    }
   ],
   "3": [
    {
-    "file": "tests/test_bundle_contract.py",
-    "name": "test_reject_paths_that_escape_the_folder"
+    "file": "tests/test_budget_stops.py",
+    "name": "test_each_stop_reason_alone_and_the_priority"
+   },
+   {
+    "file": "tests/test_budget_stops.py",
+    "name": "test_rounds_without_improvement_counts_the_trailing_run"
    }
   ],
   "4": [
    {
-    "file": "tests/test_bundle_contract.py",
-    "name": "test_undeclared_third_party_imports"
+    "file": "tests/test_loop_states.py",
+    "name": "test_every_transition_is_persisted_and_only_allowed_ones_occur"
+   },
+   {
+    "file": "tests/test_loop_states.py",
+    "name": "test_an_illegal_transition_raises"
+   },
+   {
+    "file": "tests/test_loop_states.py",
+    "name": "test_unknown_saved_state_is_refused"
    }
   ],
   "5": [
    {
-    "file": "tests/test_bundle_contract.py",
-    "name": "test_folder_hash_is_deterministic_and_sensitive"
+    "file": "tests/test_loop_rounds.py",
+    "name": "test_happy_path_over_several_rounds_with_fake_roles_and_a_simulated_lead"
    }
   ],
   "6": [
    {
-    "file": "tests/test_bundle_runner.py",
-    "name": "test_fake_bundle_is_scored_by_the_runner_and_the_engine"
+    "file": "tests/test_loop_rounds.py",
+    "name": "test_each_round_passes_outputs_between_roles_in_the_documented_order"
    }
   ],
   "7": [
    {
-    "file": "tests/test_bundle_runner.py",
-    "name": "test_runner_is_a_candidate_on_validation_and_holdout_paths"
+    "file": "tests/test_loop_rounds.py",
+    "name": "test_bundle_production_goes_through_the_open_writer_interface"
+   },
+   {
+    "file": "tests/test_loop_rounds.py",
+    "name": "test_an_invalid_bundle_layout_is_rejected_and_retried_with_the_reason"
    }
   ],
   "8": [
    {
-    "file": "tests/test_bundle_runner.py",
-    "name": "test_the_bundle_never_reports_its_own_score"
+    "file": "tests/test_loop_rounds.py",
+    "name": "test_guidance_is_a_suggestion_and_is_read_by_the_next_round"
    }
   ],
   "9": [
    {
-    "file": "tests/test_bundle_labels.py",
-    "name": "test_validation_labels_never_reach_the_child"
+    "file": "tests/test_loop_rounds.py",
+    "name": "test_continue_is_an_input_and_silence_is_never_an_approval"
    },
    {
-    "file": "tests/test_bundle_labels.py",
-    "name": "test_holdout_labels_never_reach_the_child"
-   },
-   {
-    "file": "tests/test_bundle_labels.py",
-    "name": "test_the_snooper_finds_labels_that_are_staged"
+    "file": "tests/test_review_lead.py",
+    "name": "test_simulated_lead_plays_its_script_then_the_default_or_silence"
    }
   ],
   "10": [
    {
-    "file": "tests/test_bundle_labels.py",
-    "name": "test_fit_receives_labels_and_predict_does_not"
-   },
-   {
-    "file": "tests/test_bundle_labels.py",
-    "name": "test_a_bundle_that_asserts_the_opposite_crashes_with_code_error"
+    "file": "tests/test_loop_rounds.py",
+    "name": "test_m_rounds_in_a_row_without_a_pause"
    }
   ],
   "11": [
    {
-    "file": "tests/test_bundle_runner.py",
-    "name": "test_import_paths_are_explicit_despite_python_isolated_mode"
+    "file": "tests/test_loop_stops.py",
+    "name": "test_stagnation_stops_after_k_rounds_against_the_baseline"
+   },
+   {
+    "file": "tests/test_loop_stops.py",
+    "name": "test_a_round_without_a_succeeded_candidate_counts_and_records_no_comparison"
+   },
+   {
+    "file": "tests/test_loop_stops.py",
+    "name": "test_a_real_improvement_resets_the_counter_and_becomes_the_reference"
    }
   ],
   "12": [
    {
-    "file": "tests/test_bundle_runner.py",
-    "name": "test_runner_makes_one_sandbox_call_with_protected_packages_and_baseline"
-   },
-   {
-    "file": "tests/test_bundle_guards.py",
-    "name": "test_no_other_subprocess_mechanism_in_the_bundle_package"
+    "file": "tests/test_loop_stops.py",
+    "name": "test_the_stagnation_counter_comes_from_the_registry_not_from_memory"
    }
   ],
   "13": [
    {
-    "file": "tests/test_bundle_failures.py",
-    "name": "test_timeout_yields_failure_kind_timeout"
+    "file": "tests/test_loop_stops.py",
+    "name": "test_stop_on_target_needs_every_criterion_on_validation"
    }
   ],
   "14": [
    {
-    "file": "tests/test_bundle_failures.py",
-    "name": "test_crash_yields_failure_kind_code_error_with_stderr_tail"
+    "file": "tests/test_loop_failures.py",
+    "name": "test_code_errors_are_fixed_inside_the_attempt_up_to_the_cap_then_closed_failed"
    }
   ],
   "15": [
    {
-    "file": "tests/test_bundle_failures.py",
-    "name": "test_malformed_predictions_are_rejected_before_scoring"
-   },
-   {
-    "file": "tests/test_bundle_failures.py",
-    "name": "test_a_bundle_that_exits_without_predictions_is_malformed"
+    "file": "tests/test_loop_failures.py",
+    "name": "test_a_code_error_fixed_before_the_cap_succeeds_in_the_same_attempt"
    }
   ],
   "16": [
    {
-    "file": "tests/test_bundle_failures.py",
-    "name": "test_protected_copy_modified_is_never_retried_and_real_sources_stay_intact"
-   },
-   {
-    "file": "tests/test_bundle_failures.py",
-    "name": "test_protected_temporary_path_modified_is_never_retried"
+    "file": "tests/test_loop_failures.py",
+    "name": "test_a_timeout_closes_the_attempt_without_a_fix"
    }
   ],
   "17": [
    {
-    "file": "tests/test_bundle_failures.py",
-    "name": "test_diff_rejected_is_never_retried"
+    "file": "tests/test_loop_failures.py",
+    "name": "test_integrity_failures_are_never_retried"
    }
   ],
   "18": [
    {
-    "file": "tests/test_bundle_failures.py",
-    "name": "test_modified_protected_file_blocks_the_run_before_the_child_starts"
-   },
-   {
-    "file": "tests/test_bundle_failures.py",
-    "name": "test_frozen_protocol_change_still_blocks_and_propagates"
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_non_retryable_code_error_can_be_closed_at_once_and_the_registry_does_not_retry_for_the_loop"
    }
   ],
   "19": [
    {
-    "file": "tests/test_bundle_failures.py",
-    "name": "test_duplicate_protected_names_in_the_callers_policy"
+    "file": "tests/test_loop_stops.py",
+    "name": "test_failure_cap_stops_at_once_in_the_middle_of_a_round"
+   },
+   {
+    "file": "tests/test_loop_stops.py",
+    "name": "test_a_succeeded_attempt_in_between_resets_the_failure_count"
    }
   ],
   "20": [
    {
-    "file": "tests/test_bundle_failures.py",
-    "name": "test_folder_drifting_from_the_registered_hash_is_detected"
+    "file": "tests/test_loop_failures.py",
+    "name": "test_a_rejected_proposal_goes_back_with_the_reason_and_a_duplicate_too"
    }
   ],
   "21": [
    {
-    "file": "tests/test_bundle_registry.py",
-    "name": "test_register_bundle_and_set_attempt_bundle_id"
+    "file": "tests/test_loop_failures.py",
+    "name": "test_consecutive_rejections_end_as_inconclusive_and_placeholders_are_excluded"
    },
    {
-    "file": "tests/test_bundle_registry.py",
-    "name": "test_failed_execution_record_is_accepted_by_the_registry"
+    "file": "tests/test_loop_failures.py",
+    "name": "test_a_placeholder_never_becomes_the_baseline_and_does_not_touch_the_failure_count"
+   },
+   {
+    "file": "tests/test_loop_failures.py",
+    "name": "test_placeholders_neither_increment_nor_reset_the_failure_count"
    }
   ],
   "22": [
    {
-    "file": "tests/test_bundle_guards.py",
-    "name": "test_child_script_does_not_import_the_agent_and_other_modules_stay_in_bounds"
+    "file": "tests/test_loop_failures.py",
+    "name": "test_rate_limit_and_quota_suspend_the_cycle_without_losing_state"
    },
    {
-    "file": "tests/test_bundle_guards.py",
-    "name": "test_dependencies_unchanged_and_nothing_of_later_steps_exists"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_bundle_imports_only_stdlib_pandas_numpy_and_allowed_packages"
+    "file": "tests/test_loop_failures.py",
+    "name": "test_a_rejected_coordinator_suspends_the_cycle"
    }
   ],
   "23": [
    {
-    "file": "tests/test_bundle_guards.py",
-    "name": "test_readme_documents_the_bundle_contract_and_known_limits"
+    "file": "tests/test_loop_rounds.py",
+    "name": "test_the_reviewer_is_never_a_gate"
+   }
+  ],
+  "24": [
+   {
+    "file": "tests/test_loop_rounds.py",
+    "name": "test_a_protocol_change_is_refused_and_needs_a_new_plan_approval"
+   }
+  ],
+  "25": [
+   {
+    "file": "tests/test_loop_states.py",
+    "name": "test_revise_returns_to_planning_and_freeze_happens_once_on_approval"
+   },
+   {
+    "file": "tests/test_loop_states.py",
+    "name": "test_no_answer_to_the_plan_keeps_the_state_and_freezes_nothing"
+   }
+  ],
+  "26": [
+   {
+    "file": "tests/test_loop_resume.py",
+    "name": "test_resume_from_every_persisted_state_repeats_nothing"
+   },
+   {
+    "file": "tests/test_loop_resume.py",
+    "name": "test_a_stopped_cycle_is_inert"
+   }
+  ],
+  "27": [
+   {
+    "file": "tests/test_loop_resume.py",
+    "name": "test_resume_after_the_attempt_is_registered_but_before_it_ran"
+   },
+   {
+    "file": "tests/test_loop_resume.py",
+    "name": "test_resume_between_a_failed_execution_and_its_fix"
+   },
+   {
+    "file": "tests/test_loop_resume.py",
+    "name": "test_resume_after_the_reviewer_report_but_before_guidance"
+   },
+   {
+    "file": "tests/test_loop_resume.py",
+    "name": "test_the_trace_loss_window_between_add_attempt_and_record_trace"
+   }
+  ],
+  "28": [
+   {
+    "file": "tests/test_loop_traces.py",
+    "name": "test_candidate_roles_carry_candidate_id_and_every_trace_links_to_a_call"
+   }
+  ],
+  "29": [
+   {
+    "file": "tests/test_loop_traces.py",
+    "name": "test_the_whole_cycle_runs_on_injected_fakes_only"
+   },
+   {
+    "file": "tests/test_loop_traces.py",
+    "name": "test_the_new_tests_avoid_platform_specific_paths"
+   }
+  ],
+  "30": [
+   {
+    "file": "tests/test_loop_guards.py",
+    "name": "test_budget_and_review_import_only_the_standard_library_and_proposals"
+   },
+   {
+    "file": "tests/test_loop_guards.py",
+    "name": "test_loop_imports_only_the_allowed_internal_packages"
+   },
+   {
+    "file": "tests/test_loop_guards.py",
+    "name": "test_no_other_package_imports_loop_budget_or_review"
+   },
+   {
+    "file": "tests/test_loop_guards.py",
+    "name": "test_frozen_sources_are_unchanged_and_no_later_step_is_present"
+   },
+   {
+    "file": "tests/test_loop_guards.py",
+    "name": "test_the_loop_has_no_modeling_logic_of_its_own"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_nothing_of_tickets_10_to_16_exists"
+   },
+   {
+    "file": "tests/test_agents_guards.py",
+    "name": "test_nothing_chains_roles_and_no_other_step_is_present"
    },
    {
     "file": "tests/test_bundle_guards.py",
-    "name": "test_test_map_holds_the_plan_cases"
+    "name": "test_dependencies_unchanged_and_nothing_of_later_steps_exists"
+   }
+  ],
+  "31": [
+   {
+    "file": "tests/test_loop_guards.py",
+    "name": "test_public_names_have_docstrings"
+   },
+   {
+    "file": "tests/test_loop_guards.py",
+    "name": "test_readme_documents_the_pipeline_the_open_interfaces_and_the_limits"
+   },
+   {
+    "file": "tests/test_repo_language.py",
+    "name": "test_code_identifiers_are_english"
    },
    {
     "file": "tests/test_repo_language.py",
     "name": "test_repo_text_has_no_italian_function_words"
    }
   ],
-  "24": [
+  "32": [
    {
-    "file": "tests/test_bundle_guards.py",
-    "name": "test_bundle_tests_avoid_linux_only_assumptions"
+    "file": "tests/test_loop_limits.py",
+    "name": "test_limits_are_written_once_and_a_resumed_run_ignores_the_injected_ones"
+   },
+   {
+    "file": "tests/test_loop_limits.py",
+    "name": "test_an_older_cycle_without_parameters_takes_the_injected_limits_and_stores_them"
+   },
+   {
+    "file": "tests/test_loop_limits.py",
+    "name": "test_a_cycle_with_stored_parameters_ignores_the_injected_ones_from_the_start"
+   }
+  ],
+  "33": [
+   {
+    "file": "tests/test_registry_records.py",
+    "name": "test_cycle_parameters_are_optional_json_and_round_trip"
+   },
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_cycle_parameters_round_trip_migration_and_write_once"
+   }
+  ],
+  "34": [
+   {
+    "file": "tests/test_test_map.py",
+    "name": "test_test_map_entries_exist"
+   },
+   {
+    "file": "tests/test_loop_guards.py",
+    "name": "test_the_test_map_holds_the_cases_of_the_plan"
    }
   ]
  }
