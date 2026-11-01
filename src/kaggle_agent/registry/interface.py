@@ -16,6 +16,14 @@ Invariants every implementation must keep:
   and the attempt holds fewer than 1 + ``max_fix_retries`` executions. So an
   attempt-level ``code_error`` always means "still failing after the cap",
   while on an intermediate execution it only means "this run crashed".
+  The one exception: the last execution carries ``resources['retryable'] ==
+  False`` (a protected-file, diff or folder failure of the bundle runner),
+  which can be closed at once. ``add_execution`` still accepts a new
+  execution after any ``failed/code_error`` one, even a non-retryable one,
+  because the registry does not know the cause; the loop never retries those.
+- ``Cycle.parameters`` (optional JSON object with the loop limits) is written
+  once with ``set_cycle_parameters``: the same value again is a no-op, a
+  different second value raises ``RegistryError``.
 - The fingerprint is unique across all attempts, whatever cycle and outcome.
   It is checked only in ``add_attempt``, never between executions.
 - The protocol hash of a cycle is written once; a different second value
@@ -151,6 +159,10 @@ class Registry(ABC):
     @abstractmethod
     def set_cycle_state(self, cycle_id: str, state: str) -> None:
         """Persist a new non-empty state of the cycle."""
+
+    @abstractmethod
+    def set_cycle_parameters(self, cycle_id: str, parameters: dict) -> None:
+        """Store the loop limits of the cycle, once; a different second value raises."""
 
     @abstractmethod
     def add_attempt(

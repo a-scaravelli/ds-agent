@@ -38,6 +38,7 @@ _CYCLE_FIELDS = (
     "state",
     "protocol_hash",
     "project_id",
+    "parameters",
 )
 _BUNDLE_FIELDS = ("id", "cycle_id", "folder_hash", "reference", "schema")
 _TRACE_FIELDS = (
@@ -224,6 +225,8 @@ class Cycle:
     ``protocol_hash`` is the hash of the frozen evaluation protocol, set once
     at approval (None until then). ``project_id`` names the competition work
     the cycle belongs to (None for cycles created before projects existed).
+    ``parameters`` is an optional JSON-compatible object with the loop limits
+    that have no dedicated field (written once by the loop; None until then).
     """
 
     id: str
@@ -234,10 +237,15 @@ class Cycle:
     max_fix_retries: int = DEFAULT_MAX_FIX_RETRIES
     protocol_hash: str | None = None
     project_id: str | None = None
+    parameters: dict | None = None
 
     def __post_init__(self) -> None:
         require_text("id", self.id)
         require_text("state", self.state)
+        if self.parameters is not None:
+            if not isinstance(self.parameters, dict):
+                raise ValidationError("parameters", "must be an object")
+            _json_compatible("parameters", self.parameters)
         if self.protocol_hash is not None:
             require_text("protocol_hash", self.protocol_hash)
         if self.project_id is not None:
