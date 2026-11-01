@@ -9,6 +9,7 @@ import pytest
 from bundle_helpers import RecordingSandbox
 from pipeline_helpers import CYCLE, FRAME, make_real_pipeline
 
+from kaggle_agent.pipeline import load_persisted
 from kaggle_agent.pipeline.__main__ import main
 from kaggle_agent.sandbox import SubprocessSandbox
 
@@ -102,12 +103,9 @@ def test_predict_uses_the_stored_model_and_writes_json_from_another_directory(st
     assert main(["predict", "--persisted", report.persisted_path, "--input", str(csv),
                  "--output", str(output)], sandbox=recording) == 0
     predictions = json.loads(output.read_text())
-    meta = json.loads((__import__("pathlib").Path(report.persisted_path) / "persisted.json").read_text())
-    from kaggle_agent.pipeline import load_persisted
-
     persisted = load_persisted(report.persisted_path)
     expected = int(json.loads(next((persisted.model_dir).iterdir()).read_text())["label"])
-    assert predictions == [expected] * 7 and meta["bundle_id"] == report.chosen["bundle_id"]
+    assert predictions == [expected] * 7 and persisted.bundle_id == report.chosen["bundle_id"]
     assert [call[1].args[1] for call in recording.calls] == ["predict"]  # only the predict stage
 
 

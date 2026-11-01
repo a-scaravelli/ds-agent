@@ -3,8 +3,6 @@
 import json
 from pathlib import Path
 
-import numpy as np
-
 from kaggle_agent.bundle import validate_predictions
 
 MODEL_FILE = "model.json"
@@ -44,4 +42,4 @@ class FakeModelStore:
         if self.predict_failure is not None:
             return validate_predictions(self.predict_failure, len(x), self.input_kind)
         label = json.loads((Path(model_dir) / MODEL_FILE).read_text(encoding="utf-8"))["label"]
-        return np.full(len(x), label)
+        return [label] * len(x)

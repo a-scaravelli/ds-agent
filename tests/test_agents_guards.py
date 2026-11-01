@@ -176,7 +176,7 @@ def test_existing_packages_do_not_import_agents():
 
 
 def test_nothing_chains_roles_and_no_other_step_is_present():
-    stems = {p.stem for p in SRC.rglob("*.py") if "bundle" not in p.relative_to(SRC).parts[:1]}
+    stems = {p.stem for p in SRC.rglob("*.py") if p.relative_to(SRC).parts[0] not in ("bundle", "pipeline")}
     assert not stems & {"runner", "bundle", "pipeline"}
     for path in _agents_files():
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):

@@ -52,8 +52,9 @@ def test_dependencies_unchanged_and_nothing_of_later_steps_exists():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     names = sorted(d.split("==")[0] for d in pyproject["project"]["dependencies"])
     assert names == ["flask", "kaggle", "numpy", "pandas", "scikit-learn"]
-    stems = {p.stem for p in SRC.rglob("*.py")}
-    assert not stems & {"pipeline", "report", "orchestrator"}
+    stems = {p.stem for p in SRC.rglob("*.py") if "pipeline" not in p.relative_to(SRC).parts[:1]}
+    assert not stems & {"pipeline", "report", "orchestrator"}  # step 11 lives in the pipeline package only
+    assert not {p.stem for p in SRC.rglob("*.py")} & {"orchestrator"}
     text = "\n".join(p.read_text(encoding="utf-8") for p in sources()).lower()
     for word in ("virtualenv", "venv", "docker", "pip install", "immutable"):
         assert word not in text.replace("(immutable bundles, virtual environments, containers)", ""), word
