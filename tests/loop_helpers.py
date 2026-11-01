@@ -185,11 +185,13 @@ class RoleClient(FakeLlmClient):
 class FakeRoles:
     """Plain fake role callables that record their inputs and order, and leave coordinator traces."""
 
-    def __init__(self, registry, clock, reject=None) -> None:
+    def __init__(self, registry, clock, reject=None, same_change=False) -> None:
         self.registry = registry
         self.clock = clock
         self.calls: list[tuple[str, object]] = []
+        # reject[role][candidate_id] is a list of exceptions raised on the successive calls
         self.reject = reject or {}
+        self.same_change = same_change
         self.n = 0
 
     def _count(self):
@@ -215,14 +217,13 @@ class FakeRoles:
     def _candidate(self, role, role_input):
         n = self._count()
         self.calls.append((role, role_input))
-        step = self.reject.get(role)
-        if step:
-            action = step.pop(0)
-            if isinstance(action, Exception):
-                raise action
+        pending = self.reject.get(role, {}).get(role_input.candidate_id)
+        if pending:
+            raise pending.pop(0)
         attempt = Attempt(
             id=role_input.candidate_id, phase="iteration", hypothesis=f"{role} idea {n}",
-            rationale="r", what_changed=f"{role} change {n}", measure="m", exploratory=True,
+            rationale="r", what_changed=f"{role} change" if self.same_change else f"{role} change {n}",
+            measure="m", exploratory=True,
         )
         return CandidateRoleResult(attempt, None)
 

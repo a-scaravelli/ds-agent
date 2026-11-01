@@ -474,6 +474,8 @@ def test_comparisons_stored_and_counted(reg):
 def test_ticket_2_sqlite_file_is_migrated(tmp_path):
     import sqlite3
 
+    if sqlite3.sqlite_version_info < (3, 35):
+        pytest.skip("this SQLite cannot drop a column to imitate an old file")
     path = tmp_path / "old.db"
     db = sqlite3.connect(path)
     db.executescript(
@@ -1053,3 +1055,64 @@ def test_read_only_rejects_memory_and_missing_file_without_creating_it(tmp_path)
     empty.write_bytes(b"")
     with pytest.raises(RegistryError):
         SqliteRegistry(empty, read_only=True)
+
+
+# --- loop ticket: parameters on the cycle and non-retryable code errors ---
+
+
+def test_non_retryable_code_error_can_be_closed_at_once_and_the_registry_does_not_retry_for_the_loop(reg):
+    new_attempt(reg, "N1")
+    new_attempt(reg, "R1")
+    reg.add_execution(make_execution(
+        "N1", "N1-e1", "failed", resources={"sandbox_status": "protected_modified", "retryable": False}
+    ))
+    reg.add_execution(make_execution("R1", "R1-e1", "failed", resources={"retryable": True}))
+    reg.close_attempt("N1", "integrity failure")
+    assert reg.get_attempt("N1").closed
+    with pytest.raises(RegistryError, match="fix-retry cap"):
+        reg.close_attempt("R1", "too early")  # a retryable crash is final only after the cap
+    # add_execution still accepts a retry after a non-retryable code_error: the registry does not
+    # know the cause, the loop is what never retries those
+    new_attempt(reg, "N2")
+    reg.add_execution(make_execution(
+        "N2", "N2-e1", "failed", resources={"sandbox_status": "diff_rejected", "retryable": False}
+    ))
+    assert reg.add_execution(crash("N2", 2)) == 2
+    assert "the loop never retries" in " ".join(inspect.getmodule(Registry).__doc__.split())
+
+
+def test_cycle_parameters_round_trip_migration_and_write_once(tmp_path):
+    import sqlite3
+
+    if sqlite3.sqlite_version_info < (3, 35):
+        pytest.skip("this SQLite cannot drop a column to imitate an old file")
+    path = tmp_path / "old.db"
+    with SqliteRegistry(str(path)) as registry:
+        registry.add_cycle(make_cycle("C1", protocol_hash="h1", project_id="P"))
+    connection = sqlite3.connect(path)  # make it look like a file created before the field
+    connection.execute("ALTER TABLE cycles DROP COLUMN parameters")
+    connection.commit()
+    connection.close()
+
+    with SqliteRegistry(str(path)) as registry:  # reopening migrates: a null column appears
+        assert registry.get_cycle("C1").parameters is None
+        registry.set_cycle_parameters("C1", {"candidates": 2, "pause_every": 3})
+        registry.set_cycle_parameters("C1", {"pause_every": 3, "candidates": 2})  # same: no-op
+        with pytest.raises(RegistryError, match="different parameters"):
+            registry.set_cycle_parameters("C1", {"candidates": 5})
+        with pytest.raises(ValidationError):
+            registry.set_cycle_parameters("C1", {"bad": float("nan")})
+        with pytest.raises(ValidationError):
+            registry.set_cycle_parameters("C1", {"bad": object()})
+        with pytest.raises(NotFoundError):
+            registry.set_cycle_parameters("nope", {})
+        registry.set_protocol_hash("C1", "h1")  # positional indexes after the new column
+        registry.add_cycle(make_cycle("C2", parameters={"x": 1}))
+    with SqliteRegistry(str(path)) as registry:
+        expected = make_cycle(
+            "C1", protocol_hash="h1", project_id="P", parameters={"candidates": 2, "pause_every": 3}
+        )
+        assert registry.get_cycle("C1") == expected
+        assert registry.list_cycles()[0] == expected
+        assert registry.get_cycle("C2").parameters == {"x": 1}
+        assert registry.get_cycle("C1").protocol_hash == "h1"

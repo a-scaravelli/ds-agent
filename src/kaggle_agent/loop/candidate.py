@@ -123,11 +123,20 @@ class CandidateRunner:
                 self._register(round_id, cid, outputs, (fe, modeling))
                 return self.view.detail(cid), outputs
             except REJECTIONS as exc:
-                reason = clean(exc.reason if isinstance(exc, RoleRejectedError) else exc)
+                reason = self._reason(exc)
                 rejections += 1
                 if rejections >= self.limits.max_rejections:
                     self._placeholder(round_id, cid, rejections, reason)
                     return self.view.detail(cid), None
+
+    @staticmethod
+    def _reason(exc: Exception) -> str:
+        """The rejection reason handed back to the roles (never a fingerprint or model text)."""
+        if isinstance(exc, RoleRejectedError):
+            return clean(exc.reason)
+        if isinstance(exc, DuplicateAttemptError):
+            return f"duplicate of the earlier attempt {exc.existing_attempt_id}"
+        return clean(exc)
 
     def _free_bundle_id(self, cid: str) -> str:
         taken = {b.id for b in self.registry.list_bundles(self.ctx.cycle_id)}
