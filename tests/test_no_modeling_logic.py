@@ -12,6 +12,7 @@ KAGGLE = SRC / "kaggle"
 LLM = SRC / "llm"
 WEB = SRC / "web"
 LLM_REAL = LLM / "real.py"
+AGENTS = SRC / "agents"
 SANDBOX = SRC / "sandbox"
 SANDBOX_RUNNER = SANDBOX / "subprocess_sandbox.py"
 TESTS = Path(__file__).resolve().parent
@@ -61,7 +62,7 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
 
 def test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle_llm_sandbox():
     for path in _modules():
-        if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM, SANDBOX, WEB)):
+        if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM, AGENTS, SANDBOX, WEB)):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -271,8 +272,8 @@ def test_nothing_of_tickets_6_to_16_exists():
         files = [p for p in (SRC / package).rglob("*.py")]
         assert [p.name for p in files] == ["__init__.py"], package
     names = {p.stem for p in SRC.rglob("*.py")}
-    assert not names & {"runner", "bundle", "agents", "pipeline"}
-    assert not [p for p in SRC.iterdir() if p.is_dir() and p.name in {"agents", "runner"}]
+    assert not names & {"runner", "bundle", "pipeline"}
+    assert not [p for p in SRC.iterdir() if p.is_dir() and p.name in {"runner"}]
 
 
 # --- web package (step 10) ---

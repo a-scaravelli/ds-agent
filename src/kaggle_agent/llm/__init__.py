@@ -24,7 +24,7 @@ from .fake import (
 )
 from .interface import BackoffPolicy, LlmClient, LlmResult
 from .models import CallRecord, Consumption, RawResponse, ToolPermissions, Usage
-from .recording import record_call
+from .recording import entry_from_record, record_call
 
 __all__ = [
     "BackoffPolicy",
@@ -47,6 +47,7 @@ __all__ = [
     "Reply",
     "ToolPermissions",
     "Usage",
+    "entry_from_record",
     "record_call",
     "valid_attempt_json",
     "valid_plan_json",

@@ -129,6 +129,11 @@ class LlmClient(ABC):
     def _run(self, prompt: str, permissions: ToolPermissions, model: str | None) -> RawResponse:
         """One CLI invocation. Called only by ``ask``."""
 
+    @property
+    def on_call(self) -> Callable[[CallRecord], None] | None:
+        """The hook given at construction (read-only), so a caller can inspect the wiring."""
+        return self._on_call
+
     def consumption(self) -> Consumption:
         """Totals over every call made by this client, retries and failures included."""
         return summarize(self._log)
