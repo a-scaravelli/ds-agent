@@ -284,14 +284,15 @@ def make_setup(
     tmp_path, *, rounds=3, candidates=2, stagnation_k=2, fix_retries=3, pause_every=1,
     max_failures=3, max_rejections=3, goal=None, threshold_k=1.0, lead=None, rule=None,
     client=None, roles=None, hooks=None, writer=None, state=PLANNING, registry=None,
-    parameters=None,
+    parameters=None, create_cycle=True,
 ):
     """A cycle in ``state`` with a protocol, a (not yet frozen) engine and a full context."""
     registry = registry or SqliteRegistry()
-    registry.add_cycle(Cycle(
-        id=CYCLE, plan=PLAN, iterations=rounds, stagnation_k=stagnation_k, state=state,
-        max_fix_retries=fix_retries, parameters=parameters,
-    ))
+    if create_cycle:  # False when the test starts the cycle itself (pipeline.start_cycle)
+        registry.add_cycle(Cycle(
+            id=CYCLE, plan=PLAN, iterations=rounds, stagnation_k=stagnation_k, state=state,
+            max_fix_retries=fix_retries, parameters=parameters,
+        ))
     overrides = {"goal": GoalCriteria.from_dict(goal)} if goal else {}
     engine = EvaluationEngine(registry, CYCLE, make_protocol(threshold_k=threshold_k, **overrides))
     freezes = []
