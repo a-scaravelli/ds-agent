@@ -61,7 +61,10 @@ def reproduce(persisted_dir: Path | str, db: Path | str, data: Path | str, sandb
     except RegistryError as error:
         return CommandResult(2, (f"error: {error}",))
     try:
-        stored = registry.get_final_report(meta["cycle_id"])
+        try:
+            stored = registry.get_final_report(meta["cycle_id"])
+        except RegistryError as error:
+            return CommandResult(1, (f"error: {error}",))
         chosen = None if stored is None else stored.content.get("chosen")
         if chosen is None:
             return CommandResult(1, (f"error: no reported metric for cycle {meta['cycle_id']}",))
