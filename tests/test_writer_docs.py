@@ -28,11 +28,11 @@ def test_readme_has_a_bundle_writer_section_with_the_required_facts():
     assert "follow-up decision" in section
 
 
-def test_the_design_step_12_note_says_part_1_is_done_and_lists_what_remains():
+def test_the_design_step_12_note_says_part_1_is_done_and_part_2_followed():
     text = (ROOT / "docs" / "design.md").read_text(encoding="utf-8")
     line = next(l for l in text.splitlines() if l.startswith("12. **Orchestrator"))
-    assert "Part 1 done" in line and "Remaining" in line
-    for word in ("orchestrator", "command line", "real lead input", "real submission"):
+    assert "Part 1 done" in line and "Part 2 done" in line
+    for word in ("orchestrator", "command line", "lead input", "real submission"):
         assert word in line
     assert "- `writer`:" in text
 

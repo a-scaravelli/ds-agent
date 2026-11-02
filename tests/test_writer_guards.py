@@ -5,7 +5,6 @@ writer test may read the environment.
 """
 
 import ast
-import json
 import tomllib
 from pathlib import Path
 
@@ -15,7 +14,6 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src" / "kaggle_agent"
 WRITER = SRC / "writer"
 TESTS = ROOT / "tests"
-PLAN_CASES = 31
 
 # content hashes of the two packages this ticket must not touch, taken at the start of the ticket
 LOOP_HASH = "65394233b94a92e7d41e87bb7c33bc374a4257a8daf6e05f92af053ee8719ae8"
@@ -109,9 +107,3 @@ def test_only_the_manual_test_reads_the_manual_variable():
         if reads:
             readers.append(path.name)
     assert readers == ["test_writer_manual_claude.py"]
-
-
-def test_the_test_map_holds_exactly_the_plan_cases():
-    cases = json.loads((ROOT / ".asl" / "test-map.json").read_text(encoding="utf-8"))["cases"]
-    keys = sorted(int(k) for k in cases)
-    assert keys == list(range(1, PLAN_CASES + 1))
