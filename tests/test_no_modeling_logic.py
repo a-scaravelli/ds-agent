@@ -18,6 +18,7 @@ BUNDLE = SRC / "bundle"
 LOOP = SRC / "loop"
 BUDGET = SRC / "budget"
 REVIEW = SRC / "review"
+PIPELINE = SRC / "pipeline"
 SANDBOX_RUNNER = SANDBOX / "subprocess_sandbox.py"
 TESTS = Path(__file__).resolve().parent
 REAL_ADAPTER = KAGGLE / "real.py"
@@ -58,6 +59,8 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
             allowed |= THIRD_PARTY
         if BUNDLE in path.parents:
             allowed |= {"pandas", "numpy"}
+        if PIPELINE in path.parents:
+            allowed |= {"pandas"}
         if path == REAL_ADAPTER:
             allowed |= KAGGLE_LIBRARY
         if WEB in path.parents:
@@ -69,7 +72,7 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
 def test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle_llm_sandbox():
     for path in _modules():
         if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM, AGENTS, SANDBOX, WEB, BUNDLE,
-                                       LOOP, BUDGET, REVIEW)):
+                                       LOOP, BUDGET, REVIEW, PIPELINE)):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -214,7 +217,7 @@ def test_only_llm_real_imports_subprocess_and_llm_uses_no_network_or_third_party
     for path in sorted(TESTS.glob("*.py")):
         if path.name != Path(__file__).name:
             assert "subprocess" not in {top for top, _ in _imports(path)} or path.name in {
-                "llm_helpers.py", "test_llm_real.py",
+                "llm_helpers.py", "test_llm_real.py", "test_pipeline_command.py", "test_pipeline_flow.py",
             } or "sandbox" in path.name, path
 
 
@@ -279,14 +282,16 @@ def test_nothing_of_tickets_10_to_16_exists():
     for package in ("loop", "review", "budget"):
         assert (SRC / package / "__init__.py").is_file()
     # `runner`, `bundle` and `pipeline` modules exist only inside the bundle package (step 7)
-    names = {p.stem for p in SRC.rglob("*.py") if BUNDLE not in p.parents}
+    names = {p.stem for p in SRC.rglob("*.py") if BUNDLE not in p.parents and PIPELINE not in p.parents}
     assert not names & {"runner", "bundle", "pipeline"}
     assert not {p.stem for p in BUNDLE.rglob("*.py")} & {"pipeline", "report", "orchestrator"}
-    # step 11 (report, holdout, export) and step 12 (orchestrator) are not in the loop
+    # step 11 (report, holdout, pipeline) lives in the `pipeline` package only; step 12 (orchestrator) is absent
+    assert not {p.stem for p in SRC.rglob("*.py")} & {"orchestrator"}
+    assert (PIPELINE / "__init__.py").is_file()
     later = {p.stem for p in LOOP.rglob("*.py")} | {p.stem for p in BUDGET.rglob("*.py")}
     later |= {p.stem for p in REVIEW.rglob("*.py")}
     assert not later & {"report", "orchestrator", "holdout", "pipeline", "runner", "bundle"}
-    assert not [p for p in SRC.iterdir() if p.is_dir() and p.name in {"runner", "pipeline"}]
+    assert not [p for p in SRC.iterdir() if p.is_dir() and p.name in {"runner", "orchestrator"}]
 
 
 # --- web package (step 10) ---

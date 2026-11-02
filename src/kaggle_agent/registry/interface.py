@@ -49,6 +49,11 @@ Invariants every implementation must keep:
   output are typed JSON objects.
 - ``list_cycles`` returns every cycle in insertion order, including cycles
   with no attempts.
+- The holdout outcome (``HoldoutOutcome``) and the final report (``ReportRecord``) of a cycle
+  are written once: the same value again is a no-op, a different second value raises
+  ``RegistryError``. A failed or skipped outcome carries a reason.
+- Existing executions are immutable except for ``add_execution_artifact``, which appends one
+  artifact string to the last execution of an attempt (open or closed) and changes nothing else.
 - A registry opened read-only never writes: every method that changes data
   raises ``RegistryError`` and the storage is left untouched.
 - A rejected call leaves the registry unchanged.
@@ -64,9 +69,11 @@ from .records import (
     ComparisonRecord,
     Cycle,
     ExecutionRecord,
+    HoldoutOutcome,
     HoldoutRead,
     HoldoutSession,
     LlmCallEntry,
+    ReportRecord,
     RoleTrace,
     SubmissionEntry,
 )
@@ -186,6 +193,15 @@ class Registry(ABC):
         """Store an execution and return its sequence number (from 1).
 
         Enforces the fix-retry rules stated in the module docstring.
+        """
+
+    @abstractmethod
+    def add_execution_artifact(self, attempt_id: str, artifact: str) -> None:
+        """Append ``artifact`` to the artifacts of the LAST execution of an attempt.
+
+        Works on open and closed attempts and changes no other field. A string already
+        present is a no-op. An empty string or an attempt with no execution raises
+        ``RegistryError``; an unknown attempt raises ``NotFoundError``.
         """
 
     @abstractmethod
@@ -373,3 +389,19 @@ class Registry(ABC):
         The registry does not pick the best candidate: it does not know the
         direction of the metric.
         """
+
+    @abstractmethod
+    def add_holdout_outcome(self, outcome: HoldoutOutcome) -> None:
+        """Store the holdout outcome of a cycle, once; a different second value raises."""
+
+    @abstractmethod
+    def get_holdout_outcome(self, cycle_id: str) -> HoldoutOutcome | None:
+        """The holdout outcome of a cycle, or None if none was recorded."""
+
+    @abstractmethod
+    def add_final_report(self, report: ReportRecord) -> None:
+        """Store the final report of a cycle, once; a different second value raises."""
+
+    @abstractmethod
+    def get_final_report(self, cycle_id: str) -> ReportRecord | None:
+        """The final report of a cycle, or None if it was not written."""

@@ -12,11 +12,13 @@ from .contract import (
     FOLDER_CHANGED,
     MALFORMED_PREDICTIONS,
     MANIFEST_NAME,
+    MODEL_DIR_ENV,
+    MODEL_FOLDER,
     Manifest,
 )
 from .errors import BundleError, BundleLayoutError, BundleRunError
 from .layout import LoadedBundle, folder_hash_of, load_bundle, schema_of
-from .runner import BundleRunner, validate_predictions
+from .runner import BundleRunner, PersistedModelCandidate, validate_predictions
 from .scoring import BundleScore, attempt_with_bundle, register_bundle, score_bundle
 
 __all__ = [
@@ -30,7 +32,10 @@ __all__ = [
     "LoadedBundle",
     "MALFORMED_PREDICTIONS",
     "MANIFEST_NAME",
+    "MODEL_DIR_ENV",
+    "MODEL_FOLDER",
     "Manifest",
+    "PersistedModelCandidate",
     "attempt_with_bundle",
     "folder_hash_of",
     "load_bundle",

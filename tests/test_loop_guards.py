@@ -81,6 +81,9 @@ def test_no_other_package_imports_loop_budget_or_review():
         if package == "loop":
             continue
         used = internal(path)
+        if package == "pipeline":  # step 11 drives the loop; test_pipeline_guards limits what it takes
+            assert "review" not in used, path
+            continue
         assert "loop" not in used, path
         assert not used & {"budget", "review"}, path
     # budget and review do not import each other or the loop
@@ -91,8 +94,9 @@ def test_no_other_package_imports_loop_budget_or_review():
 
 def test_frozen_sources_are_unchanged_and_no_later_step_is_present():
     assert evaluation_code_hash() == EVALUATION_HASH
-    stems = {p.stem for p in SRC.rglob("*.py")}
+    stems = {p.stem for p in SRC.rglob("*.py") if p.relative_to(SRC).parts[0] != "pipeline"}
     assert not stems & {"pipeline", "report", "orchestrator", "holdout", "export"}
+    assert "orchestrator" not in {p.stem for p in SRC.rglob("*.py")}  # step 12 is absent everywhere
     # agents never import the loop: roles are called by the pipeline, not the other way round
     for path in sorted((SRC / "agents").glob("*.py")):
         assert "loop" not in internal(path), path
@@ -134,4 +138,4 @@ def test_readme_documents_the_pipeline_the_open_interfaces_and_the_limits():
 
 def test_the_test_map_holds_the_cases_of_the_plan():
     cases = json.loads((ROOT / ".asl" / "test-map.json").read_text(encoding="utf-8"))["cases"]
-    assert sorted(int(k) for k in cases) == list(range(1, 35))
+    assert sorted(int(k) for k in cases) == list(range(1, 36))

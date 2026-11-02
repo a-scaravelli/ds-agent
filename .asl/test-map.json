@@ -2,327 +2,349 @@
  "cases": {
   "1": [
    {
-    "file": "tests/test_budget_limits.py",
-    "name": "test_defaults_overrides_cycle_values_and_validation"
+    "file": "tests/test_pipeline_report.py",
+    "name": "test_the_report_holds_the_chosen_bundle_the_holdout_the_history_and_the_suggestions"
    },
    {
-    "file": "tests/test_budget_limits.py",
-    "name": "test_to_dict_from_dict_round_trip_and_stored_values_win"
+    "file": "tests/test_pipeline_report.py",
+    "name": "test_the_report_counts_failures_by_kind"
    }
   ],
   "2": [
    {
-    "file": "tests/test_budget_stops.py",
-    "name": "test_pause_due_every_m_rounds"
+    "file": "tests/test_pipeline_report.py",
+    "name": "test_the_text_names_the_bundle_the_metrics_the_stop_reason_and_the_command"
+   },
+   {
+    "file": "tests/test_pipeline_report.py",
+    "name": "test_storing_twice_changes_neither_the_registry_nor_the_file"
    }
   ],
   "3": [
    {
-    "file": "tests/test_budget_stops.py",
-    "name": "test_each_stop_reason_alone_and_the_priority"
-   },
-   {
-    "file": "tests/test_budget_stops.py",
-    "name": "test_rounds_without_improvement_counts_the_trailing_run"
+    "file": "tests/test_pipeline_report.py",
+    "name": "test_invalid_reports_are_rejected_and_a_valid_one_round_trips"
    }
   ],
   "4": [
    {
-    "file": "tests/test_loop_states.py",
-    "name": "test_every_transition_is_persisted_and_only_allowed_ones_occur"
-   },
-   {
-    "file": "tests/test_loop_states.py",
-    "name": "test_an_illegal_transition_raises"
-   },
-   {
-    "file": "tests/test_loop_states.py",
-    "name": "test_unknown_saved_state_is_refused"
+    "file": "tests/test_pipeline_holdout.py",
+    "name": "test_the_chosen_bundle_is_evaluated_once_through_the_frozen_protocol"
    }
   ],
   "5": [
    {
-    "file": "tests/test_loop_rounds.py",
-    "name": "test_happy_path_over_several_rounds_with_fake_roles_and_a_simulated_lead"
+    "file": "tests/test_pipeline_holdout.py",
+    "name": "test_a_failed_holdout_run_is_a_recorded_outcome_and_does_not_raise"
+   },
+   {
+    "file": "tests/test_pipeline_holdout.py",
+    "name": "test_a_malformed_payload_raises_the_genuine_runner_error"
+   },
+   {
+    "file": "tests/test_pipeline_holdout.py",
+    "name": "test_a_protocol_hash_mismatch_is_a_failed_outcome_with_no_read"
    }
   ],
   "6": [
    {
-    "file": "tests/test_loop_rounds.py",
-    "name": "test_each_round_passes_outputs_between_roles_in_the_documented_order"
+    "file": "tests/test_pipeline_holdout.py",
+    "name": "test_no_usable_attempt_skips_the_holdout_and_still_reports"
    }
   ],
   "7": [
    {
-    "file": "tests/test_loop_rounds.py",
-    "name": "test_bundle_production_goes_through_the_open_writer_interface"
+    "file": "tests/test_pipeline_resume.py",
+    "name": "test_a_crash_after_the_session_opened_records_a_failed_outcome_and_never_reads_again"
    },
    {
-    "file": "tests/test_loop_rounds.py",
-    "name": "test_an_invalid_bundle_layout_is_rejected_and_retried_with_the_reason"
+    "file": "tests/test_pipeline_resume.py",
+    "name": "test_a_crash_after_the_outcome_before_the_report_reuses_the_outcome"
+   },
+   {
+    "file": "tests/test_pipeline_resume.py",
+    "name": "test_a_crash_while_persisting_leaves_no_half_written_folder"
    }
   ],
   "8": [
    {
-    "file": "tests/test_loop_rounds.py",
-    "name": "test_guidance_is_a_suggestion_and_is_read_by_the_next_round"
+    "file": "tests/test_pipeline_holdout.py",
+    "name": "test_the_holdout_labels_never_reach_the_bundle_code"
    }
   ],
   "9": [
    {
-    "file": "tests/test_loop_rounds.py",
-    "name": "test_continue_is_an_input_and_silence_is_never_an_approval"
+    "file": "tests/test_bundle_persistence.py",
+    "name": "test_fit_persists_the_model_and_predict_runs_in_a_separate_process"
    },
    {
-    "file": "tests/test_review_lead.py",
-    "name": "test_simulated_lead_plays_its_script_then_the_default_or_silence"
+    "file": "tests/test_bundle_persistence.py",
+    "name": "test_persisted_model_candidate_ignores_the_training_data"
    }
   ],
   "10": [
    {
-    "file": "tests/test_loop_rounds.py",
-    "name": "test_m_rounds_in_a_row_without_a_pause"
+    "file": "tests/test_bundle_persistence.py",
+    "name": "test_the_runner_never_unpickles_and_the_parent_never_opens_the_model"
+   },
+   {
+    "file": "tests/test_pipeline_guards.py",
+    "name": "test_no_pickle_marshal_or_shelve_anywhere_and_predictions_are_read_as_json"
    }
   ],
   "11": [
    {
-    "file": "tests/test_loop_stops.py",
-    "name": "test_stagnation_stops_after_k_rounds_against_the_baseline"
+    "file": "tests/test_bundle_persistence.py",
+    "name": "test_a_bundle_that_keeps_its_model_only_in_memory_fails_with_code_error"
    },
    {
-    "file": "tests/test_loop_stops.py",
-    "name": "test_a_round_without_a_succeeded_candidate_counts_and_records_no_comparison"
+    "file": "tests/test_bundle_persistence.py",
+    "name": "test_fit_predict_goes_through_two_processes_and_a_clean_model_folder"
    },
    {
-    "file": "tests/test_loop_stops.py",
-    "name": "test_a_real_improvement_resets_the_counter_and_becomes_the_reference"
+    "file": "tests/test_bundle_runner.py",
+    "name": "test_runner_makes_two_sandbox_calls_with_protected_packages_and_baseline"
    }
   ],
   "12": [
    {
-    "file": "tests/test_loop_stops.py",
-    "name": "test_the_stagnation_counter_comes_from_the_registry_not_from_memory"
+    "file": "tests/test_bundle_persistence.py",
+    "name": "test_a_model_folder_does_not_change_the_bundle_hash"
+   },
+   {
+    "file": "tests/test_bundle_persistence.py",
+    "name": "test_a_registered_bundle_with_a_model_folder_does_not_report_folder_changed"
    }
   ],
   "13": [
    {
-    "file": "tests/test_loop_stops.py",
-    "name": "test_stop_on_target_needs_every_criterion_on_validation"
+    "file": "tests/test_pipeline_persisted.py",
+    "name": "test_the_persisted_folder_has_code_model_and_metadata"
+   },
+   {
+    "file": "tests/test_pipeline_persisted.py",
+    "name": "test_a_changed_code_file_or_model_file_is_refused_with_its_name"
+   },
+   {
+    "file": "tests/test_pipeline_persisted.py",
+    "name": "test_missing_or_malformed_metadata_is_refused"
+   },
+   {
+    "file": "tests/test_pipeline_persisted.py",
+    "name": "test_a_second_persist_reuses_the_existing_copy_and_an_invalid_one_is_not_overwritten"
    }
   ],
   "14": [
    {
-    "file": "tests/test_loop_failures.py",
-    "name": "test_code_errors_are_fixed_inside_the_attempt_up_to_the_cap_then_closed_failed"
+    "file": "tests/test_pipeline_command.py",
+    "name": "test_reproduce_gives_the_reported_metric_from_the_persisted_bundle_code"
+   },
+   {
+    "file": "tests/test_pipeline_command.py",
+    "name": "test_a_different_csv_gives_a_different_metric_and_a_non_zero_exit"
+   },
+   {
+    "file": "tests/test_pipeline_command.py",
+    "name": "test_a_changed_model_or_code_file_fails_the_hash_check_before_any_process_starts"
+   },
+   {
+    "file": "tests/test_pipeline_command.py",
+    "name": "test_reproduce_needs_a_registry_with_a_report"
    }
   ],
   "15": [
    {
-    "file": "tests/test_loop_failures.py",
-    "name": "test_a_code_error_fixed_before_the_cap_succeeds_in_the_same_attempt"
+    "file": "tests/test_pipeline_command.py",
+    "name": "test_predict_uses_the_stored_model_and_writes_json_from_another_directory"
+   },
+   {
+    "file": "tests/test_pipeline_command.py",
+    "name": "test_the_commands_run_as_a_module_in_a_fresh_process"
+   },
+   {
+    "file": "tests/test_pipeline_command.py",
+    "name": "test_predict_refuses_a_bad_persisted_folder"
    }
   ],
   "16": [
    {
-    "file": "tests/test_loop_failures.py",
-    "name": "test_a_timeout_closes_the_attempt_without_a_fix"
+    "file": "tests/test_bundle_persistence.py",
+    "name": "test_contract_signatures_and_documentation"
    }
   ],
   "17": [
    {
-    "file": "tests/test_loop_failures.py",
-    "name": "test_integrity_failures_are_never_retried"
+    "file": "tests/test_bundle_persistence.py",
+    "name": "test_multiclass_probability_matrix_is_validated_and_scored_like_sklearn"
    }
   ],
   "18": [
    {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_non_retryable_code_error_can_be_closed_at_once_and_the_registry_does_not_retry_for_the_loop"
+    "file": "tests/test_bundle_persistence.py",
+    "name": "test_invalid_matrices_are_rejected_with_distinct_reasons"
+   },
+   {
+    "file": "tests/test_bundle_persistence.py",
+    "name": "test_valid_matrices_and_one_dimensional_predictions_still_pass"
    }
   ],
   "19": [
    {
-    "file": "tests/test_loop_stops.py",
-    "name": "test_failure_cap_stops_at_once_in_the_middle_of_a_round"
+    "file": "tests/test_bundle_persistence.py",
+    "name": "test_a_metric_that_cannot_score_a_matrix_is_a_recorded_failure"
    },
    {
-    "file": "tests/test_loop_stops.py",
-    "name": "test_a_succeeded_attempt_in_between_resets_the_failure_count"
+    "file": "tests/test_bundle_persistence.py",
+    "name": "test_a_protocol_hash_mismatch_still_propagates_from_score_bundle"
    }
   ],
   "20": [
    {
-    "file": "tests/test_loop_failures.py",
-    "name": "test_a_rejected_proposal_goes_back_with_the_reason_and_a_duplicate_too"
+    "file": "tests/test_pipeline_guards.py",
+    "name": "test_evaluation_sources_and_the_frozen_hash_are_unchanged"
+   },
+   {
+    "file": "tests/test_pipeline_flow.py",
+    "name": "test_loop_and_web_sources_have_no_diff_against_the_merge_base"
    }
   ],
   "21": [
    {
-    "file": "tests/test_loop_failures.py",
-    "name": "test_consecutive_rejections_end_as_inconclusive_and_placeholders_are_excluded"
+    "file": "tests/test_pipeline_flow.py",
+    "name": "test_the_whole_flow_runs_from_start_cycle_to_stopped_with_the_fakes"
    },
    {
-    "file": "tests/test_loop_failures.py",
-    "name": "test_a_placeholder_never_becomes_the_baseline_and_does_not_touch_the_failure_count"
-   },
-   {
-    "file": "tests/test_loop_failures.py",
-    "name": "test_placeholders_neither_increment_nor_reset_the_failure_count"
+    "file": "tests/test_pipeline_flow.py",
+    "name": "test_start_cycle_creates_a_planning_cycle_with_the_limits"
    }
   ],
   "22": [
    {
-    "file": "tests/test_loop_failures.py",
-    "name": "test_rate_limit_and_quota_suspend_the_cycle_without_losing_state"
+    "file": "tests/test_pipeline_link.py",
+    "name": "test_the_persisted_bundle_is_linked_to_the_chosen_attempt_and_shown_by_the_web"
    },
    {
-    "file": "tests/test_loop_failures.py",
-    "name": "test_a_rejected_coordinator_suspends_the_cycle"
+    "file": "tests/test_pipeline_link.py",
+    "name": "test_linking_twice_and_resuming_do_not_duplicate_the_artifact"
+   },
+   {
+    "file": "tests/test_pipeline_link.py",
+    "name": "test_the_link_is_written_even_when_the_holdout_later_fails"
    }
   ],
   "23": [
    {
-    "file": "tests/test_loop_rounds.py",
-    "name": "test_the_reviewer_is_never_a_gate"
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_add_execution_artifact_appends_to_the_last_execution_only"
+   },
+   {
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_add_execution_artifact_refusals"
    }
   ],
   "24": [
    {
-    "file": "tests/test_loop_rounds.py",
-    "name": "test_a_protocol_change_is_refused_and_needs_a_new_plan_approval"
+    "file": "tests/test_pipeline_link.py",
+    "name": "test_a_cycle_can_start_from_a_suggestion_and_only_the_origin_is_linked"
+   },
+   {
+    "file": "tests/test_pipeline_link.py",
+    "name": "test_start_cycle_without_a_suggestion_links_nothing"
    }
   ],
   "25": [
    {
-    "file": "tests/test_loop_states.py",
-    "name": "test_revise_returns_to_planning_and_freeze_happens_once_on_approval"
-   },
-   {
-    "file": "tests/test_loop_states.py",
-    "name": "test_no_answer_to_the_plan_keeps_the_state_and_freezes_nothing"
+    "file": "tests/test_pipeline_flow.py",
+    "name": "test_a_silent_lead_waits_with_the_report_stored_and_a_later_run_adds_nothing"
    }
   ],
   "26": [
    {
-    "file": "tests/test_loop_resume.py",
-    "name": "test_resume_from_every_persisted_state_repeats_nothing"
+    "file": "tests/test_pipeline_flow.py",
+    "name": "test_a_caller_supplied_report_hook_is_respected"
    },
    {
-    "file": "tests/test_loop_resume.py",
-    "name": "test_a_stopped_cycle_is_inert"
+    "file": "tests/test_pipeline_flow.py",
+    "name": "test_the_pipeline_hook_is_installed_without_changing_the_context"
+   },
+   {
+    "file": "tests/test_pipeline_flow.py",
+    "name": "test_loop_and_web_sources_have_no_diff_against_the_merge_base"
    }
   ],
   "27": [
    {
-    "file": "tests/test_loop_resume.py",
-    "name": "test_resume_after_the_attempt_is_registered_but_before_it_ran"
+    "file": "tests/test_pipeline_suggestions.py",
+    "name": "test_one_suggestion_per_applicable_rule_with_texts_that_name_the_cause"
    },
    {
-    "file": "tests/test_loop_resume.py",
-    "name": "test_resume_between_a_failed_execution_and_its_fix"
-   },
-   {
-    "file": "tests/test_loop_resume.py",
-    "name": "test_resume_after_the_reviewer_report_but_before_guidance"
-   },
-   {
-    "file": "tests/test_loop_resume.py",
-    "name": "test_the_trace_loss_window_between_add_attempt_and_record_trace"
+    "file": "tests/test_pipeline_suggestions.py",
+    "name": "test_a_failed_holdout_gives_a_suggestion_with_its_reason"
    }
   ],
   "28": [
    {
-    "file": "tests/test_loop_traces.py",
-    "name": "test_candidate_roles_carry_candidate_id_and_every_trace_links_to_a_call"
+    "file": "tests/test_pipeline_suggestions.py",
+    "name": "test_suggestions_are_deterministic_and_idempotent"
+   },
+   {
+    "file": "tests/test_pipeline_suggestions.py",
+    "name": "test_a_cycle_that_met_its_target_with_a_good_holdout_only_gets_the_stop_suggestion"
    }
   ],
   "29": [
    {
-    "file": "tests/test_loop_traces.py",
-    "name": "test_the_whole_cycle_runs_on_injected_fakes_only"
-   },
-   {
-    "file": "tests/test_loop_traces.py",
-    "name": "test_the_new_tests_avoid_platform_specific_paths"
+    "file": "tests/test_pipeline_suggestions.py",
+    "name": "test_the_report_and_the_suggestions_point_to_each_other"
    }
   ],
   "30": [
    {
-    "file": "tests/test_loop_guards.py",
-    "name": "test_budget_and_review_import_only_the_standard_library_and_proposals"
+    "file": "tests/test_registry_records.py",
+    "name": "test_holdout_outcome_validation_and_round_trip"
    },
    {
-    "file": "tests/test_loop_guards.py",
-    "name": "test_loop_imports_only_the_allowed_internal_packages"
+    "file": "tests/test_registry_records.py",
+    "name": "test_report_record_validation_and_round_trip"
    },
    {
-    "file": "tests/test_loop_guards.py",
-    "name": "test_no_other_package_imports_loop_budget_or_review"
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_holdout_outcome_and_report_persist_and_are_written_once"
    },
    {
-    "file": "tests/test_loop_guards.py",
-    "name": "test_frozen_sources_are_unchanged_and_no_later_step_is_present"
-   },
-   {
-    "file": "tests/test_loop_guards.py",
-    "name": "test_the_loop_has_no_modeling_logic_of_its_own"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_nothing_of_tickets_10_to_16_exists"
-   },
-   {
-    "file": "tests/test_agents_guards.py",
-    "name": "test_nothing_chains_roles_and_no_other_step_is_present"
-   },
-   {
-    "file": "tests/test_bundle_guards.py",
-    "name": "test_dependencies_unchanged_and_nothing_of_later_steps_exists"
+    "file": "tests/test_registry_sqlite.py",
+    "name": "test_old_files_gain_the_holdout_outcome_and_report_tables"
    }
   ],
   "31": [
    {
-    "file": "tests/test_loop_guards.py",
-    "name": "test_public_names_have_docstrings"
+    "file": "tests/test_design_doc.py",
+    "name": "test_only_documentation_no_new_packages"
    },
    {
-    "file": "tests/test_loop_guards.py",
-    "name": "test_readme_documents_the_pipeline_the_open_interfaces_and_the_limits"
+    "file": "tests/test_design_doc.py",
+    "name": "test_pipeline_linked_to_attempt"
    },
    {
-    "file": "tests/test_repo_language.py",
-    "name": "test_code_identifiers_are_english"
-   },
-   {
-    "file": "tests/test_repo_language.py",
-    "name": "test_repo_text_has_no_italian_function_words"
+    "file": "tests/test_design_doc.py",
+    "name": "test_levels_table_rows_and_future_subpackages"
    }
   ],
   "32": [
    {
-    "file": "tests/test_loop_limits.py",
-    "name": "test_limits_are_written_once_and_a_resumed_run_ignores_the_injected_ones"
+    "file": "tests/test_pipeline_guards.py",
+    "name": "test_new_tests_use_no_proc_no_fixed_tmp_and_run_children_isolated"
    },
    {
-    "file": "tests/test_loop_limits.py",
-    "name": "test_an_older_cycle_without_parameters_takes_the_injected_limits_and_stores_them"
-   },
-   {
-    "file": "tests/test_loop_limits.py",
-    "name": "test_a_cycle_with_stored_parameters_ignores_the_injected_ones_from_the_start"
+    "file": "tests/test_pipeline_guards.py",
+    "name": "test_persisted_paths_in_the_pipeline_are_resolved"
    }
   ],
   "33": [
    {
-    "file": "tests/test_registry_records.py",
-    "name": "test_cycle_parameters_are_optional_json_and_round_trip"
+    "file": "tests/test_pipeline_guards.py",
+    "name": "test_the_test_map_holds_exactly_the_plan_cases_and_every_name_exists"
    },
-   {
-    "file": "tests/test_registry_sqlite.py",
-    "name": "test_cycle_parameters_round_trip_migration_and_write_once"
-   }
-  ],
-  "34": [
    {
     "file": "tests/test_test_map.py",
     "name": "test_test_map_entries_exist"
@@ -330,6 +352,26 @@
    {
     "file": "tests/test_loop_guards.py",
     "name": "test_the_test_map_holds_the_cases_of_the_plan"
+   }
+  ],
+  "34": [
+   {
+    "file": "tests/test_pipeline_guards.py",
+    "name": "test_pipeline_imports_only_the_allowed_packages_and_no_network_or_web"
+   },
+   {
+    "file": "tests/test_pipeline_guards.py",
+    "name": "test_pipeline_takes_only_the_public_driving_names_from_the_loop"
+   },
+   {
+    "file": "tests/test_pipeline_guards.py",
+    "name": "test_out_of_scope_stays_out_and_dependencies_are_unchanged"
+   }
+  ],
+  "35": [
+   {
+    "file": "tests/test_pipeline_guards.py",
+    "name": "test_readme_and_design_document_the_new_behaviour_and_public_names_have_docstrings"
    }
   ]
  }

@@ -40,6 +40,20 @@ _CYCLE_FIELDS = (
     "project_id",
     "parameters",
 )
+HOLDOUT_STATUSES = ("succeeded", "failed", "skipped")
+_HOLDOUT_OUTCOME_FIELDS = (
+    "cycle_id",
+    "attempt_id",
+    "bundle_id",
+    "metric",
+    "status",
+    "score",
+    "rows",
+    "failure_kind",
+    "reason",
+    "recorded_at",
+)
+_REPORT_FIELDS = ("cycle_id", "created_at", "content")
 _BUNDLE_FIELDS = ("id", "cycle_id", "folder_hash", "reference", "schema")
 _TRACE_FIELDS = (
     "cycle_id",
@@ -518,3 +532,97 @@ class RoleTrace:
     @classmethod
     def from_json(cls, text: str) -> "RoleTrace":
         return cls.from_dict(loads_object("trace", text))
+
+
+@dataclass(frozen=True)
+class HoldoutOutcome:
+    """What the single holdout evaluation of a cycle produced (design sections 6 and 15).
+
+    ``status`` is ``succeeded`` (``score`` and ``rows`` set), ``failed`` (the run broke; a
+    non-empty one-line ``reason`` and a ``failure_kind`` say why) or ``skipped`` (nothing to
+    evaluate; ``reason`` says why). It is a record, not an exception, so a failed holdout run
+    still ends in a report.
+    """
+
+    cycle_id: str
+    metric: str
+    status: str
+    recorded_at: str
+    attempt_id: str | None = None
+    bundle_id: str | None = None
+    score: float | None = None
+    rows: int | None = None
+    failure_kind: str | None = None
+    reason: str | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("cycle_id", "metric", "recorded_at"):
+            require_text(name, getattr(self, name))
+        for name in ("attempt_id", "bundle_id", "failure_kind"):
+            if getattr(self, name) is not None:
+                require_text(name, getattr(self, name))
+        if self.status not in HOLDOUT_STATUSES:
+            raise ValidationError("status", f"must be one of {', '.join(HOLDOUT_STATUSES)}")
+        if self.status == "succeeded":
+            if self.score is None or self.rows is None:
+                raise ValidationError("score", "score and rows are required when succeeded")
+            object.__setattr__(self, "score", _finite("score", self.score))
+            object.__setattr__(self, "rows", _int("rows", self.rows, 1))
+            if self.attempt_id is None:
+                raise ValidationError("attempt_id", "is required when succeeded")
+            if self.failure_kind is not None:
+                raise ValidationError("failure_kind", "must be absent when succeeded")
+        else:
+            require_text("reason", self.reason)
+            if self.score is not None or self.rows is not None:
+                raise ValidationError("score", "must be absent unless succeeded")
+
+    def to_dict(self) -> dict:
+        return {name: getattr(self, name) for name in _HOLDOUT_OUTCOME_FIELDS}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "HoldoutOutcome":
+        check_keys("holdout outcome", data, _HOLDOUT_OUTCOME_FIELDS)
+        return cls(**{name: data.get(name) for name in _HOLDOUT_OUTCOME_FIELDS})
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, sort_keys=True)
+
+    @classmethod
+    def from_json(cls, text: str) -> "HoldoutOutcome":
+        return cls.from_dict(loads_object("holdout outcome", text))
+
+
+@dataclass(frozen=True)
+class ReportRecord:
+    """The final report of a cycle as stored: a JSON-compatible ``content`` object.
+
+    The pipeline package owns the structure of ``content`` (``FinalReport``); the registry
+    only keeps it, once per cycle.
+    """
+
+    cycle_id: str
+    created_at: str
+    content: dict
+
+    def __post_init__(self) -> None:
+        require_text("cycle_id", self.cycle_id)
+        require_text("created_at", self.created_at)
+        if not isinstance(self.content, dict):
+            raise ValidationError("content", "must be an object")
+        _json_compatible("content", self.content)
+
+    def to_dict(self) -> dict:
+        return {name: getattr(self, name) for name in _REPORT_FIELDS}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ReportRecord":
+        check_keys("report", data, _REPORT_FIELDS)
+        return cls(**{name: data.get(name) for name in _REPORT_FIELDS})
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, sort_keys=True)
+
+    @classmethod
+    def from_json(cls, text: str) -> "ReportRecord":
+        return cls.from_dict(loads_object("report", text))

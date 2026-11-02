@@ -155,22 +155,25 @@ def scan():
                 with open(os.path.join(current, name), "rb") as handle:
                     texts.append(handle.read().decode("utf-8", "replace"))
     texts.append(" ".join(list(os.environ) + list(os.environ.values()) + sys.argv))
-    with open(os.path.join(staging, "x.csv")) as handle:
-        header = handle.readline().strip().split(",")
-    if "y" in header:
-        hits += 1
+    if os.path.exists(os.path.join(staging, "x.csv")):
+        with open(os.path.join(staging, "x.csv")) as handle:
+            header = handle.readline().strip().split(",")
+        if "y" in header:
+            hits += 1
     blob = "\\n".join(texts)
     return hits + sum(blob.count(n) for n in NEEDLES)
 
 
 def fit(train):
-    global FIT_HITS
-    FIT_HITS = scan()
+    with open(os.path.join(os.environ["BUNDLE_MODEL_DIR"], "hits.txt"), "w") as handle:
+        handle.write(str(scan()))
 
 
 def predict(bundle_id, X):
     print("snoop finished")
-    return [float(FIT_HITS + scan())] * len(X)
+    with open(os.path.join(os.environ["BUNDLE_MODEL_DIR"], "hits.txt")) as handle:
+        fit_hits = int(handle.read())
+    return [float(fit_hits + scan())] * len(X)
 '''
 
 
@@ -197,3 +200,44 @@ def protected_writer_bundle(root, target: str, chmod_first=False) -> Path:
         return [0] * len(X)
         """,
     ))
+
+
+MEAN_MODEL = model(
+    """
+    import json, os
+    with open(os.path.join(os.environ["BUNDLE_MODEL_DIR"], "params.json")) as handle:
+        value = json.load(handle)["value"]
+    return [value] * len(X)
+    """,
+    """
+    import json, os
+    with open(os.path.join(os.environ["BUNDLE_MODEL_DIR"], "params.json"), "w") as handle:
+        json.dump({"value": float(train["y"].mean()), "pid": os.getpid()}, handle)
+    """,
+)
+
+
+def mean_bundle(root, **kwargs) -> Path:
+    """A bundle whose fit saves the training mean (and the pid of the fit process) under BUNDLE_MODEL_DIR."""
+    return write_bundle(root, MEAN_MODEL, **kwargs)
+
+
+PRIORS_MODEL = model(
+    """
+    import json, os
+    with open(os.path.join(os.environ["BUNDLE_MODEL_DIR"], "priors.json")) as handle:
+        priors = json.load(handle)
+    return [priors] * len(X)
+    """,
+    """
+    import json, os
+    shares = train["y"].value_counts(normalize=True).sort_index()
+    with open(os.path.join(os.environ["BUNDLE_MODEL_DIR"], "priors.json"), "w") as handle:
+        json.dump([float(v) for v in shares], handle)
+    """,
+)
+
+
+def priors_bundle(root) -> Path:
+    """A multiclass bundle: every row gets the class shares of the training rows."""
+    return write_bundle(root, PRIORS_MODEL)

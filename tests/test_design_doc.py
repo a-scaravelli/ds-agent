@@ -290,7 +290,8 @@ def test_ticket_sequence_consistency_and_no_per_step_approval(sections):
 def test_only_documentation_no_new_packages():
     pkg = ROOT / "src" / "kaggle_agent"
     subs = {p.name for p in pkg.iterdir() if (p / "__init__.py").is_file()}
-    assert "pipeline" not in subs
+    assert "pipeline" in subs  # step 11 created the subpackage described in section 14
+    assert "orchestrator" not in subs  # step 12 is not built
 
 
 # --- Attempt registry with traceability (ticket 2 of section 15) ---
@@ -559,6 +560,8 @@ def test_levels_table_rows_and_future_subpackages(sections):
     for name in ("agents", "bundle", "pipeline", "web"):
         assert f"`{name}`" in s14, name
     low = s14.lower()
+    assert "pipeline, future" not in low and "future subpackage" not in low  # `pipeline` exists now
+    assert "- `pipeline`:" in s14 and "orchestrator of step 12" in low
     for word in ("sqlite", "kaggle only", "no login", "no docker", "no parallel candidates",
                  "caps on rounds and candidates only"):
         assert word in low, word
