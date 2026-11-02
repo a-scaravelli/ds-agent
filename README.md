@@ -478,6 +478,18 @@ Known limits of the pipeline: a suggestion links a new cycle to its origin (`sta
 
 Step 12 of the design, part 1, level 1. `ClaudeBundleWriter` implements the open `loop.BundleWriter` interface with Claude: `write(BundleRequest)` returns the folder of a verified bundle. The orchestrator, the command line, the real lead input and the real Kaggle submission are the next ticket and are not built.
 
+```python
+from kaggle_agent.llm.real import RealClaudeClient
+from kaggle_agent.writer import ClaudeBundleWriter, WriterTask
+
+# summary: the DataSummary of the development data (schema only, no rows, no labels)
+task = WriterTask(target="y", metric="accuracy", direction="maximize", input_kind="labels", summary=summary)
+writer = ClaudeBundleWriter(client, registry, cycle_id, workspace_root, task, max_repairs=2)
+folder = writer.write(request)   # a verified bundle folder, or a BundleError / LlmError
+```
+
+`client` is an `LlmClient` that does not record to `registry` itself; `workspace_root` is where the staging directories are created and removed; `protected` defaults to the `bundle` and `evaluation` packages; `model`, `allowed_dependencies` and `limits` are optional. Known limit: the final Claude message is ignored (the files are the output), and a bundle that passes the static checks can still crash at run time, which the loop's fix path handles.
+
 - **Prompt.** Built by a pure function from the role outputs and the attempt (hypothesis, rationale, what changed, measure, data findings), the schema of the development data (`DataSummary`: columns, dtypes, missing share, distinct values; never rows or labels), the target, the metric, its direction and the prediction kind, and the bundle contract: `fit(train)` and `predict(bundle_id, X)`, the model saved under `BUNDLE_MODEL_DIR` and loaded in another process, JSON-only predictions (1-D or a probability matrix), `bundle.json` with the requested `bundle_id`, the allowed imports. The writer gets no DataFrame, engine or holdout accessor.
 - **Tools.** Claude gets exactly `Read`, `Write`, `Edit` and `Glob` (`WRITER_TOOLS`), no Bash and no network tool, in a fresh staging directory under `workspace_root`. No tool runs code, so the bundle is never executed by the writer.
 - **Verification and repairs.** After every turn the writer checks the staged bundle with `load_bundle` (manifest, entry points, links, undeclared imports) plus: the manifest `bundle_id` equals `request.bundle_id`, every dependency is allowed (default numpy, pandas, scikit-learn), no `model/` folder, caps on files and bytes. On a failed check it makes a repair turn that carries the exact check error, at most `max_repairs` (default 2, so at most 3 Claude calls); then `InvalidBundleError`. Only a verified bundle is copied to `request.folder`. The writer never runs the evaluation and never touches the holdout.
