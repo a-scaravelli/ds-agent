@@ -117,6 +117,7 @@ class RoleAwareClaude(LlmClient):
         kwargs.setdefault("sleep", lambda seconds: None)
         super().__init__(**kwargs)
         self.errors = dict(errors or {})
+        self.fail_on: dict[str, Exception] = {}  # kind -> exception raised by the next call of that kind
         self.prompts: list[str] = []
         self.kinds: list[str] = []
         self.models: list[str | None] = []
@@ -126,9 +127,9 @@ class RoleAwareClaude(LlmClient):
         self.prompts.append(prompt)
         self.models.append(model)
         number = len(self.prompts)
-        error = self.errors.pop(number, None)
         kind = self._kind(prompt)
         self.kinds.append(kind)
+        error = self.errors.pop(number, None) or self.fail_on.pop(kind, None)
         if error is not None:
             raise error
         self.counter += 1
@@ -199,6 +200,7 @@ class World:
     def __init__(self, tmp_path, comp=None, errors=None, real_sandbox=False, extra="", sandbox=None,
                  llm=None) -> None:
         self.base = Path(tmp_path).resolve()
+        self.base.mkdir(parents=True, exist_ok=True)
         self.clock = TickClock()
         self.kaggle = FakeKaggleClient({SLUG: comp or competition()}, clock=self.clock.now, sleep=self.clock.sleep)
         self.claude = llm or RoleAwareClaude(errors)
