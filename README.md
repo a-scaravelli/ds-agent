@@ -6,7 +6,7 @@ Convention: the entire repository is in English (code, documentation, comments, 
 
 ## Current status
 
-Design plus the first pieces of code: the design document is in [docs/design.md](docs/design.md), the `proposals` subpackage of `kaggle_agent` holds the data model of plan, attempt and suggestion (ticket 1 of section 15 of the design) the `registry` subpackage holds the attempt registry with traceability (ticket 2), the `evaluation` subpackage the frozen evaluation engine (ticket 3) the `kaggle` subpackage the Kaggle client with its fake (ticket 4) and the `llm` subpackage the headless Claude adapter with its fake (ticket 5); the `sandbox` subpackage holds the light sandbox (ticket 6, level 1); the `web` subpackage holds the read-only web interface (step 10 of the design); the `agents` subpackage holds the five role agents as typed prompts (step 8 of the design); the `bundle` subpackage holds the bundle contract and runner (step 7 of the design); the `loop`, `budget` and `review` subpackages hold the round pipeline and guidance (step 9 of the design, level 1); the `pipeline` subpackage holds the holdout evaluation, the persisted bundle, the final report, the suggestions and the end-to-end flow (step 11, level 1). the `writer` subpackage holds the Claude-driven bundle writer (step 12, part 1, level 1). There is no real modeling run yet: the orchestrator, the command line, the real lead input and the real submission are the next part of step 12.
+Design plus the first pieces of code: the design document is in [docs/design.md](docs/design.md), the `proposals` subpackage of `kaggle_agent` holds the data model of plan, attempt and suggestion (ticket 1 of section 15 of the design) the `registry` subpackage holds the attempt registry with traceability (ticket 2), the `evaluation` subpackage the frozen evaluation engine (ticket 3) the `kaggle` subpackage the Kaggle client with its fake (ticket 4) and the `llm` subpackage the headless Claude adapter with its fake (ticket 5); the `sandbox` subpackage holds the light sandbox (ticket 6, level 1); the `web` subpackage holds the read-only web interface (step 10 of the design); the `agents` subpackage holds the five role agents as typed prompts (step 8 of the design); the `bundle` subpackage holds the bundle contract and runner (step 7 of the design); the `loop`, `budget` and `review` subpackages hold the round pipeline and guidance (step 9 of the design, level 1); the `pipeline` subpackage holds the holdout evaluation, the persisted bundle, the final report, the suggestions and the end-to-end flow (step 11, level 1). the `writer` subpackage holds the Claude-driven bundle writer (step 12, part 1, level 1). the `orchestrator` subpackage holds the command line, the lead input file and the real submission (step 12, part 2, level 1: done); see "Running a competition". A real run needs Kaggle and Claude credentials and has so far been exercised only with fakes.
 
 ## Stack
 
@@ -476,7 +476,7 @@ Known limits of the pipeline: a suggestion links a new cycle to its origin (`sta
 
 ## Bundle writer (`kaggle_agent.writer`)
 
-Step 12 of the design, part 1, level 1. `ClaudeBundleWriter` implements the open `loop.BundleWriter` interface with Claude: `write(BundleRequest)` returns the folder of a verified bundle. The orchestrator, the command line, the real lead input and the real Kaggle submission are the next ticket and are not built.
+Step 12 of the design, part 1, level 1. `ClaudeBundleWriter` implements the open `loop.BundleWriter` interface with Claude: `write(BundleRequest)` returns the folder of a verified bundle. The orchestrator, the command line, the lead input file and the real Kaggle submission are the second part (see "Running a competition").
 
 ```python
 from kaggle_agent.llm.real import RealClaudeClient
@@ -499,6 +499,85 @@ folder = writer.write(request)   # a verified bundle folder, or a BundleError / 
 - **Recording.** Every Claude call of the writer becomes an `llm_calls` row (tokens, model, outcome), also when it fails. The purpose reads `bundle writer: <bundle_id> turn <n> prompt <hash12>`, where the hash is the first 12 hex characters of the SHA-256 of the prompt; the writer also keeps the full hashes in its `calls` list. The client must not also record to the same registry (`WriterConfigurationError`). The dollar cost of the writer calls is NOT recorded (`CallRecord` and the `llm_calls` table have no cost field); tokens, model and prompt hash are recorded. Adding cost needs a follow-up decision.
 - **Tests.** All run without network with a scripted fake Claude (`tests/writer_helpers.py`); a valid written bundle is scored by the real `BundleRunner` in a subprocess under a frozen protocol. One MANUAL test, `tests/test_writer_manual_claude.py`, runs the real Claude on a toy dataset and is skipped unless the environment variable `KAGGLE_AGENT_RUN_CLAUDE=1` is set (it spends subscription quota).
 
+## Running a competition (`kaggle_agent.orchestrator`)
+
+Step 12 of the design, level 1. One command line runs a tabular Kaggle competition end to end. The lead decides through a file, and the submission is sent only on the lead's explicit command after the review.
+
+**Install.** `python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'`. Python 3.12 or newer, and pandas, numpy and scikit-learn must be importable by the interpreter (the bundles run with `python -I`).
+
+**Credentials** (nothing secret goes into the configuration; a key that looks like a secret is refused). Kaggle: `KAGGLE_USERNAME` and `KAGGLE_KEY`, or `~/.kaggle/kaggle.json`, or the access token, as in the Kaggle client section. Accept the competition rules on the Kaggle site first. Claude: the `claude` CLI logged in with the subscription (as in the Claude adapter section).
+
+**Configuration** (`config.toml`, strict: an unknown key, a wrong type or a direction that contradicts the metric is an error that names the key):
+
+```toml
+[competition]
+slug = "titanic"
+target = "Survived"              # or "from_submission_spec" (the 2nd column of the sample submission)
+metric = "accuracy"              # or "from_competition_info" (refused if the text is ambiguous)
+# direction = "from_metric"      # or "maximize" / "minimize"
+# train_file = "train.csv"  test_file = "test.csv"
+
+[project]
+folder = "runs/titanic"          # relative to the config file
+
+[limits]                         # N rounds, C candidates, K stagnation, M pause, fix retries
+rounds = 3
+candidates = 2
+stagnation = 2
+pause_every = 1
+fix_retries = 1
+
+[protocol]                       # optional; defaults: random 5-fold, random holdout 20%, seed 0
+seed = 0
+
+[models]                         # optional model name per role (coordinator, data, feature_engineering,
+# modeling = "claude-sonnet-5-5" #   modeling, reviewer, writer)
+
+[runtime]                        # bundle_timeout, writer_max_repairs, wait_seconds, poll_interval
+wait_seconds = 600
+```
+
+**The seed plan.** The plan stored on the cycle is generated from the configuration, not by the coordinator. Its baseline text is `simplest sensible model for <metric> on <target>`, taken from `competition.metric` and `competition.target` (there is no separate key). The baseline attempt is built from that text (`Baseline: simplest sensible model for accuracy on Survived`), not from the coordinator's plan that the lead approves; the approved plan is the coordinator's output, which `start` and `status` print from its role trace.
+
+**The lead file.** `lead.toml` in the project folder (or `[lead] file`). The program never edits it; it is read again at every call, so you can edit it while the cycle waits. `lead.example.toml` shows the keys. A missing file or table means "keep waiting"; an invalid file is exit code 12 and changes nothing.
+
+```toml
+[plan]                    # asked at plan approval
+decision = "approve"      # or "revise", with: text = "what to change"  and  plan = 1 (1, then 2, ...)
+
+[guidance]                # asked after each round; addressed to the round it answers
+round = 1
+action = "guidance"       # or "continue"
+text = "try target encoding"
+
+[review]                  # asked after the final report
+decision = "accept"
+```
+
+Entries are addressed (guidance to a round, a revision to a plan number), so a stale entry left in the file is ignored with a notice and never applied twice. There is no `submit` key: an unknown key is an error, and nothing is ever submitted from the file.
+
+**Step by step.**
+
+1. `python -m kaggle_agent.orchestrator start --config config.toml` downloads the data, creates the project and the cycle, plans, and stops waiting for the plan approval (exit 10). A second `start` on the same project creates nothing.
+2. Fill `[plan]` in `lead.toml`, then `resume`. The cycle runs the rounds and waits after each one for `[guidance]`.
+3. Fill `[guidance]` for the round being asked, then `resume`, until the cycle waits for `[review]`. The final report is in `out/reports/<cycle>.md`.
+4. Fill `[review]` with `accept` and `resume`: the holdout is read once, the report and the persisted bundle are written and the cycle is STOPPED (exit 0).
+5. `status` at any time (no network, no Claude) prints the state, round i of N, the best score, the pending question with the exact table and keys to fill, the lead file path, the notices and report paths, and the submissions.
+6. `submit --config config.toml` is a dry run: it builds the file from the persisted bundle's stored model (the `predict` command, never pickle), validates it against the competition's submission spec and prints the file, sha256, rows, columns, message, chosen bundle with validation and holdout scores and the daily limit left. It sends nothing, writes no marker and no registry row.
+7. `submit --config config.toml --confirm-submit` sends it, waits (bounded by `runtime.wait_seconds`) for the public score, records the submission and the score in the registry and adds a `Submission` section to the Markdown report; the web interface shows it on the cycle page. If the wait times out (exit 23) run the same command again: it waits again and never sends twice.
+
+**Resume.** After a Claude quota or rate limit (exit 11, the message gives the reason and the reset time when known), a crash (exit 13, the registry is intact) or while waiting for the lead (exit 10), run `resume`. Completed calls and records are not repeated. A changed competition, target, metric, protocol or data is refused; model names and timeouts may change. Resume makes no Kaggle call.
+
+**Exit codes.** 0 finished (or dry run or submitted); 10 waiting for the lead; 11 suspended (quota or rate limit); 12 lead file invalid; 13 crash, run `resume`; 2 usage or configuration error; 1 other error. `submit`: 20 the review is not accepted yet; 21 the submission file is invalid; 22 daily limit reached; 23 sent, score still pending; 24 a previous send may have reached Kaggle.
+
+**The pending marker (exit 24).** Before sending, `out/submissions/<cycle>.pending.json` is written atomically in state `sending`; after the registry row it becomes `recorded`. If a run stopped in between, a `sending` marker without a registry row makes `submit --confirm-submit` refuse: check the Kaggle submissions page by hand. If the file did not arrive, delete the marker or pass `--assume-not-sent`. If it arrived, do not send again. The program never resends by itself. Residual risk: a lead who passes `--assume-not-sent` without checking, and a crash between writing the marker and the send (a false positive that costs one manual check).
+
+**Where things live** (under the project folder): `registry.db` (SQLite registry), `data/`, `workspace/` (bundle staging), `out/reports/<cycle>.md`, `out/persisted/<bundle>/` (the deliverable, usable with `python -m kaggle_agent.pipeline reproduce|predict`), `out/submissions/<cycle>.csv` and its marker, `lead.toml`, `NOTICES.txt`, `lead-ledger.json` (plan revisions already applied), `project.json`.
+
+**Manual real test** (never run by pytest). `KAGGLE_AGENT_RUN_REAL=1 .venv/bin/pytest -q tests/test_orchestrator_manual_real.py` runs `start` and then an accepted cycle with a dry-run `submit` on titanic with N=1, C=1. It needs the credentials above and the accepted rules. Expected cost: about 10 to 15 Claude calls (the five roles, the writer with its repair turns, a reviewer) of roughly 7k input tokens each, so on the order of 100k to 200k tokens of subscription quota; this is an estimate to be confirmed by the first manual run, and the dollar cost of the writer calls is not recorded. A real confirmed submission is a manual step: after the dry run, `submit --config config.toml --confirm-submit` (it uses one of the daily submissions).
+
+**Known limits.** The submission is predicted by the model fitted on the development data only, not retrained on development plus holdout, because the persisted model is the one validated and scored on the holdout; this can cost some leaderboard score. The submission builder supports competitions whose sample submission is an id column plus prediction columns whose width matches the model output; others are refused with a message. The metric from the competition page is a keyword match and refuses anything ambiguous. A "continue" guidance answer and a plan "approve" are not recorded as separate registry rows (the loop records guidance, the frozen protocol and the state; plan revisions are kept in `lead-ledger.json`). Level 1 only: no web input, no budget in money or time, no ensembling across bundles and one competition per project folder. The writer's isolation is best effort, and nothing was run on macOS here: run the tests that start real child processes there.
+
 ## Deliverable and traceability
 
 The output of every cycle is an end-to-end Python pipeline that runs with a single command and is reproducible (or several pipelines, to compare variants), linked to the attempt it comes from. Every attempt records hypothesis and rationale, originating attempt and what changed, configuration, metrics, duration, outcome and artifacts; a web interface (list/timeline, metric chart, detail, suggestions and cycles) makes them consultable without reading code. The polished graphic design is deferred to a later ticket.
@@ -516,7 +595,7 @@ The tests do not use the network.
 ## Structure
 
 - `docs/design.md`: design in 16 sections (cycle, frozen evaluation, registry, Kaggle, ticket plan).
-- `src/kaggle_agent/`: package with the subpackages `proposals` (data model), `registry` (attempt registry), `evaluation` (protocol, split, holdout, threshold), `loop` (cycle state machine and round pipeline), `pipeline` (final report and end-to-end flow), `writer` (Claude-driven bundle writer), `kaggle`, `llm`, `agents`, `sandbox`, `bundle`, `review` (lead interface), `budget` (limits and stop rules), `web`; `evaluation` holds the evaluation engine, `kaggle` the Kaggle client (interface, fake, credentials, submission rules, recording, real adapter) and `llm` the Claude adapter (interface, fake, structured output, environment, recording, real adapter); `agents` holds the five roles; `sandbox` holds the light sandbox (interface, subprocess implementation, protected files, environment); `bundle` holds the bundle contract, the loader, the fixed-code runner and the scoring helpers; `loop`, `review` and `budget` hold the cycle, the lead interface and the limits; `pipeline` holds the end of the cycle (holdout outcome, persisted bundle, final report, suggestions, flow and the `reproduce` and `predict` commands); `web` holds the read-only web interface.
+- `src/kaggle_agent/`: package with the subpackages `proposals` (data model), `registry` (attempt registry), `evaluation` (protocol, split, holdout, threshold), `loop` (cycle state machine and round pipeline), `pipeline` (final report and end-to-end flow), `writer` (Claude-driven bundle writer), `orchestrator` (command line, lead file, submission), `kaggle`, `llm`, `agents`, `sandbox`, `bundle`, `review` (lead interface), `budget` (limits and stop rules), `web`; `evaluation` holds the evaluation engine, `kaggle` the Kaggle client (interface, fake, credentials, submission rules, recording, real adapter) and `llm` the Claude adapter (interface, fake, structured output, environment, recording, real adapter); `agents` holds the five roles; `sandbox` holds the light sandbox (interface, subprocess implementation, protected files, environment); `bundle` holds the bundle contract, the loader, the fixed-code runner and the scoring helpers; `loop`, `review` and `budget` hold the cycle, the lead interface and the limits; `pipeline` holds the end of the cycle (holdout outcome, persisted bundle, final report, suggestions, flow and the `reproduce` and `predict` commands); `web` holds the read-only web interface; `orchestrator` holds the configuration, the project folder, the context builder, the lead file and the submit command.
 - `tests/`: check the 16 sections of the design, the data model and its examples, the language convention, the test map, that the package imports, and the registry behavior (deduplication, fix retries, queries, persistence), the evaluation engine (protocol, schemes, split, holdout session, threshold, hash), the Kaggle client on the fake and on a stub of the library, the Claude adapter on the fake and on a fake process runner, and that third-party libraries are imported only by `evaluation` and by `kaggle/real.py`.
 
 Result of a manual run on macOS (Claude Code with the subscription, Python 3.14; the CLI version on that machine was not recorded): a fake `ANTHROPIC_API_KEY` was removed with a WARNING that names only the variable; the call used the subscription; the success envelope was read correctly (model `claude-sonnet-4-6`, usage reported); the result was a valid `ShortPlan`. So the format of the success envelope assumed in the design is confirmed. The first answer, however, was rejected (`invalid_output`, 7113 input and 545 output tokens) and only the retry succeeded (`ok`, 7139 and 271): about 7k input tokens per call, so a first-try failure doubles the cost. This motivated the rich contract and `rejection_reason` above; the benefit is not yet measured.
@@ -526,7 +605,7 @@ Result of a manual run on macOS (Claude Code with the subscription, Python 3.14;
 - The placeholder import in `load_api_class()` depends on the internals of the pinned `kaggle` version (it skips the package `__init__` and supplies only `__version__`). Recheck it, together with the source-scan test in `tests/test_kaggle_real.py`, whenever the pin in `pyproject.toml` changes.
 - Adding the goal and the new modules changes the hash of the `evaluation` sources, so a protocol frozen earlier in an open cycle no longer passes `verify`.
 - `Kaggle` needed no change; the data hash and the per-file SHA-256 are already in `DownloadResult`, and there is no separate snapshot accessor (the data role of a later ticket will read these).
-- There is still no runnable command of the agent: only the data model, the registry, the evaluation engine, the Kaggle client, the Claude adapter and the light sandbox exist.
+- The runnable command of the agent is `python -m kaggle_agent.orchestrator` (see "Running a competition"); it has been exercised only with fakes until the manual real test is run.
 - The real Kaggle adapter is checked only by the manual smoke test: its mapping of responses is tested against a stub built from the source of the official package, and the exact error for unaccepted rules is to be confirmed by hand. The policy of when a submission is worthwhile and the reserve for the last hours are not implemented (loop and review tickets); the key-like-string check of the artifacts belongs to the tickets that save artifacts. The official package has several transitive dependencies that are not pinned individually.
 - The holdout guarantee is one of interface and log (one session per cycle, every read logged in the registry). The light sandbox (ticket 6) only partly isolates generated code, see its section.
 - The hash covers the bytes of the `evaluation` sources: any edit of the package invalidates the frozen protocols of open cycles. Library versions are outside the hash and recorded in `resources`. Raising the threshold with the number of comparisons is not implemented; the count is only recorded.

@@ -84,6 +84,8 @@ def test_no_other_package_imports_loop_budget_or_review():
         if package == "pipeline":  # step 11 drives the loop; test_pipeline_guards limits what it takes
             assert "review" not in used, path
             continue
+        if package == "orchestrator":  # step 12 part 2 wires the loop, budget and review together
+            continue
         if package == "writer":  # step 12 part 1 implements the loop's BundleWriter interface only
             assert not used & {"budget", "review"}, path
             continue

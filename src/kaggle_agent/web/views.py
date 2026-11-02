@@ -77,6 +77,7 @@ def cycle_page(registry: Registry, cycle_id: str) -> dict:
         ],
         "timeline": attempts,
         "bundles": registry.list_bundles(cycle_id),
+        "submissions": registry.list_submissions(cycle_id),
     }
 
 

@@ -291,7 +291,7 @@ def test_only_documentation_no_new_packages():
     pkg = ROOT / "src" / "kaggle_agent"
     subs = {p.name for p in pkg.iterdir() if (p / "__init__.py").is_file()}
     assert "pipeline" in subs  # step 11 created the subpackage described in section 14
-    assert "orchestrator" not in subs  # step 12 is not built
+    assert "orchestrator" in subs  # step 12 part 2 (level 1)
 
 
 # --- Attempt registry with traceability (ticket 2 of section 15) ---

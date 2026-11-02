@@ -20,6 +20,7 @@ BUDGET = SRC / "budget"
 REVIEW = SRC / "review"
 PIPELINE = SRC / "pipeline"
 WRITER = SRC / "writer"
+ORCHESTRATOR = SRC / "orchestrator"
 SANDBOX_RUNNER = SANDBOX / "subprocess_sandbox.py"
 TESTS = Path(__file__).resolve().parent
 REAL_ADAPTER = KAGGLE / "real.py"
@@ -60,7 +61,7 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
             allowed |= THIRD_PARTY
         if BUNDLE in path.parents:
             allowed |= {"pandas", "numpy"}
-        if PIPELINE in path.parents:
+        if PIPELINE in path.parents or ORCHESTRATOR in path.parents:
             allowed |= {"pandas"}
         if path == REAL_ADAPTER:
             allowed |= KAGGLE_LIBRARY
@@ -73,7 +74,7 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
 def test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle_llm_sandbox():
     for path in _modules():
         if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM, AGENTS, SANDBOX, WEB, BUNDLE,
-                                       LOOP, BUDGET, REVIEW, PIPELINE, WRITER)):
+                                       LOOP, BUDGET, REVIEW, PIPELINE, WRITER, ORCHESTRATOR)):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -287,13 +288,15 @@ def test_nothing_of_tickets_10_to_16_exists():
     names = {p.stem for p in SRC.rglob("*.py") if BUNDLE not in p.parents and PIPELINE not in p.parents}
     assert not names & {"runner", "bundle", "pipeline"}
     assert not {p.stem for p in BUNDLE.rglob("*.py")} & {"pipeline", "report", "orchestrator"}
-    # step 11 (report, holdout, pipeline) lives in the `pipeline` package only; step 12 (orchestrator) is absent
+    # step 11 (report, holdout, pipeline) lives in the `pipeline` package only; no file has the stem
+    # `orchestrator` (the step 12 package has that name, its modules do not)
     assert not {p.stem for p in SRC.rglob("*.py")} & {"orchestrator"}
     assert (PIPELINE / "__init__.py").is_file()
     later = {p.stem for p in LOOP.rglob("*.py")} | {p.stem for p in BUDGET.rglob("*.py")}
     later |= {p.stem for p in REVIEW.rglob("*.py")}
     assert not later & {"report", "orchestrator", "holdout", "pipeline", "runner", "bundle"}
-    assert not [p for p in SRC.iterdir() if p.is_dir() and p.name in {"runner", "orchestrator"}]
+    # step 12 part 2 adds the orchestrator package, and only at src/kaggle_agent/orchestrator
+    assert not [p for p in SRC.iterdir() if p.is_dir() and p.name in {"runner"}]
 
 
 # --- web package (step 10) ---
