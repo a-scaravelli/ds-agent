@@ -19,6 +19,7 @@ LOOP = SRC / "loop"
 BUDGET = SRC / "budget"
 REVIEW = SRC / "review"
 PIPELINE = SRC / "pipeline"
+WRITER = SRC / "writer"
 SANDBOX_RUNNER = SANDBOX / "subprocess_sandbox.py"
 TESTS = Path(__file__).resolve().parent
 REAL_ADAPTER = KAGGLE / "real.py"
@@ -72,7 +73,7 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
 def test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle_llm_sandbox():
     for path in _modules():
         if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM, AGENTS, SANDBOX, WEB, BUNDLE,
-                                       LOOP, BUDGET, REVIEW, PIPELINE)):
+                                       LOOP, BUDGET, REVIEW, PIPELINE, WRITER)):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -218,6 +219,7 @@ def test_only_llm_real_imports_subprocess_and_llm_uses_no_network_or_third_party
         if path.name != Path(__file__).name:
             assert "subprocess" not in {top for top, _ in _imports(path)} or path.name in {
                 "llm_helpers.py", "test_llm_real.py", "test_pipeline_command.py", "test_pipeline_flow.py",
+                "test_writer_manual_claude.py",
             } or "sandbox" in path.name, path
 
 
