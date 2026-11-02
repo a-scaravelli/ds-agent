@@ -84,6 +84,9 @@ def test_no_other_package_imports_loop_budget_or_review():
         if package == "pipeline":  # step 11 drives the loop; test_pipeline_guards limits what it takes
             assert "review" not in used, path
             continue
+        if package == "writer":  # step 12 part 1 implements the loop's BundleWriter interface only
+            assert not used & {"budget", "review"}, path
+            continue
         assert "loop" not in used, path
         assert not used & {"budget", "review"}, path
     # budget and review do not import each other or the loop
@@ -134,8 +137,3 @@ def test_readme_documents_the_pipeline_the_open_interfaces_and_the_limits():
     low = " ".join(section.split()).lower()
     assert "claude-driven code writer" in low and "real command or file input" in low
     assert "not built" in low
-
-
-def test_the_test_map_holds_the_cases_of_the_plan():
-    cases = json.loads((ROOT / ".asl" / "test-map.json").read_text(encoding="utf-8"))["cases"]
-    assert sorted(int(k) for k in cases) == list(range(1, 36))

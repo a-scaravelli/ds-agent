@@ -557,7 +557,7 @@ def test_levels_table_rows_and_future_subpackages(sections):
                       "lead input", "data", "storage", "security", "budget"]
     for r in rows:
         assert r.count("|") == 5, r
-    for name in ("agents", "bundle", "pipeline", "web"):
+    for name in ("agents", "bundle", "pipeline", "web", "writer"):
         assert f"`{name}`" in s14, name
     low = s14.lower()
     assert "pipeline, future" not in low and "future subpackage" not in low  # `pipeline` exists now

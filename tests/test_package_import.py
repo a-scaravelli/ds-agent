@@ -6,7 +6,7 @@ import pytest
 
 SUBPACKAGES = [
     "loop", "proposals", "evaluation", "registry", "kaggle",
-    "llm", "sandbox", "review", "budget", "agents", "bundle",
+    "llm", "sandbox", "review", "budget", "agents", "bundle", "writer",
 ]
 
 
