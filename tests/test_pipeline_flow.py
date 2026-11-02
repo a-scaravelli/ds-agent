@@ -101,7 +101,8 @@ def test_loop_and_web_sources_have_no_diff_against_the_merge_base():
         return  # pragma: no cover
     diff = subprocess.run(
         [*git, "diff", "--stat", base.stdout.strip(), "--", "src/kaggle_agent/loop", "src/kaggle_agent/web",
-         "src/kaggle_agent/evaluation"],
+         "src/kaggle_agent/evaluation", ":(exclude)src/kaggle_agent/web/views.py",
+         ":(exclude)src/kaggle_agent/web/templates/cycle.html"],  # step 12 adds the submissions table
         capture_output=True, text=True,
     )
     assert diff.returncode == 0 and diff.stdout.strip() == ""

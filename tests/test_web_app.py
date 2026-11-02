@@ -327,3 +327,20 @@ def test_pipeline_reference_convention():
     assert pipeline_reference(["pipeline:javascript:alert(1)"])["url"] is None
     assert pipeline_reference(["pipeline:https://"])["url"] is None
     assert pipeline_reference(["other"]) is None and pipeline_reference([]) is None
+
+
+def test_cycle_page_shows_the_submission_and_its_score():
+    from registry_helpers import make_cycle
+
+    from kaggle_agent.registry import SubmissionEntry
+
+    with SqliteRegistry() as reg:
+        reg.add_cycle(make_cycle("S1"))
+        reg.add_submission(SubmissionEntry("S1", "toy", "sub-7", "a" * 64, "msg", "2026-01-01T12:00:00+00:00",
+                                           "pending"))
+        reg.update_submission_score("toy", "sub-7", "complete", 0.8125, "2026-01-01T12:05:00+00:00")
+        client = create_app(reg).test_client()
+        html = page(client, "/cycles/S1")
+        assert client.post("/cycles/S1").status_code == 405
+    block = _after(html, "Submissions")
+    assert "sub-7" in block and "complete" in block and "0.8125" in block and "2026-01-01T12:00:00" in block

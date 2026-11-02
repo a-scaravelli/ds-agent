@@ -22,7 +22,7 @@ from .codes import CommandResult
 from .config import load_config
 from .errors import ConfigError, OrchestratorError
 from .service import resume, start, status
-from .submission import submit
+from .submission import run_submit
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -64,7 +64,7 @@ def run(args, deps: Dependencies | None) -> CommandResult:
     if args.command == "resume":
         return resume(config, deps)
     try:
-        return submit(config, deps, args.confirm_submit, args.assume_not_sent)
+        return run_submit(config, deps, args.confirm_submit, args.assume_not_sent)
     except OrchestratorError as error:
         return CommandResult(codes.USAGE, (f"error: {error}",))
     except Exception as error:  # a failed registry write after a send leaves the marker in place

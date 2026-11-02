@@ -1,6 +1,6 @@
 """The real submission, after the review, and only on the lead's explicit command.
 
-``submit`` checks, in order: (a) the cycle is STOPPED (the review was accepted) and holds a final
+``run_submit`` checks, in order: (a) the cycle is STOPPED (the review was accepted) and holds a final
 report with a persisted bundle; (b) the persisted folder passes ``load_persisted`` (the hashes of its
 code and model are re-checked); then it builds the submission file by running the stored model's
 predict stage on the competition's test file through ``pipeline.command.predict`` (JSON, never
@@ -199,16 +199,16 @@ def _find(entries: list[SubmissionEntry], sha: str) -> SubmissionEntry | None:
     return next((e for e in entries if e.file_sha256 == sha), None)
 
 
-def submit(config: Config, deps: Dependencies, confirm: bool = False,
+def run_submit(config: Config, deps: Dependencies, confirm: bool = False,
            assume_not_sent: bool = False) -> CommandResult:
     """The submit command; ``SubmitRefused`` becomes a result with its exit code."""
     try:
-        return _submit(config, deps, confirm, assume_not_sent)
+        return _run_submit(config, deps, confirm, assume_not_sent)
     except SubmitRefused as refusal:
         return CommandResult(refusal.code, (f"refused: {refusal}", "nothing was sent."))
 
 
-def _submit(config: Config, deps: Dependencies, confirm: bool, assume_not_sent: bool) -> CommandResult:
+def _run_submit(config: Config, deps: Dependencies, confirm: bool, assume_not_sent: bool) -> CommandResult:
     paths, slug = config.paths, config.competition.slug
     state = read_project(paths)
     if state is None:

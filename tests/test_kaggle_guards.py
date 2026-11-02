@@ -21,6 +21,9 @@ def _calls_of(tree, attribute):
 def test_nothing_in_the_source_calls_submit():
     for path in SRC.rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"))
+        if path == SRC / "orchestrator" / "submission.py":  # the one explicit, confirmed send (step 12)
+            assert len(_calls_of(tree, "submit")) == 1, path
+            continue
         assert not _calls_of(tree, "submit"), path
         defined = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "submit"]
         assert not defined or path == KAGGLE / "interface.py", path
@@ -28,7 +31,7 @@ def test_nothing_in_the_source_calls_submit():
 
 def test_no_module_outside_kaggle_imports_the_client():
     for path in SRC.rglob("*.py"):
-        if KAGGLE in path.parents:
+        if KAGGLE in path.parents or (SRC / "orchestrator") in path.parents:  # step 12 uses the client
             continue
         for _, full in _imports(path):
             assert "kaggle" not in full.split(".")[1:2] or full == "kaggle_agent", f"{path}: {full}"

@@ -37,4 +37,15 @@ protocol hash: {{ cycle.protocol_hash or '-' }}</p>
 {% if bundles %}
 <ul>{% for b in bundles %}<li>{{ b.id }} (folder hash {{ b.folder_hash }}, reference {{ b.reference }})</li>{% endfor %}</ul>
 {% else %}<p>None.</p>{% endif %}
+
+<h2>Submissions</h2>
+{% if submissions %}
+<table>
+<tr><th>Submission</th><th>Status</th><th>Public score</th><th>Submitted at</th></tr>
+{% for s in submissions %}
+<tr><td>{{ s.submission_id }}</td><td>{{ s.status }}</td>
+<td>{{ s.public_score if s.public_score is not none else '-' }}</td><td>{{ s.submitted_at }}</td></tr>
+{% endfor %}
+</table>
+{% else %}<p>None.</p>{% endif %}
 {% endblock %}
