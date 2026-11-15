@@ -7,8 +7,8 @@
 - ``submit``: build the submission from the chosen persisted bundle after the review. WITHOUT
   ``--confirm-submit`` it is a dry run that sends nothing; with it the file is sent (once).
 
-Exit codes: 0 finished/ok, 10 waiting for the lead, 11 suspended (quota/rate limit), 12 lead file
-invalid, 13 crash (run resume), 2 usage or configuration error, 1 other error, and for ``submit``
+Exit codes: 0 finished/ok, 10 waiting for the lead, 11 suspended (quota, rate limit or expired Claude login),
+12 lead file invalid, 13 crash (run resume), 2 usage or configuration error, 1 other error, and for ``submit``
 20 not accepted yet, 21 invalid submission file, 22 daily limit, 23 score still pending,
 24 a previous send may have reached Kaggle (see the README).
 """

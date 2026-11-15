@@ -66,7 +66,7 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
         if path == REAL_ADAPTER:
             allowed |= KAGGLE_LIBRARY
         if WEB in path.parents:
-            allowed |= {"flask"}
+            allowed |= {"flask", "werkzeug"}  # werkzeug comes with Flask: web/__main__.py serves with it
         for top, _ in _imports(path):
             assert top in allowed, f"{path}: {top}"
 
@@ -268,7 +268,7 @@ def test_no_test_builds_a_real_client_without_a_runner():
 
 
 def test_evaluation_imports_neither_tests_nor_llm_and_no_unpinned_library_anywhere():
-    pinned = {"kaggle", "pandas", "numpy", "sklearn", "flask"}
+    pinned = {"kaggle", "pandas", "numpy", "sklearn", "flask", "werkzeug"}  # werkzeug: part of Flask
     stdlib = set(sys.stdlib_module_names)
     for path in _modules():
         for top, full in _imports(path):
@@ -312,7 +312,7 @@ def test_web_imports_only_stdlib_flask_proposals_registry_and_itself():
     assert _web_modules()
     for path in _web_modules():
         for top, full in _imports(path):
-            assert top in stdlib | {"flask", "kaggle_agent", "<relative>"}, f"{path}: {full}"
+            assert top in stdlib | {"flask", "werkzeug", "kaggle_agent", "<relative>"}, f"{path}: {full}"
             assert top not in NETWORK_MODULES, f"{path}: {full}"
             if top == "kaggle_agent":
                 parts = full.split(".")

@@ -1,7 +1,8 @@
 """The commands ``start``, ``resume`` and ``status`` (``submit`` lives in ``submission``).
 
 Each returns ``CommandResult(code, lines)``. Exit codes (see ``codes``): 0 the cycle finished, 10 it
-waits for the lead, 11 it was suspended (quota or rate limit: run ``resume`` later), 12 the lead file
+waits for the lead, 11 it was suspended (quota, rate limit or an expired Claude login: run ``resume`` later,
+after ``claude auth login`` in the last case), 12 the lead file
 is invalid, 13 an unexpected crash with the registry intact (run ``resume``), 2 usage or
 configuration error, 1 any other error. ``status`` needs no network and no Claude: it only reads the
 project folder and the registry (opened read-only).
@@ -12,6 +13,7 @@ from datetime import timezone
 from pathlib import Path
 
 from kaggle_agent.evaluation import EvaluationEngine, Protocol
+from kaggle_agent.llm import is_authentication_reason
 from kaggle_agent.loop import CycleView
 from kaggle_agent.loop.machine import STATUS_STOPPED, STATUS_SUSPENDED, STATUS_WAITING
 from kaggle_agent.loop.states import AWAITING_PLAN_APPROVAL, STOPPED
@@ -108,6 +110,12 @@ def run_cycle(config: Config, deps: Dependencies) -> CommandResult:
                 f"When the file is filled, run: {_cmd(config, 'resume')}"))
         assert outcome.status == STATUS_SUSPENDED
         _write_last_run(config, deps, "suspended", outcome.state, outcome.reason or "")
+        if is_authentication_reason(outcome.reason):
+            return CommandResult(codes.SUSPENDED, (
+                f"The cycle {cycle_id} is SUSPENDED in {outcome.state}: Claude CLI is not logged in "
+                "or its login expired: run `claude auth login` in a normal Terminal, then run resume",
+                f"Nothing was lost. After logging in, run: {_cmd(config, 'resume')}",
+                *notices))
         return CommandResult(codes.SUSPENDED, (
             f"The cycle {cycle_id} is SUSPENDED in {outcome.state}: {outcome.reason}",
             f"Nothing was lost. When the quota or rate limit allows it, run: {_cmd(config, 'resume')}",

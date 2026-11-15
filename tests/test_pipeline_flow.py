@@ -102,7 +102,8 @@ def test_loop_and_web_sources_have_no_diff_against_the_merge_base():
     diff = subprocess.run(
         [*git, "diff", "--stat", base.stdout.strip(), "--", "src/kaggle_agent/loop", "src/kaggle_agent/web",
          "src/kaggle_agent/evaluation", ":(exclude)src/kaggle_agent/web/views.py",
-         ":(exclude)src/kaggle_agent/web/templates/cycle.html"],  # step 12 adds the submissions table
+         ":(exclude)src/kaggle_agent/web/templates/cycle.html",  # step 12 adds the submissions table
+         ":(exclude)src/kaggle_agent/web/__main__.py"],  # ticket 24: single-threaded server
         capture_output=True, text=True,
     )
     assert diff.returncode == 0 and diff.stdout.strip() == ""
