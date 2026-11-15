@@ -94,7 +94,7 @@ def test_persisted_paths_in_the_pipeline_are_resolved():
 def test_out_of_scope_stays_out_and_dependencies_are_unchanged():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     names = sorted(d.split("==")[0] for d in pyproject["project"]["dependencies"])
-    assert names == ["flask", "kaggle", "numpy", "pandas", "scikit-learn"]
+    assert names == ["flask", "kaggle", "numpy", "pandas", "scikit-learn", "six"]
     stems = {p.stem for p in SRC.rglob("*.py")}
     assert "orchestrator" not in stems
     for path in sorted(SRC.rglob("*.py")):

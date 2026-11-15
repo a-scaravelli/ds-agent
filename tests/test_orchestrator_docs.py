@@ -9,7 +9,7 @@ from kaggle_agent.orchestrator import codes
 from kaggle_agent.orchestrator.config import baseline_text
 
 ROOT = Path(__file__).resolve().parent.parent
-PLAN_CASES = 42
+PLAN_CASES = 16
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 
 
@@ -72,3 +72,14 @@ def test_the_documentation_the_design_note_and_the_test_map_are_complete():
         for entry in entries:
             source = (ROOT / entry["file"]).read_text(encoding="utf-8")
             assert f"def {entry['name']}(" in source, (key, entry)
+
+
+# 13
+def test_the_readme_explains_six_and_the_sample_file_selection():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    install = readme.split("**Install.**")[1].split("**Credentials**")[0]
+    assert "`six`" in install and "kaggle==2.2.4" in install and "without declaring it" in install
+    client = readme.split("## Kaggle client")[1].split("\n## ")[0]
+    assert "**Sample submission file.**" in client
+    assert "sample_submission.csv" in client and "gender_submission.csv" in client
+    assert "file names seen" in client

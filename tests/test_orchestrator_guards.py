@@ -21,7 +21,7 @@ PINNED = {
     "pipeline": "612f737d5af5dd10e3ddd0c4071928abc4d2ebc77e5a9bc3b876ff941ee9543c",
     "writer": "7c55b7ad8aef4c3e0e2a63d07f1fbec4b5b0262add989c6179392899c28a970e",
     "llm": "3a218b7783b9fddd051703819e47b94a7f09ffe10c4f678fb992c1138e20dddc",
-    "kaggle": "1de2fec26529fbc423dcdea2757f02223e88b80a15010e3b9204e28308ac70d4",
+    "kaggle": "844b183fa141703d045b676cf886a7449655fad56ad375d72a1c4758dd8e594a",
     "bundle": "d082d3d2c7191c7a0d8ab7d0b4fea23a7bcce706f874b6fe490832705ebb7985",
     "registry": "ab5bc75eebc24452575e9fe4a383246745a0808d5252b77cbbf41c43ac607cef",
 }
@@ -59,7 +59,7 @@ def test_the_frozen_and_untouched_packages_keep_their_pinned_hashes():
 def test_dependencies_are_unchanged():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     names = sorted(d.split("==")[0] for d in pyproject["project"]["dependencies"])
-    assert names == ["flask", "kaggle", "numpy", "pandas", "scikit-learn"]
+    assert names == ["flask", "kaggle", "numpy", "pandas", "scikit-learn", "six"]
 
 
 def test_the_orchestrator_name_is_used_only_by_its_own_package():

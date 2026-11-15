@@ -67,10 +67,10 @@ def sample_csv(rows: int = 10, columns: str = "id,y") -> str:
 
 
 def competition(score_script=(None, 0.8), daily_limit=5, evaluation="Submissions are evaluated on accuracy.",
-                sample=None, test=None, train=None) -> FakeCompetition:
+                sample=None, test=None, train=None, sample_name="sample_submission.csv") -> FakeCompetition:
     return FakeCompetition(
         files={"train.csv": (train or train_csv()).encode(), "test.csv": (test or features_csv()).encode(),
-               "sample_submission.csv": (sample or sample_csv()).encode()},
+               sample_name: (sample or sample_csv()).encode()},
         description="A toy competition", rules="Be nice", evaluation=evaluation,
         sample_submission=sample or sample_csv(), daily_limit=daily_limit, score_script=score_script,
     )

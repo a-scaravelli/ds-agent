@@ -3,6 +3,7 @@
 import json
 
 from orchestrator_helpers import (
+    competition,
     GUIDE_CONTINUE,
     PLAN_APPROVE,
     REVIEW_ACCEPT,
@@ -31,6 +32,18 @@ def test_start_creates_the_project_and_runs_until_the_lead_is_needed(tmp_path):
         assert len(registry.list_cycles()) == 1 and registry.get_cycle("toy-1").protocol_hash is None
     finally:
         registry.close()
+
+
+# 9
+def test_start_does_not_need_a_file_named_sample_submission(tmp_path):
+    default = World(tmp_path / "default")
+    other = World(tmp_path / "other", comp=competition(sample_name="gender_submission.csv"))
+    names = {f.name for f in other.kaggle.download("toy", tmp_path / "files").files}
+    assert names == {"train.csv", "test.csv", "gender_submission.csv"}
+    code, text = other.run("start")
+    assert code == default.run("start")[0] == 10
+    assert other.state() == default.state() == "AWAITING_PLAN_APPROVAL"
+    assert "WAITING FOR THE LEAD" in text
 
 
 # 7

@@ -30,6 +30,11 @@ bound by ``with ... as kaggle``. The placeholder therefore carries only
 ``__version__``, read from the installed distribution metadata. This depends on the internals of the pinned version and must be
 rechecked, with the source-scan test, whenever the pin changes.
 
+The first real run on Kaggle ('titanic') found two bugs the stub-based tests
+could not see: the sample file there is ``gender_submission.csv`` (see
+``_pick_sample_file``), and the pinned ``kaggle`` imports ``six`` without
+declaring it (declared explicitly in pyproject.toml).
+
 Page names are not consistently lowercase: the smoke test found 'rules',
 'Description', 'Evaluation', 'data-description' and 'Frequently Asked
 Questions' for titanic. The adapter lists the pages once and matches the names
@@ -105,6 +110,24 @@ def load_api_class():
         raise KaggleError(
             "the 'kaggle' library is not installed: run pip install -e . to install it"
         ) from None
+
+
+def _pick_sample_file(names) -> str | None:
+    """Choose the sample submission among the listed file names, or None.
+
+    Only CSV files qualify (case-insensitive). Tier 1: names containing both
+    'sample' and 'submission'; else tier 2: names containing 'submission'
+    (for example ``gender_submission.csv``). Within the tier the best match of
+    'sample_submission' comes first, then the shortest name, then the sorted
+    order, so the result does not depend on the listing order.
+    """
+    csv_names = [n for n in names if n.lower().endswith(".csv")]
+    tier = [n for n in csv_names if "sample" in n.lower() and "submission" in n.lower()]
+    if not tier:
+        tier = [n for n in csv_names if "submission" in n.lower()]
+    if not tier:
+        return None
+    return min(tier, key=lambda n: ("sample_submission" not in n.lower(), len(n), n.lower(), n))
 
 
 def _status_code(exc: Exception) -> int | None:
@@ -241,19 +264,20 @@ class RealKaggleClient(KaggleClient):
         listing = self._call(
             competition, self._api.competition_list_files, competition, page_size=200
         )
-        sample = [
-            f.name
-            for f in listing.files
-            if "sample" in f.name.lower() and "submission" in f.name.lower()
-        ]
-        if not sample:
-            raise KaggleError(f"competition '{competition}' has no sample submission file")
+        listed = [f.name for f in listing.files]
+        sample = _pick_sample_file(listed)
+        if sample is None:
+            seen = ", ".join(repr(n) for n in sorted(listed))
+            raise KaggleError(
+                f"competition '{competition}' has no sample submission file; "
+                f"files seen: {seen or 'none'}"
+            )
         with tempfile.TemporaryDirectory() as tmp:
             self._call(
                 competition,
                 self._api.competition_download_file,
                 competition,
-                sample[0],
+                sample,
                 path=tmp,
                 force=True,
                 quiet=True,
