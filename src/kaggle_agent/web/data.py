@@ -284,7 +284,7 @@ def _holdout_view(core: dict) -> dict:
     outcome, reads = core["outcome"], core["reads"]
     if outcome is None and not reads:
         return {"status": "sealed", "score": None, "rows": None, "attempt_id": None,
-                "reason": None, "reads": []}
+                "reason": None, "reads": [], "metric": None, "recorded_at": None}
     out = {
         "status": outcome.status if outcome else "read",
         "score": outcome.score if outcome else None,

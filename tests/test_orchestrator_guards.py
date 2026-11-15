@@ -1,7 +1,6 @@
 """Structural guards of the orchestrator ticket: untouched packages, dependencies, scope (cases 36, 37, 39)."""
 
 import ast
-import hashlib
 import json
 import tomllib
 from pathlib import Path
@@ -23,21 +22,10 @@ PINNED = {
     "llm": "acbe904742217e7fc6062554462a0f9fb1b43a2a33a92d1a7adf9b741c25464a",
     "kaggle": "844b183fa141703d045b676cf886a7449655fad56ad375d72a1c4758dd8e594a",
     "bundle": "d082d3d2c7191c7a0d8ab7d0b4fea23a7bcce706f874b6fe490832705ebb7985",
-    "registry": "ab5bc75eebc24452575e9fe4a383246745a0808d5252b77cbbf41c43ac607cef",
+    "registry": "04350ec5249dcffe22929c187ec50b13beb028406cd58a15dbeb15992890ef23",
 }
-WEB_EDITED = {"views.py", "cycle.html"}
-WEB_REST_HASH = "4b9d027af9050e7ad2deda2a40229269eddad493d825ef1360034f841f955c05"
 NETWORK = {"socket", "urllib", "http", "requests", "httpx", "ftplib", "smtplib", "subprocess", "asyncio"}
 REAL_ADAPTERS = {"RealKaggleClient", "RealClaudeClient", "SubprocessSandbox"}
-
-
-def web_rest_hash() -> str:
-    web = SRC / "web"
-    digest = hashlib.sha256()
-    for path in sorted(web.rglob("*")):
-        if path.is_file() and "__pycache__" not in path.parts and path.name not in WEB_EDITED:
-            digest.update(path.relative_to(web).as_posix().encode("utf-8") + b"\0" + path.read_bytes() + b"\0")
-    return digest.hexdigest()
 
 
 def imports(path: Path):
@@ -53,7 +41,18 @@ def imports(path: Path):
 def test_the_frozen_and_untouched_packages_keep_their_pinned_hashes():
     for name, expected in PINNED.items():
         assert hash_path(SRC / name) == expected, name
-    assert web_rest_hash() == WEB_REST_HASH
+
+
+# 4 (ticket 26: the registry hash was updated deliberately for WAL and the busy timeout; the web
+# pin is gone because the whole web package was rewritten, the structural web guard of
+# test_no_modeling_logic.py replaces it)
+def test_the_registry_pin_was_updated_deliberately_and_the_web_pin_is_gone():
+    assert hash_path(SRC / "registry") == PINNED["registry"]
+    for name in ("evaluation", "loop", "pipeline", "writer", "llm", "kaggle", "bundle"):
+        assert name in PINNED
+    text = (TESTS / "test_orchestrator_guards.py").read_text(encoding="utf-8")
+    for word in ("WEB_" + "REST_HASH", "WEB_" + "EDITED", "web_" + "rest_hash"):
+        assert word not in text  # the words are split above, so this file does not contain them
 
 
 def test_dependencies_are_unchanged():

@@ -94,16 +94,16 @@ def test_the_pipeline_hook_is_installed_without_changing_the_context(tmp_path):
     assert dataclasses.is_dataclass(pipe.ctx)
 
 
-def test_loop_and_web_sources_have_no_diff_against_the_merge_base():
+def test_loop_and_evaluation_sources_have_no_diff_against_the_merge_base():
     git = ["git", "-C", str(ROOT)]
     base = subprocess.run([*git, "merge-base", "HEAD", "origin/main"], capture_output=True, text=True)
     if base.returncode != 0:  # no remote in this checkout: nothing to compare with
         return  # pragma: no cover
     diff = subprocess.run(
-        [*git, "diff", "--stat", base.stdout.strip(), "--", "src/kaggle_agent/loop", "src/kaggle_agent/web",
-         "src/kaggle_agent/evaluation", ":(exclude)src/kaggle_agent/web/views.py",
-         ":(exclude)src/kaggle_agent/web/templates/cycle.html",  # step 12 adds the submissions table
-         ":(exclude)src/kaggle_agent/web/__main__.py",  # ticket 24: single-threaded server
+        [*git, "diff", "--stat", base.stdout.strip(), "--", "src/kaggle_agent/loop",
+         "src/kaggle_agent/evaluation",
+         # the whole web package is excluded: ticket 26 (cockpit 1/4) rewrites it (threaded server,
+         # JSON API, new pages); the structural web guard of test_no_modeling_logic.py protects it
          # ticket 25: the run limits reach the roles (additive edits, pinned by the loop hash)
          *(f":(exclude)src/kaggle_agent/loop/{name}.py"
            for name in ("candidate", "context", "ids", "machine", "roles", "round", "__init__"))],

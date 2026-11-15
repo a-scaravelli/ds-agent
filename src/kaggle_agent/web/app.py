@@ -52,7 +52,7 @@ def create_app(source, project_dir=None, journal_mode=None) -> Flask:
     app.jinja_env.lstrip_blocks = True
     app.config["PROJECT_DIR"] = None if project_dir is None else Path(project_dir)
     app.config["JOURNAL_MODE"] = journal_mode
-    app.config["REGISTRY_IS_FACTORY"] = not isinstance(source, Registry)
+    app.config["REGISTRY_IS_FACTORY"] = callable(source) and not isinstance(source, Registry)
     security.install(app)
 
     def open_registry():
