@@ -1,5 +1,6 @@
 """RealClaudeClient with a fake runner only: argv, env, mapping, contract (cases 5, 6, 8, 21, 28, 29)."""
 
+import functools
 import json
 import logging
 import subprocess
@@ -7,6 +8,7 @@ import subprocess
 import pytest
 
 from kaggle_agent.llm import (
+    AuthenticationError,
     BackoffPolicy,
     CliFailureError,
     FakeLlmClient,
@@ -17,8 +19,11 @@ from kaggle_agent.llm import (
     Malformed,
     RateLimited,
     Usage,
+    record_call,
 )
 from kaggle_agent.llm.real import RealClaudeClient
+from kaggle_agent.registry import SqliteRegistry
+from registry_helpers import make_cycle
 from kaggle_agent.proposals import ShortPlan
 from llm_helpers import (
     ATTEMPT_JSON,
@@ -124,7 +129,7 @@ def test_cli_failures_become_sanitized_cli_failure_errors(tmp_path, step):
     client, _, _ = _client([step])
     with pytest.raises(CliFailureError) as exc:
         client.ask("p", ShortPlan, permissions(tmp_path), "plan")
-    assert "RAW" not in str(exc.value)
+    assert "RAW-OUT" not in str(exc.value) and "RAW-NOT-JSON" not in str(exc.value)
     assert [c.outcome for c in client.call_log()] == ["cli_error"]
 
 
@@ -153,13 +158,14 @@ def test_error_envelope_not_logged_in_and_generic(tmp_path):
     not_logged = envelope(result="Not logged in · Please run /login", is_error=True,
                           subtype="success", terminal_reason="api_error")
     client, _, _ = _client([completed(not_logged, returncode=1)])
-    with pytest.raises(CliFailureError, match="not authenticated"):
+    with pytest.raises(AuthenticationError, match="not logged in"):
         client.ask("p", ShortPlan, permissions(tmp_path), "plan")
-    generic = envelope(result="Something odd RAW", is_error=True, terminal_reason="api_error")
+    generic = envelope(result="Something odd", is_error=True, terminal_reason="api_error")
     client, _, _ = _client([completed(generic, returncode=1)])
     with pytest.raises(CliFailureError) as exc:
         client.ask("p", ShortPlan, permissions(tmp_path), "plan")
-    assert "RAW" not in str(exc.value) and "api_error" in str(exc.value)
+    assert not isinstance(exc.value, AuthenticationError)
+    assert "api_error" in str(exc.value) and "Something odd" in str(exc.value)
 
 
 def test_rate_limit_and_quota_envelopes(tmp_path):
@@ -229,3 +235,107 @@ def test_both_clients_raise_only_llm_errors_on_persistent_failure(tmp_path, kind
         client, _ = _make_real([ok_step("bad")] * 3)
     with pytest.raises(LlmError):
         client.ask("p", ShortPlan, permissions(tmp_path), "plan")
+
+
+# -- authentication errors and safe excerpts (ticket 24) --------------------------------
+
+AUTH_TEXT = (
+    "Failed to authenticate. API Error: 401 OAuth access token has expired. "
+    "Re-authenticate to continue."
+)
+
+
+def _ask(tmp_path, steps, prompt="p", **kwargs):
+    client, runner, clock = _client(steps, **kwargs)
+    with pytest.raises(LlmError) as exc:
+        client.ask(prompt, ShortPlan, permissions(tmp_path), "plan")
+    return exc.value, client, runner, clock
+
+
+def _auth_envelope():
+    return completed(
+        envelope(result=AUTH_TEXT, is_error=True, api_error_status=401, terminal_reason="completed"),
+        returncode=1,
+    )
+
+
+def test_a_401_envelope_gives_the_typed_authentication_error(tmp_path):
+    error, client, runner, clock = _ask(tmp_path, [_auth_envelope()])
+    assert isinstance(error, AuthenticationError)
+    assert isinstance(error, CliFailureError) and isinstance(error, LlmError)
+    assert len(runner.calls) == 1 and clock.sleeps == []
+
+
+@pytest.mark.parametrize(
+    "step",
+    [
+        completed(envelope(result="denied", is_error=True, api_error_status=403), returncode=1),
+        completed(envelope(result="Not logged in", is_error=True), returncode=1),
+        completed(envelope(result="", is_error=True), stderr="please Re-authenticate", returncode=1),
+        completed(stdout="plain text", stderr="Error: not logged in", returncode=1),
+    ],
+)
+def test_authentication_is_detected_by_status_text_stderr_or_non_json(tmp_path, step):
+    error, *_ = _ask(tmp_path, [step])
+    assert isinstance(error, AuthenticationError)
+
+
+def test_the_authentication_failure_is_recorded_once_as_cli_error(tmp_path):
+    registry = SqliteRegistry(":memory:")
+    registry.add_cycle(make_cycle("C1"))
+    error, client, runner, _ = _ask(
+        tmp_path, [_auth_envelope()], on_call=functools.partial(record_call, registry, "C1")
+    )
+    assert isinstance(error, AuthenticationError)
+    rows = registry.list_llm_calls("C1")
+    assert [r.outcome for r in rows] == ["cli_error"] and len(runner.calls) == 1
+
+
+def test_quota_and_rate_limit_are_not_taken_for_authentication(tmp_path):
+    quota = completed(
+        envelope(result="Claude AI usage limit reached|1767268800", is_error=True,
+                 api_error_status=401), returncode=1)
+    error, *_ = _ask(tmp_path, [quota])
+    assert type(error) is QuotaExhaustedError and error.resets_at == "2026-01-01T12:00:00+00:00"
+    limited = completed(
+        envelope(result="429 rate limit", is_error=True, api_error_status=429), returncode=1)
+    error, *_ = _ask(tmp_path, [limited], backoff=BackoffPolicy(max_retries=0))
+    assert type(error) is RateLimitError
+
+
+def test_generic_failures_keep_a_short_ascii_one_line_excerpt(tmp_path):
+    long_text = "boom\n\tsomething went wrong " * 30
+    step = completed(envelope(result=long_text, is_error=True, terminal_reason="api_error"),
+                     returncode=1)
+    error, *_ = _ask(tmp_path, [step])
+    message = str(error)
+    assert "exit code 1, reason api_error): boom something went wrong" in message
+    excerpt = message.split("): ", 1)[1]
+    assert 0 < len(excerpt) <= 200 and excerpt.isprintable() and excerpt.isascii()
+    error, *_ = _ask(tmp_path, [completed(stdout="x", stderr="e" * 500 + " tail", returncode=3)])
+    excerpt = str(error).split("code 3: ", 1)[1]
+    assert 0 < len(excerpt) <= 200
+
+
+def test_excerpts_never_contain_the_prompt_or_secrets(tmp_path):
+    prompt = "Please summarise the quarterly turnover of the Zanzibar subsidiary in detail"
+    token = "abcdefghijklmnopqrstuvwxyz0123456789"
+    registry = SqliteRegistry(":memory:")
+    registry.add_cycle(make_cycle("C1"))
+    quoting = completed(envelope(result=f"bad input: {prompt}", is_error=True), returncode=1)
+    leaky = completed(
+        envelope(result=f"oops {SECRET_TOKEN} {token} sk-ant-api03-XYZ Bearer abc.def\x00\x1b[31m caf\u00e9",
+                 is_error=True),
+        stderr=SECRET_KEY, returncode=1)
+    surfaces = []
+    for step in (quoting, leaky, completed(stdout="", stderr=f"echo {prompt}", returncode=2)):
+        error, client, runner, _ = _ask(
+            tmp_path, [step], prompt=prompt, env={**ENV, "ANTHROPIC_API_KEY": SECRET_KEY},
+            on_call=functools.partial(record_call, registry, "C1"))
+        surfaces += [str(error), repr(client.call_log())]
+    surfaces.append(repr(registry.list_llm_calls("C1")))
+    text = "\n".join(surfaces)
+    for forbidden in (prompt[:20], prompt[30:50], SECRET_TOKEN, SECRET_KEY, token, "sk-ant-api03",
+                      "abc.def", "\x00", "\x1b", "\u00e9"):
+        assert forbidden not in text
+    assert "[redacted]" in text and "oops" in text

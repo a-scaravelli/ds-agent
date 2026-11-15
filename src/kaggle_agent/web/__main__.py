@@ -2,9 +2,16 @@
 
 Opens the registry read-only and serves the web interface. This is the only
 module of the web package that imports the SQLite registry.
+
+The server is single-threaded on purpose (``threaded=False``): the registry holds one SQLite
+connection, created in the thread that runs ``main``, and SQLite objects may only be used in the
+thread that created them. A threaded server would run every request in a new thread and fail with
+HTTP 500. The interface is read-only and for one local user, so serving one request at a time is
+enough and needs no change to the registry.
 """
 
 import argparse
+import errno
 import sys
 
 from kaggle_agent.registry import RegistryError
@@ -27,6 +34,16 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def make_web_server(app, host: str, port: int, threaded: bool = False):
+    """A werkzeug server for ``app``; port 0 picks a free port (read ``server_port``).
+
+    ``threaded`` is False in production: the registry connection belongs to a single thread.
+    """
+    from werkzeug.serving import make_server
+
+    return make_server(host, port, app, threaded=threaded)
+
+
 def main(argv: list[str] | None = None, run=None) -> int:
     """Parse ``argv``, open the registry read-only and start the app.
 
@@ -46,9 +63,25 @@ def main(argv: list[str] | None = None, run=None) -> int:
     app = create_app(registry)
     if run is None:
         def run(app, host, port, debug):
-            app.run(host=host, port=port, debug=debug)
+            server = make_web_server(app, host, port, threaded=False)
+            print(f"Serving on http://{host}:{server.server_port}/ (Ctrl-C to stop)")
+            try:
+                server.serve_forever()
+            except KeyboardInterrupt:
+                pass
+            finally:
+                server.server_close()
     try:
         run(app, args.host, args.port, False)
+    except OSError as exc:
+        if exc.errno != errno.EADDRINUSE:
+            raise
+        print(
+            f"error: port {args.port} on {args.host} is already in use; "
+            "choose another with --port (for example --port 8001)",
+            file=sys.stderr,
+        )
+        return 2
     finally:
         registry.close()
     return 0

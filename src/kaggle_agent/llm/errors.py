@@ -34,6 +34,21 @@ class CliFailureError(LlmError):
     """The CLI could not be run or failed (exit code, timeout, unreadable output)."""
 
 
+AUTH_MESSAGE = "the Claude CLI is not logged in or its login expired"
+
+
+class AuthenticationError(CliFailureError):
+    """The CLI is not logged in or its OAuth login expired; ``claude auth login`` fixes it."""
+
+    def __init__(self, message: str = AUTH_MESSAGE) -> None:
+        super().__init__(message)
+
+
+def is_authentication_reason(reason: str | None) -> bool:
+    """True if ``reason`` is the text of an ``AuthenticationError`` (the loop keeps only text)."""
+    return bool(reason) and AUTH_MESSAGE in reason
+
+
 class InvalidResponseError(LlmError):
     """The model kept returning unusable output after the bounded retries."""
 

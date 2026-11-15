@@ -3,6 +3,12 @@
 The only module of the package that imports ``subprocess``. Pytest never runs
 it against the real CLI: tests inject ``runner``. The format of the envelope
 and of the errors follows the verification recorded in design section 8.
+
+Failures are classified in this order: quota (``QuotaExhaustedError``), authentication
+(``AuthenticationError``: ``api_error_status`` 401 or 403, or a login text in the result or stderr),
+rate limit (``RateLimitError``), anything else (``CliFailureError``). For that last group the
+message carries a short excerpt (at most 200 printable ASCII characters) of the CLI error text,
+with secrets masked and withheld if it quotes the prompt.
 """
 
 import json
@@ -14,7 +20,7 @@ from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 
 from .environment import build_cli_environment, redact
-from .errors import CliFailureError, QuotaExhaustedError, RateLimitError
+from .errors import AuthenticationError, CliFailureError, QuotaExhaustedError, RateLimitError
 from .interface import LlmClient
 from .models import RawResponse, ToolPermissions, Usage
 
@@ -29,7 +35,14 @@ _RATE_LIMIT = re.compile(
 )
 _RESET_EPOCH = re.compile(r"\|\s*(\d{9,11})\b")
 _RETRY_AFTER = re.compile(r"retry (?:in|after) (\d+(?:\.\d+)?) ?(?:s|sec|seconds)\b", re.IGNORECASE)
-_NOT_LOGGED_IN = re.compile(r"not logged in|please run /login|invalid api key", re.IGNORECASE)
+_AUTH = re.compile(
+    r"authenticate|re-authenticate|not logged in|please run /login|invalid api key", re.IGNORECASE
+)
+_AUTH_STATUSES = (401, 403)
+_TOKEN_LIKE = re.compile(r"sk-ant-[A-Za-z0-9_-]+|Bearer\s+\S+|[A-Za-z0-9_-]{24,}")
+_EXCERPT_MAX = 200
+_OVERLAP_WINDOW = 20
+_SCAN_MAX = 4000
 _SAFE_WORD = re.compile(r"^[A-Za-z0-9_.-]{1,40}$")
 
 
@@ -71,6 +84,25 @@ def _reported_model(envelope: Mapping) -> str | None:
         return str(max(usage.items(), key=weight)[0])
     model = envelope.get("model")
     return model if isinstance(model, str) and model else None
+
+
+def _squash(text: str) -> str:
+    """Printable ASCII on one line: other characters become spaces, runs of spaces collapse."""
+    return " ".join("".join(c if " " <= c <= "~" else " " for c in text).split())
+
+
+def _safe_excerpt(text: str, prompt: str) -> str:
+    """A short, safe excerpt of CLI error text, or "" if nothing safe can be shown.
+
+    ``text`` must already be redacted with the environment. Token-like runs are masked, and the
+    excerpt is withheld if it shares a 20-character window with the prompt.
+    """
+    clean = _squash(text)[:_SCAN_MAX]
+    squashed_prompt = _squash(prompt)
+    for i in range(max(len(clean) - _OVERLAP_WINDOW + 1, 0)):
+        if clean[i : i + _OVERLAP_WINDOW] in squashed_prompt:
+            return ""
+    return _TOKEN_LIKE.sub("[redacted]", clean)[:_EXCERPT_MAX].strip()
 
 
 class RealClaudeClient(LlmClient):
@@ -134,9 +166,11 @@ class RealClaudeClient(LlmClient):
             raise CliFailureError(f"the Claude CLI timed out after {self._timeout} seconds") from None
         except OSError as exc:
             raise CliFailureError(f"the Claude CLI could not be started ({type(exc).__name__})") from None
-        return self._interpret(proc, env, stripped)
+        return self._interpret(proc, env, stripped, prompt=prompt)
 
-    def _interpret(self, proc, env: Mapping[str, str], stripped: tuple[str, ...]) -> RawResponse:
+    def _interpret(
+        self, proc, env: Mapping[str, str], stripped: tuple[str, ...], prompt: str = ""
+    ) -> RawResponse:
         stdout = proc.stdout if isinstance(proc.stdout, str) else ""
         stderr = proc.stderr if isinstance(proc.stderr, str) else ""
         code = proc.returncode
@@ -147,20 +181,22 @@ class RealClaudeClient(LlmClient):
         if not isinstance(envelope, dict):
             self._classify(redact(f"{stdout}\n{stderr}", self._env), None)
             if code != 0:
-                raise CliFailureError(f"the Claude CLI exited with code {code}")
+                excerpt = _safe_excerpt(redact(stderr, self._env), prompt)
+                suffix = f": {excerpt}" if excerpt else ""
+                raise CliFailureError(f"the Claude CLI exited with code {code}{suffix}")
             raise CliFailureError("the Claude CLI output is not a readable JSON envelope")
         result = envelope.get("result")
         failed = code != 0 or envelope.get("is_error") is True
         if failed:
             text = redact(f"{result if isinstance(result, str) else ''}\n{stderr}", self._env)
             self._classify(text, envelope)
-            if _NOT_LOGGED_IN.search(text):
-                raise CliFailureError(
-                    "the Claude CLI is not authenticated: log it in or set CLAUDE_CODE_OAUTH_TOKEN"
-                )
             reason = _word(envelope.get("terminal_reason")) or _word(envelope.get("subtype"))
             detail = f", reason {reason}" if reason else ""
-            raise CliFailureError(f"the Claude CLI reported an error (exit code {code}{detail})")
+            excerpt = _safe_excerpt(text, prompt)
+            suffix = f": {excerpt}" if excerpt else ""
+            raise CliFailureError(
+                f"the Claude CLI reported an error (exit code {code}{detail}){suffix}"
+            )
         if not isinstance(result, str):
             raise CliFailureError("the Claude CLI envelope has no text result")
         session = envelope.get("session_id")
@@ -174,7 +210,7 @@ class RealClaudeClient(LlmClient):
 
     @staticmethod
     def _classify(text: str, envelope: Mapping | None) -> None:
-        """Raise the typed error for a quota or rate-limit report; return otherwise."""
+        """Raise the typed error for a quota, login or rate-limit report; return otherwise."""
         if _QUOTA.search(text):
             resets_at = None
             match = _RESET_EPOCH.search(text)
@@ -184,6 +220,8 @@ class RealClaudeClient(LlmClient):
                 "the subscription quota of the Claude CLI is exhausted", resets_at=resets_at
             )
         status = envelope.get("api_error_status") if envelope else None
+        if status in _AUTH_STATUSES or _AUTH.search(text):
+            raise AuthenticationError()
         if status in (429, 529) or _RATE_LIMIT.search(text):
             match = _RETRY_AFTER.search(text)
             raise RateLimitError(
