@@ -14,6 +14,8 @@ from orchestrator_helpers import (
 
 from kaggle_agent.evaluation import EvaluationEngine, Protocol
 from kaggle_agent.llm import QuotaExhaustedError
+from kaggle_agent.llm.real import RealClaudeClient
+from llm_helpers import FakeRunner, completed, envelope
 from kaggle_agent.pipeline import __main__ as pipeline_cli
 
 
@@ -161,3 +163,24 @@ def test_the_result_is_reproducible_with_a_real_bundle_runner(tmp_path, capsys):
                               "--data", str(world.project / "data/train.csv")])
     out = capsys.readouterr().out
     assert code == 0 and "OK" in out and "reproduced validation accuracy" in out
+
+
+# 14
+def test_quota_keeps_its_message_and_a_real_client_with_a_401_envelope_gives_the_login_message(tmp_path):
+    world = World(tmp_path / "quota")
+    world.claude.fail_on["coordinator"] = QuotaExhaustedError("usage limit reached")
+    code, text = world.run("start")
+    assert code == 11 and "usage limit reached" in text and "quota or rate limit" in text
+    assert "claude auth login" not in text
+
+    expired = completed(
+        envelope(result="Failed to authenticate. API Error: 401 OAuth access token has expired. "
+                        "Re-authenticate to continue.", is_error=True, api_error_status=401,
+                 terminal_reason="completed"),
+        returncode=1)
+    runner = FakeRunner([expired])
+    client = RealClaudeClient(runner=runner, env={"PATH": "/bin"}, sleep=lambda seconds: None)
+    real = World(tmp_path / "real", llm=client)
+    code, text = real.run("start")
+    assert code == 11 and "run `claude auth login` in a normal Terminal, then run resume" in text
+    assert "quota or rate limit" not in text and len(runner.calls) == 1

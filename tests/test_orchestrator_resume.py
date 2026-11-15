@@ -5,7 +5,7 @@ import json
 import pytest
 from orchestrator_helpers import GUIDE_CONTINUE, PLAN_APPROVE, World, drive_to_review
 
-from kaggle_agent.llm import QuotaExhaustedError
+from kaggle_agent.llm import AuthenticationError, QuotaExhaustedError
 from kaggle_agent.writer import ClaudeBundleWriter
 
 
@@ -196,3 +196,38 @@ def test_changed_data_is_refused_but_model_names_and_timeouts_may_change(tmp_pat
     code, text = world.run("resume")
     assert code == 2 and "hash mismatch" in text and "train.csv" in text
     assert len(world.kaggle.calls) == kaggle_calls  # a resume makes no Kaggle call
+
+
+LOGIN_MESSAGE = (
+    "Claude CLI is not logged in or its login expired: run `claude auth login` "
+    "in a normal Terminal, then run resume"
+)
+
+
+# 12
+def test_an_authentication_error_prints_the_login_message_with_code_11(tmp_path):
+    world = World(tmp_path)
+    world.claude.fail_on["coordinator"] = AuthenticationError()
+    code, text = world.run("start")
+    assert code == 11
+    assert LOGIN_MESSAGE in text and "resume" in text and "quota or rate limit" not in text
+    last = json.loads((world.project / "last-run.json").read_text(encoding="utf-8"))
+    assert last["outcome"] == "suspended"
+
+
+# 13
+def test_resume_after_logging_in_continues_with_nothing_lost_or_repeated(tmp_path):
+    world = World(tmp_path)
+    world.claude.fail_on["coordinator"] = AuthenticationError()
+    assert world.run("start")[0] == 11
+    code, text = world.run("status")
+    assert code == 0 and "SUSPENDED" in text and "run resume" in text
+    code, text = world.run("resume")  # the failure was removed: the user logged in
+    assert code == 10 and world.state() == "AWAITING_PLAN_APPROVAL"
+    assert world.claude.kinds.count("coordinator") == 2  # the failed call and the one that worked
+    registry = world.registry()
+    try:
+        outcomes = [r.outcome for r in registry.list_llm_calls("toy-1")]
+    finally:
+        registry.close()
+    assert outcomes.count("cli_error") == 1 and len(outcomes) == len(world.claude.call_log())
