@@ -127,12 +127,14 @@ def test_runtime_dependencies_are_the_pinned_libraries():
     pyproject = tomllib.loads((SRC.parent.parent / "pyproject.toml").read_text(encoding="utf-8"))
     deps = pyproject["project"]["dependencies"]
     names = sorted(d.split("==")[0] for d in deps)
-    assert names == ["flask", "kaggle", "numpy", "pandas", "scikit-learn", "six"]
+    assert names == ["catboost", "flask", "kaggle", "lightgbm", "numpy", "pandas", "scikit-learn", "six", "xgboost"]
     assert all("==" in d and d.split("==")[1][:1].isdigit() for d in deps)
     everything = " ".join(
         deps + [d for group in pyproject["project"].get("optional-dependencies", {}).values() for d in group]
     ).lower()
-    assert "lightgbm" not in everything and "mlflow" not in everything
+    # ticket 25: xgboost, lightgbm and catboost are runtime dependencies (bundles import them in the
+    # sandbox child); no source module does. Only mlflow stays out.
+    assert "mlflow" not in everything
 
 
 def test_evaluation_imports_only_allowed_modules():

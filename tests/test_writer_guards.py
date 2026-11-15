@@ -63,7 +63,7 @@ def test_the_loop_and_evaluation_packages_are_unchanged_and_dependencies_are_the
     assert hash_path(SRC / "evaluation") == EVALUATION_SOURCES_HASH
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     names = sorted(d.split("==")[0] for d in pyproject["project"]["dependencies"])
-    assert names == ["flask", "kaggle", "numpy", "pandas", "scikit-learn", "six"]
+    assert names == ["catboost", "flask", "kaggle", "lightgbm", "numpy", "pandas", "scikit-learn", "six", "xgboost"]
 
 
 def test_scope_limits_no_orchestrator_command_or_tools_for_other_roles():

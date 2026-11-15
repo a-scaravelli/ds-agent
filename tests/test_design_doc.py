@@ -104,7 +104,7 @@ def test_pyproject_runtime_dependencies_are_the_confirmed_libraries():
     data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     project = data["project"]
     names = sorted(d.split("==")[0] for d in project["dependencies"])
-    assert names == ["flask", "kaggle", "numpy", "pandas", "scikit-learn", "six"]
+    assert names == ["catboost", "flask", "kaggle", "lightgbm", "numpy", "pandas", "scikit-learn", "six", "xgboost"]
     declared = " ".join(
         d.lower()
         for deps in project.get("optional-dependencies", {}).values()

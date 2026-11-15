@@ -59,7 +59,7 @@ def test_the_frozen_and_untouched_packages_keep_their_pinned_hashes():
 def test_dependencies_are_unchanged():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     names = sorted(d.split("==")[0] for d in pyproject["project"]["dependencies"])
-    assert names == ["flask", "kaggle", "numpy", "pandas", "scikit-learn", "six"]
+    assert names == ["catboost", "flask", "kaggle", "lightgbm", "numpy", "pandas", "scikit-learn", "six", "xgboost"]
 
 
 def test_the_orchestrator_name_is_used_only_by_its_own_package():
