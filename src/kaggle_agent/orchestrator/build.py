@@ -203,6 +203,7 @@ def build_context(config: Config, deps: Dependencies) -> Built:
             data_hash=state.data_hash, data_summary=summary, roles=roles, writer=writer,
             runner_factory=runner_factory, lead=lead, workspace=paths.workspace, now=deps.clock,
             limits=config.limits, hooks=Hooks(plan=make_plan_hook(ledger)),
+            allowed_libraries=config.runtime.allowed_dependencies,
         )
         pctx = PipelineContext(
             paths.out, runner_model_store_factory(deps.sandbox, policy, target_column=state.target,

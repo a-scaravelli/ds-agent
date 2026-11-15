@@ -2,128 +2,174 @@
  "cases": {
   "1": [
    {
-    "file": "tests/test_web_server.py",
-    "name": "test_the_real_server_answers_requests_from_other_threads_with_200"
+    "file": "tests/test_agents_limits.py",
+    "name": "test_the_coordinator_input_and_prompt_carry_the_limits_the_rule_and_the_libraries"
    }
   ],
   "2": [
    {
-    "file": "tests/test_web_server.py",
-    "name": "test_a_threaded_server_fails_with_500_which_is_the_bug_the_test_detects"
+    "file": "tests/test_loop_run_limits.py",
+    "name": "test_the_limits_come_from_the_stored_parameters_and_fall_back_to_the_context"
    }
   ],
   "3": [
    {
-    "file": "tests/test_web_server.py",
-    "name": "test_the_real_server_is_read_only_and_leaves_the_file_untouched"
+    "file": "tests/test_loop_run_limits.py",
+    "name": "test_a_resumed_cycle_sends_the_same_limits"
+   },
+   {
+    "file": "tests/test_loop_run_limits.py",
+    "name": "test_the_plan_hook_after_a_revision_and_a_resume_keeps_the_limits"
    }
   ],
   "4": [
    {
-    "file": "tests/test_web_server.py",
-    "name": "test_main_serves_single_threaded_and_the_choice_is_documented"
+    "file": "tests/test_loop_run_limits.py",
+    "name": "test_the_current_round_is_right_at_every_call_site"
    }
   ],
   "5": [
    {
-    "file": "tests/test_web_server.py",
-    "name": "test_a_busy_port_gives_a_clear_message_naming_port_option"
+    "file": "tests/test_loop_run_limits.py",
+    "name": "test_the_limits_take_the_protocol_values_and_the_rule_names_the_threshold"
+   },
+   {
+    "file": "tests/test_agents_limits.py",
+    "name": "test_the_rule_is_in_plain_words_with_the_threshold_of_the_protocol"
    }
   ],
   "6": [
    {
-    "file": "tests/test_llm_real.py",
-    "name": "test_a_401_envelope_gives_the_typed_authentication_error"
+    "file": "tests/test_agents_limits.py",
+    "name": "test_the_libraries_have_one_source_and_the_imports_work_in_a_fresh_interpreter"
+   },
+   {
+    "file": "tests/test_loop_run_limits.py",
+    "name": "test_a_configured_list_reaches_the_roles_and_the_writer"
+   },
+   {
+    "file": "tests/test_loop_run_limits.py",
+    "name": "test_the_list_of_libraries_is_written_in_one_place_only"
    }
   ],
   "7": [
    {
-    "file": "tests/test_llm_real.py",
-    "name": "test_authentication_is_detected_by_status_text_stderr_or_non_json"
+    "file": "tests/test_agents_limits.py",
+    "name": "test_feature_engineering_modeling_and_reviewer_receive_the_limits"
    }
   ],
   "8": [
    {
-    "file": "tests/test_llm_real.py",
-    "name": "test_the_authentication_failure_is_recorded_once_as_cli_error"
+    "file": "tests/test_agents_limits.py",
+    "name": "test_the_coordinator_prompt_tells_to_plan_inside_the_limits_and_is_unchanged_without_them"
    }
   ],
   "9": [
    {
-    "file": "tests/test_llm_real.py",
-    "name": "test_quota_and_rate_limit_are_not_taken_for_authentication"
+    "file": "tests/test_agents_limits.py",
+    "name": "test_invalid_limits_are_rejected"
    },
    {
-    "file": "tests/test_llm_real.py",
-    "name": "test_rate_limit_and_quota_envelopes"
+    "file": "tests/test_agents_limits.py",
+    "name": "test_limits_edges_and_round_trip_and_unknown_key"
    }
   ],
   "10": [
    {
-    "file": "tests/test_llm_real.py",
-    "name": "test_generic_failures_keep_a_short_ascii_one_line_excerpt"
+    "file": "tests/test_agents_limits.py",
+    "name": "test_old_input_dicts_without_limits_still_parse"
+   },
+   {
+    "file": "tests/test_loop_run_limits.py",
+    "name": "test_a_stored_trace_without_limits_reads_back_and_parses"
    }
   ],
   "11": [
    {
-    "file": "tests/test_llm_real.py",
-    "name": "test_excerpts_never_contain_the_prompt_or_secrets"
+    "file": "tests/test_loop_run_limits.py",
+    "name": "test_a_plan_beyond_the_last_round_is_not_rejected_by_code"
    }
   ],
   "12": [
    {
-    "file": "tests/test_orchestrator_resume.py",
-    "name": "test_an_authentication_error_prints_the_login_message_with_code_11"
+    "file": "tests/test_loop_run_limits.py",
+    "name": "test_the_plan_wrapper_and_the_default_path_build_identical_limits"
    }
   ],
   "13": [
    {
-    "file": "tests/test_orchestrator_resume.py",
-    "name": "test_resume_after_logging_in_continues_with_nothing_lost_or_repeated"
+    "file": "tests/test_bundle_libraries.py",
+    "name": "test_a_bundle_that_declares_and_imports_a_boosting_library_passes_the_checks"
+   },
+   {
+    "file": "tests/test_bundle_libraries.py",
+    "name": "test_a_stray_catboost_info_folder_does_not_break_the_checks"
    }
   ],
   "14": [
    {
-    "file": "tests/test_orchestrator_cli_flow.py",
-    "name": "test_quota_keeps_its_message_and_a_real_client_with_a_401_envelope_gives_the_login_message"
+    "file": "tests/test_bundle_libraries.py",
+    "name": "test_a_tiny_bundle_trains_saves_and_predicts_in_other_processes"
    }
   ],
   "15": [
    {
-    "file": "tests/test_orchestrator_guards.py",
-    "name": "test_the_frozen_and_untouched_packages_keep_their_pinned_hashes"
+    "file": "tests/test_bundle_libraries.py",
+    "name": "test_a_catboost_bundle_without_allow_writing_files_still_runs_and_leaves_no_folder"
    }
   ],
   "16": [
    {
-    "file": "tests/test_orchestrator_guards.py",
-    "name": "test_the_frozen_and_untouched_packages_keep_their_pinned_hashes"
+    "file": "tests/test_bundle_libraries.py",
+    "name": "test_an_undeclared_import_of_an_unlisted_library_is_rejected"
    },
    {
-    "file": "tests/test_orchestrator_guards.py",
-    "name": "test_dependencies_are_unchanged"
+    "file": "tests/test_bundle_libraries.py",
+    "name": "test_a_declared_torch_is_rejected_by_the_writer_checks_with_the_six_allowed_names"
    }
   ],
   "17": [
    {
-    "file": "tests/test_orchestrator_docs.py",
-    "name": "test_the_readme_explains_the_web_choice_the_busy_port_and_the_login_error"
+    "file": "tests/test_agents_limits.py",
+    "name": "test_the_prompts_name_the_boosting_libraries_their_apis_and_the_bundle_rules"
+   },
+   {
+    "file": "tests/test_agents_limits.py",
+    "name": "test_the_writer_prompt_lists_the_libraries_and_follows_the_configured_list"
    }
   ],
   "18": [
    {
-    "file": "tests/test_orchestrator_docs.py",
-    "name": "test_the_documentation_the_design_note_and_the_test_map_are_complete"
+    "file": "tests/test_bundle_libraries.py",
+    "name": "test_the_boosting_libraries_are_pinned_and_listed_everywhere"
+   },
+   {
+    "file": "tests/test_orchestrator_guards.py",
+    "name": "test_dependencies_are_unchanged"
+   },
+   {
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_runtime_dependencies_are_the_pinned_libraries"
    }
   ],
   "19": [
    {
-    "file": "tests/test_web_server.py",
-    "name": "test_the_real_server_answers_requests_from_other_threads_with_200"
+    "file": "tests/test_orchestrator_guards.py",
+    "name": "test_the_frozen_and_untouched_packages_keep_their_pinned_hashes"
    },
    {
-    "file": "tests/test_llm_real.py",
-    "name": "test_a_401_envelope_gives_the_typed_authentication_error"
+    "file": "tests/test_writer_guards.py",
+    "name": "test_the_loop_and_evaluation_packages_are_unchanged_and_dependencies_are_the_pinned_ones"
+   }
+  ],
+  "20": [
+   {
+    "file": "tests/test_orchestrator_docs.py",
+    "name": "test_the_documentation_the_design_note_and_the_test_map_are_complete"
+   },
+   {
+    "file": "tests/test_agents_limits.py",
+    "name": "test_the_readme_and_the_design_note_state_what_is_allowed_and_what_is_not"
    }
   ]
  }

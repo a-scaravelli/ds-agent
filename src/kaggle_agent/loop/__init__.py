@@ -19,7 +19,7 @@ from .derive import PLACEHOLDER_PREFIX, CycleView, RoundState, is_placeholder
 from .errors import CycleSuspended, LoopError, TransitionError
 from .fake import FakeBundleWriter
 from .machine import CycleMachine, CycleOutcome
-from .roles import RoleSet, client_roles
+from .roles import RoleSet, client_roles, role_limits
 from .round import RoundPipeline
 from .states import STATES, TRANSITIONS, check_transition
 from .writer import BundleRequest, BundleWriter, FixRequest, RoleOutputs
@@ -47,5 +47,6 @@ __all__ = [
     "TransitionError",
     "check_transition",
     "client_roles",
+    "role_limits",
     "is_placeholder",
 ]

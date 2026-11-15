@@ -5,8 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kaggle_agent.bundle import MANIFEST_NAME, MODEL_FOLDER, BundleLayoutError, LoadedBundle, load_bundle
+from kaggle_agent.proposals import ALLOWED_LIBRARIES
 
-DEFAULT_DEPENDENCIES = ("numpy", "pandas", "scikit-learn")  # the pinned libraries the child can import
+DEFAULT_DEPENDENCIES = ALLOWED_LIBRARIES  # the pinned libraries the child can import (one source of truth)
 
 
 @dataclass(frozen=True)

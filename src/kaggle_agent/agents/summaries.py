@@ -280,3 +280,68 @@ class MetricValue(JsonObject):
     def from_dict(cls, data: dict) -> "MetricValue":
         check_keys("metric value", data, cls._FIELDS)
         return cls(**{name: data.get(name) for name in cls._FIELDS})
+
+
+def significance_rule(threshold_k: float) -> str:
+    """The significance rule of the frozen protocol in plain words."""
+    return (
+        "An improvement counts only if the mean paired difference exceeds "
+        f"{threshold_k:g} times the baseline dispersion (threshold_k = {threshold_k:g})."
+    )
+
+
+@dataclass(frozen=True)
+class RunLimits(JsonObject):
+    """What the roles are told about the run: cycle limits, the significance rule and the libraries.
+
+    ``current_round`` is 0 for planning and the setup round, n for round n. ``significance_rule``
+    is derived from ``threshold_k`` (never stored): ``from_dict`` accepts it and recomputes it.
+    """
+
+    LABEL: ClassVar[str] = "run limits"
+    rounds: int
+    candidates: int
+    stagnation_k: int
+    fix_retries: int
+    current_round: int
+    threshold_k: float
+    validation_scheme: str
+    repetitions: int
+    allowed_libraries: tuple[str, ...]
+
+    _FIELDS: ClassVar[tuple[str, ...]] = (
+        "rounds", "candidates", "stagnation_k", "fix_retries", "current_round", "threshold_k",
+        "validation_scheme", "repetitions", "allowed_libraries",
+    )
+
+    def __post_init__(self) -> None:
+        for name, minimum in (("rounds", 1), ("candidates", 1), ("stagnation_k", 1),
+                              ("fix_retries", 0), ("current_round", 0), ("repetitions", 1)):
+            if require_count(name, getattr(self, name)) < minimum:
+                raise ValidationError(name, f"must be at least {minimum}")
+        threshold = require_number("threshold_k", self.threshold_k)
+        if threshold < 0:
+            raise ValidationError("threshold_k", "must not be negative")
+        object.__setattr__(self, "threshold_k", threshold)
+        require_text("validation_scheme", self.validation_scheme)
+        object.__setattr__(
+            self, "allowed_libraries",
+            require_text_list("allowed_libraries", self.allowed_libraries, allow_empty=False),
+        )
+
+    @property
+    def significance_rule(self) -> str:
+        return significance_rule(self.threshold_k)
+
+    def to_dict(self) -> dict:
+        data = {
+            name: list(v) if isinstance(v := getattr(self, name), tuple) else v
+            for name in self._FIELDS
+        }
+        data["significance_rule"] = self.significance_rule
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "RunLimits":
+        check_keys("run limits", data, (*cls._FIELDS, "significance_rule"))
+        return cls(**{name: data.get(name) for name in cls._FIELDS})

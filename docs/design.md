@@ -26,7 +26,7 @@ This document is the design on which all later tickets are based. It does not im
 
 **Principle on the stack**
 
-Python 3.12, pandas, scikit-learn, LightGBM and local MLflow are a **starting point, not a constraint**. The design does not fix them. Each development ticket chooses the libraries it needs, evaluating the alternatives at that time and documenting the choice. The selection criteria are:
+Python 3.12, pandas, scikit-learn, LightGBM and local MLflow are a **starting point, not a constraint** (xgboost, lightgbm and catboost are now confirmed as libraries the bundles may import; see the last section). The design does not fix them. Each development ticket chooses the libraries it needs, evaluating the alternatives at that time and documenting the choice. The selection criteria are:
 
 1. works on a Mac without GPU;
 2. no paid API or service;
@@ -183,7 +183,7 @@ Rejected alternatives for this decision:
 - *Pure Python for metrics and partitions*: rejected because reimplementing them is error-prone (ties, stratification, edge cases) and gives no benefit on the criteria.
 - *polars or pyarrow instead of pandas*: rejected because they are further from the stack the generated code and Kaggle notebooks use, with no need shown by the data sizes in scope.
 - *scipy alone*: rejected because it offers statistics but no ready-made partitioning and metric building blocks.
-- *Adding LightGBM or MLflow now*: out of this ticket; the engine needs no model library (candidates are supplied by the caller) and MLflow was not adopted for the registry.
+- *Adding LightGBM or MLflow now*: out of this ticket (lightgbm was added later, with xgboost and catboost, as a library that bundles may import; the engine itself still needs none); the engine needs no model library (candidates are supplied by the caller) and MLflow was not adopted for the registry.
 
 Rejected alternatives:
 
@@ -272,6 +272,8 @@ Alternatives considered:
 **The lead (the human):** approves or corrects the initial plan, gives guidance after a round or lets the cycle continue, and reviews the final report (accepts or gives suggestions). Does not validate the individual steps.
 
 **Orchestration at level 1.** A role is a prompt with a typed input and a typed output, called on `LlmClient`; there is no framework and no tool use beyond what the adapter allows. A plain sequential pipeline runs them in a fixed order: coordinator, data, feature engineering, modeling, runner, reviewer, coordinator. The roles do not call each other: each one receives its input from the pipeline and returns its output to it. The coordinator reads a compact registry summary inside its prompt (best attempts, recent failures, reviewer reports, lead guidance), so no role needs a database tool. Every call leaves a role trace in the registry (section 7): the `agents` helper stores the `llm_calls` rows and the trace, and for the roles with a candidate (feature engineering, modeling) the caller writes the trace after registering the attempt, so that it links to the candidate.
+
+**What the roles are told.** The coordinator, feature engineering, modeling and reviewer inputs carry an optional `limits` object: rounds, candidates per round, stagnation K, fix retries, the current round (0 is planning and the baseline), the validation scheme and repetitions, `threshold_k` with the significance rule in plain words (an improvement counts only if the mean paired difference exceeds `threshold_k` times the baseline dispersion) and the allowed libraries. The fixed code builds it from the cycle's stored parameters and the frozen protocol, so a resumed cycle sends the same values. The prompts ask the roles to plan only for those rounds and candidates and to use only the listed libraries. This is guidance, not a gate: no validator rejects a plan that mentions a later round. The allowed libraries are numpy, pandas, scikit-learn, xgboost, lightgbm and catboost (the last three through their scikit-learn-compatible classes); torch, tensorflow and anything else are not allowed, and the only place that enforces the list is the writer's bundle check. The list lives in one constant of `proposals`, which `agents`, `writer`, `loop` and `orchestrator` can all import without a cycle.
 
 **Bundle contract.** A candidate is a bundle: a folder with the code, the transformations, the model, the declared dependencies, and two entry points, `fit(train)` and `predict(bundle_id, X)`. The runner, which is fixed code, runs the bundle in a subprocess with a timeout, passes the data without labels, calls `predict` on the partitions and computes the metrics itself. The bundle never sees labels it should not see and never reports its own score. `fit` and `predict` run in two different child processes: `fit` saves the trained model under the directory named by the environment variable `BUNDLE_MODEL_DIR` and `predict` loads it from there, so the model is persisted inside the bundle and every metric the engine computes goes through persisted state. Predictions come back to the parent as JSON only, never pickle; the parent never loads a model file, and the folder hash ignores a top-level `model/` folder so a persisted model never counts as a change of the code. `predict` returns one number or label per row, or for `probabilities` and `scores` a matrix with one row per input row (multiclass); the frozen metrics `roc_auc` and `average_precision` cannot score a multiclass matrix (they would need parameters the frozen metric spec does not allow, and adding them changes the hash of every frozen protocol), so such a run is a recorded scoring failure. The levels differ in the isolation: at level 1 the bundle is a plain folder run in the same Python environment as the agent; at level 2 bundles are immutable versions with a hash and each variant has its own virtual environment; at level 3 each bundle runs in a container.
 
@@ -434,7 +436,7 @@ flowchart LR
 Existing subpackages under `src/kaggle_agent/`:
 
 - `loop`: state machine (section 2) and the round pipeline (step 9);
-- `proposals`: schema and validation of plan, attempts and suggestions (sections 4 and 7);
+- `proposals`: schema and validation of plan, attempts and suggestions (sections 4 and 7), and the one list of allowed bundle libraries with their scikit-learn-compatible class names and bundle rules (section 8);
 - `evaluation`: protocol, registries of metrics and partition schemes, frozen split, holdout accessor and session, threshold and paired comparison, evaluation engine, hash of protocol and code (sections 5 and 6); the only package that imports pandas, numpy and scikit-learn;
 - `registry`: registry of attempts, execution records, cycles and suggestions behind a replaceable interface, with a SQLite implementation, fingerprint and deduplication (section 7);
 - `kaggle`: client interface, fake, credential resolution, submission rules and recording in the registry, and the real adapter on the official package, the only module that imports it (section 10);
@@ -529,7 +531,7 @@ Rejected alternative: a single large implementation ticket, because it is not re
 - The public leaderboard can be poorly informative; the protocol tries not to depend on it.
 - The test of the document checks structure and keywords, not quality: human review remains necessary.
 
-**Starting-point libraries:** pandas, numpy and scikit-learn were confirmed in the evaluation ticket (section 5) and the official `kaggle` package in the Kaggle ticket (section 10); all are pinned in `pyproject.toml`. LightGBM is still to be confirmed in the ticket that uses it. MLflow was not adopted for the registry (section 7) and remains only an optional future view.
+**Starting-point libraries:** pandas, numpy and scikit-learn were confirmed in the evaluation ticket (section 5) and the official `kaggle` package in the Kaggle ticket (section 10); all are pinned in `pyproject.toml`. xgboost, lightgbm and catboost were confirmed in the ticket that tells the roles the allowed libraries: they are pinned with `==`, bundles may import them (through their scikit-learn-compatible classes) next to numpy, pandas and scikit-learn, and no module of `src/` imports them; torch, tensorflow and anything else stay not allowed. The three need no network and, for xgboost and lightgbm, the OpenMP runtime. MLflow was not adopted for the registry (section 7) and remains only an optional future view.
 
 **Questions for the human**
 

@@ -16,7 +16,7 @@ from kaggle_agent.proposals.errors import check_keys, require_text
 
 from .call import PURPOSES, Registry, TraceContext, utc_now, call_role
 from .prompting import render_prompt
-from .summaries import JsonObject, MetricValue, items_from, object_from, require_items
+from .summaries import RunLimits, JsonObject, MetricValue, items_from, object_from, require_items
 
 ROLE = "reviewer"
 
@@ -28,6 +28,12 @@ fragile or worth checking. You write plain text only.
 The reviewer interprets and does not decide.
 You do not accept or reject candidates, you do not pick a winner and you do not
 say whether the goal is met; the fixed code does that."""
+
+LIMITS_NOTE = """\
+Run limits (the "limits" object of the input): use current_round and rounds to
+say where the run stands, and the significance rule to judge whether a
+difference between candidates is large enough to count. You still do not
+decide."""
 
 
 @dataclass(frozen=True)
@@ -73,8 +79,9 @@ class ReviewerInput(JsonObject):
     plan: ShortPlan
     goal: GoalCriteria
     results: tuple[CandidateResult, ...]
+    limits: RunLimits | None = None
 
-    _FIELDS: ClassVar[tuple[str, ...]] = ("round_id", "plan", "goal", "results")
+    _FIELDS: ClassVar[tuple[str, ...]] = ("round_id", "plan", "goal", "results", "limits")
 
     def __post_init__(self) -> None:
         require_text("round_id", self.round_id)
@@ -83,14 +90,19 @@ class ReviewerInput(JsonObject):
         if not isinstance(self.goal, GoalCriteria):
             raise ValueError("goal must be GoalCriteria")
         object.__setattr__(self, "results", require_items("results", self.results, CandidateResult))
+        if self.limits is not None and not isinstance(self.limits, RunLimits):
+            raise ValueError("limits must be RunLimits or None")
 
     def to_dict(self) -> dict:
-        return {
+        data = {
             "round_id": self.round_id,
             "plan": self.plan.to_dict(),
             "goal": self.goal.to_dict(),
             "results": [r.to_dict() for r in self.results],
         }
+        if self.limits is not None:
+            data["limits"] = self.limits.to_dict()
+        return data
 
     @classmethod
     def from_dict(cls, data: dict) -> "ReviewerInput":
@@ -100,6 +112,7 @@ class ReviewerInput(JsonObject):
             plan=object_from("plan", data.get("plan"), ShortPlan),
             goal=object_from("goal", data.get("goal"), GoalCriteria),
             results=items_from("results", data.get("results"), CandidateResult),
+            limits=None if data.get("limits") is None else object_from("limits", data["limits"], RunLimits),
         )
 
 
@@ -129,7 +142,7 @@ class ReviewerNotes(JsonObject):
 
 def build_reviewer_prompt(role_input: ReviewerInput) -> str:
     """The prompt of the reviewer: instructions and the serialized input."""
-    return render_prompt(INSTRUCTIONS, role_input)
+    return render_prompt(INSTRUCTIONS, role_input, LIMITS_NOTE)
 
 
 def run_reviewer(

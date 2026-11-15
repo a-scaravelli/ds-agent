@@ -44,7 +44,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from kaggle_agent.agents import CoordinatorInput, RegistrySummary, TraceContext
-from kaggle_agent.loop import ids
+from kaggle_agent.loop import ids, role_limits
 from kaggle_agent.loop.states import AWAITING_GUIDANCE, AWAITING_PLAN_APPROVAL, AWAITING_REVIEW
 from kaggle_agent.registry import Registry
 from kaggle_agent.review import Accept, Approve, LeadContext, LeadInput, LeadResponse, Revise
@@ -167,7 +167,7 @@ def make_plan_hook(ledger: Ledger):
     def plan(ctx, revisions):
         role_input = CoordinatorInput(
             data=ctx.data_summary, metric=ctx.engine.protocol.metric, history=RegistrySummary(),
-            guidance=ledger.texts(),
+            guidance=ledger.texts(), limits=role_limits(ctx, 0),
         )
         return ctx.roles.coordinator(TraceContext(ctx.cycle_id, ids.setup_round_id(ctx.cycle_id)),
                                      role_input)

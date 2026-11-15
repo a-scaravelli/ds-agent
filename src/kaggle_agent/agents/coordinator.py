@@ -16,7 +16,7 @@ from kaggle_agent.proposals.errors import check_keys, require_text, require_text
 
 from .call import PURPOSES, Registry, TraceContext, utc_now, call_role
 from .prompting import render_prompt
-from .summaries import DataSummary, JsonObject, RegistrySummary, items_from, object_from
+from .summaries import RunLimits, DataSummary, JsonObject, RegistrySummary, items_from, object_from
 
 ROLE = "coordinator"
 
@@ -29,6 +29,15 @@ round and, if the problem calls for it, goal criteria (thresholds on metrics).
 You only see summaries: never ask for labels or holdout data. You propose; the
 fixed code decides what runs."""
 
+LIMITS_NOTE = """\
+Run limits (the "limits" object of the input): plan only for the given number of
+rounds and of candidates per round, and fit tuning inside them. Never plan
+beyond the last round and never write "round N onward" for a round past it;
+current_round is where the run stands (0 is planning and the baseline). Use only
+the libraries in allowed_libraries: torch, tensorflow and anything else not
+listed are not allowed. Apply the significance rule of the limits: it says when
+an improvement counts."""
+
 
 @dataclass(frozen=True)
 class CoordinatorInput(JsonObject):
@@ -40,8 +49,9 @@ class CoordinatorInput(JsonObject):
     history: RegistrySummary
     reports: tuple[ReviewerReport, ...] = ()
     guidance: tuple[str, ...] = ()
+    limits: RunLimits | None = None
 
-    _FIELDS: ClassVar[tuple[str, ...]] = ("data", "metric", "history", "reports", "guidance")
+    _FIELDS: ClassVar[tuple[str, ...]] = ("data", "metric", "history", "reports", "guidance", "limits")
 
     def __post_init__(self) -> None:
         if not isinstance(self.data, DataSummary):
@@ -53,15 +63,20 @@ class CoordinatorInput(JsonObject):
         object.__setattr__(
             self, "guidance", require_text_list("guidance", self.guidance, allow_empty=True)
         )
+        if self.limits is not None and not isinstance(self.limits, RunLimits):
+            raise ValueError("limits must be RunLimits or None")
 
     def to_dict(self) -> dict:
-        return {
+        data = {
             "data": self.data.to_dict(),
             "metric": self.metric,
             "history": self.history.to_dict(),
             "reports": [r.to_dict() for r in self.reports],
             "guidance": list(self.guidance),
         }
+        if self.limits is not None:
+            data["limits"] = self.limits.to_dict()
+        return data
 
     @classmethod
     def from_dict(cls, data: dict) -> "CoordinatorInput":
@@ -72,6 +87,7 @@ class CoordinatorInput(JsonObject):
             history=object_from("history", data.get("history"), RegistrySummary),
             reports=items_from("reports", data.get("reports", []), ReviewerReport),
             guidance=data.get("guidance", ()),
+            limits=None if data.get("limits") is None else object_from("limits", data["limits"], RunLimits),
         )
 
 
@@ -130,7 +146,7 @@ class CoordinatorOutput(JsonObject):
 
 def build_coordinator_prompt(role_input: CoordinatorInput) -> str:
     """The prompt of the coordinator: instructions and the serialized input."""
-    return render_prompt(INSTRUCTIONS, role_input)
+    return render_prompt(INSTRUCTIONS, role_input, LIMITS_NOTE, libraries=True)
 
 
 def run_coordinator(

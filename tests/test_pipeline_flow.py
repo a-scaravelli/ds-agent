@@ -103,7 +103,10 @@ def test_loop_and_web_sources_have_no_diff_against_the_merge_base():
         [*git, "diff", "--stat", base.stdout.strip(), "--", "src/kaggle_agent/loop", "src/kaggle_agent/web",
          "src/kaggle_agent/evaluation", ":(exclude)src/kaggle_agent/web/views.py",
          ":(exclude)src/kaggle_agent/web/templates/cycle.html",  # step 12 adds the submissions table
-         ":(exclude)src/kaggle_agent/web/__main__.py"],  # ticket 24: single-threaded server
+         ":(exclude)src/kaggle_agent/web/__main__.py",  # ticket 24: single-threaded server
+         # ticket 25: the run limits reach the roles (additive edits, pinned by the loop hash)
+         *(f":(exclude)src/kaggle_agent/loop/{name}.py"
+           for name in ("candidate", "context", "ids", "machine", "roles", "round", "__init__"))],
         capture_output=True, text=True,
     )
     assert diff.returncode == 0 and diff.stdout.strip() == ""

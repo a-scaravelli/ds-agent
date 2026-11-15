@@ -16,7 +16,7 @@ WRITER = SRC / "writer"
 TESTS = ROOT / "tests"
 
 # content hashes of the two packages this ticket must not touch, taken at the start of the ticket
-LOOP_HASH = "65394233b94a92e7d41e87bb7c33bc374a4257a8daf6e05f92af053ee8719ae8"
+LOOP_HASH = "c5d1226655690821978aa0b63dd073e63ca932082d3dea2daf91ee4f5f6a77f1"
 EVALUATION_SOURCES_HASH = "c267079fdf0cd9fefa3501b7c4552e91ea72893df06e5641eedec112a6cb90ce"
 MANUAL_VARIABLE = "KAGGLE_AGENT_RUN_CLAUDE"
 
@@ -63,7 +63,7 @@ def test_the_loop_and_evaluation_packages_are_unchanged_and_dependencies_are_the
     assert hash_path(SRC / "evaluation") == EVALUATION_SOURCES_HASH
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     names = sorted(d.split("==")[0] for d in pyproject["project"]["dependencies"])
-    assert names == ["flask", "kaggle", "numpy", "pandas", "scikit-learn", "six"]
+    assert names == ["catboost", "flask", "kaggle", "lightgbm", "numpy", "pandas", "scikit-learn", "six", "xgboost"]
 
 
 def test_scope_limits_no_orchestrator_command_or_tools_for_other_roles():

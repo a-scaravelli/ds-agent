@@ -17,9 +17,9 @@ TESTS = ROOT / "tests"
 # content hashes of the packages this ticket must not touch (no git: the bytes themselves are pinned)
 PINNED = {
     "evaluation": "c267079fdf0cd9fefa3501b7c4552e91ea72893df06e5641eedec112a6cb90ce",
-    "loop": "65394233b94a92e7d41e87bb7c33bc374a4257a8daf6e05f92af053ee8719ae8",
+    "loop": "c5d1226655690821978aa0b63dd073e63ca932082d3dea2daf91ee4f5f6a77f1",
     "pipeline": "612f737d5af5dd10e3ddd0c4071928abc4d2ebc77e5a9bc3b876ff941ee9543c",
-    "writer": "7c55b7ad8aef4c3e0e2a63d07f1fbec4b5b0262add989c6179392899c28a970e",
+    "writer": "2a40997bd9258bccd7d41da8ca0091ab39a404978867e9e021cf3fd5281286e4",
     "llm": "acbe904742217e7fc6062554462a0f9fb1b43a2a33a92d1a7adf9b741c25464a",
     "kaggle": "844b183fa141703d045b676cf886a7449655fad56ad375d72a1c4758dd8e594a",
     "bundle": "d082d3d2c7191c7a0d8ab7d0b4fea23a7bcce706f874b6fe490832705ebb7985",
@@ -59,7 +59,7 @@ def test_the_frozen_and_untouched_packages_keep_their_pinned_hashes():
 def test_dependencies_are_unchanged():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     names = sorted(d.split("==")[0] for d in pyproject["project"]["dependencies"])
-    assert names == ["flask", "kaggle", "numpy", "pandas", "scikit-learn", "six"]
+    assert names == ["catboost", "flask", "kaggle", "lightgbm", "numpy", "pandas", "scikit-learn", "six", "xgboost"]
 
 
 def test_the_orchestrator_name_is_used_only_by_its_own_package():

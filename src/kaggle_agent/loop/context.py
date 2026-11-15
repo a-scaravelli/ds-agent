@@ -8,6 +8,7 @@ from pathlib import Path
 from kaggle_agent.agents import CoordinatorOutput, DataSummary
 from kaggle_agent.budget import CycleLimits
 from kaggle_agent.bundle import LoadedBundle
+from kaggle_agent.proposals import ALLOWED_LIBRARIES
 from kaggle_agent.evaluation import Candidate, EvaluationEngine
 from kaggle_agent.registry import Registry
 from kaggle_agent.review import LeadInput
@@ -38,6 +39,7 @@ class CycleContext:
     """The registry, the frozen engine, the roles, the writer, the runner factory and the lead.
 
     ``limits`` is only a fallback: a cycle that has stored parameters runs with those.
+    ``allowed_libraries`` is the list told to the roles (the writer gets the same one).
     ``runner_factory`` builds the ``Candidate`` that runs a loaded bundle (the real
     ``BundleRunner`` in production, a fake in tests). ``now`` is the clock for every timestamp.
     """
@@ -56,3 +58,4 @@ class CycleContext:
     now: Callable[[], datetime]
     limits: CycleLimits = field(default_factory=CycleLimits)
     hooks: Hooks = field(default_factory=Hooks)
+    allowed_libraries: tuple[str, ...] = ALLOWED_LIBRARIES

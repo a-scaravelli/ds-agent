@@ -17,7 +17,7 @@ from kaggle_agent.proposals.errors import check_keys, require_text
 
 from .call import PURPOSES, Registry, CandidateRoleResult, TraceContext, utc_now, invoke_role
 from .prompting import render_prompt
-from .summaries import DataFindings, JsonObject, RegistrySummary, object_from
+from .summaries import RunLimits, DataFindings, JsonObject, RegistrySummary, object_from
 
 ROLE = "feature_engineering"
 
@@ -30,6 +30,12 @@ measure it. Leave bundle_id out. The id of the attempt is assigned by the fixed
 code: any id you write is replaced. You only see summaries, never rows, labels
 or holdout data."""
 
+LIMITS_NOTE = """\
+Run limits (the "limits" object of the input): stay within the candidates per
+round and the current round, and propose only features that use the libraries
+in allowed_libraries; anything else not listed (torch, tensorflow) is not
+allowed."""
+
 
 @dataclass(frozen=True)
 class FeatureEngineeringInput(JsonObject):
@@ -41,8 +47,9 @@ class FeatureEngineeringInput(JsonObject):
     findings: DataFindings
     task: str
     history: RegistrySummary
+    limits: RunLimits | None = None
 
-    _FIELDS: ClassVar[tuple[str, ...]] = ("candidate_id", "plan", "findings", "task", "history")
+    _FIELDS: ClassVar[tuple[str, ...]] = ("candidate_id", "plan", "findings", "task", "history", "limits")
 
     def __post_init__(self) -> None:
         require_text("candidate_id", self.candidate_id)
@@ -53,15 +60,20 @@ class FeatureEngineeringInput(JsonObject):
         require_text("task", self.task)
         if not isinstance(self.history, RegistrySummary):
             raise ValueError("history must be a RegistrySummary")
+        if self.limits is not None and not isinstance(self.limits, RunLimits):
+            raise ValueError("limits must be RunLimits or None")
 
     def to_dict(self) -> dict:
-        return {
+        data = {
             "candidate_id": self.candidate_id,
             "plan": self.plan.to_dict(),
             "findings": self.findings.to_dict(),
             "task": self.task,
             "history": self.history.to_dict(),
         }
+        if self.limits is not None:
+            data["limits"] = self.limits.to_dict()
+        return data
 
     @classmethod
     def from_dict(cls, data: dict) -> "FeatureEngineeringInput":
@@ -72,12 +84,13 @@ class FeatureEngineeringInput(JsonObject):
             findings=object_from("findings", data.get("findings"), DataFindings),
             task=data.get("task"),
             history=object_from("history", data.get("history"), RegistrySummary),
+            limits=None if data.get("limits") is None else object_from("limits", data["limits"], RunLimits),
         )
 
 
 def build_feature_engineering_prompt(role_input: FeatureEngineeringInput) -> str:
     """The prompt of the feature engineering role: instructions and the serialized input."""
-    return render_prompt(INSTRUCTIONS, role_input)
+    return render_prompt(INSTRUCTIONS, role_input, LIMITS_NOTE, libraries=True)
 
 
 def run_feature_engineering(

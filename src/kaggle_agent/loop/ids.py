@@ -10,6 +10,11 @@ def round_id(cycle_id: str, index: int) -> str:
     return f"{cycle_id}-R{index}"
 
 
+def round_index(cycle_id: str, round_id_: str) -> int:
+    """Index of a round id: 0 for the setup round, n for round n of the iteration phase."""
+    return int(round_id_[len(f"{cycle_id}-R"):])
+
+
 def candidate_id(round_id_: str, index: int) -> str:
     return f"{round_id_}-c{index}"
 

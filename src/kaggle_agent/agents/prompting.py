@@ -2,12 +2,43 @@
 
 import json
 
+from kaggle_agent.proposals import LIBRARY_APIS, LIBRARY_RULES
 
-def render_prompt(instructions: str, role_input: object) -> str:
+
+def libraries_note(allowed_libraries: tuple[str, ...]) -> str:
+    """What the roles may propose with the listed libraries, derived from the list.
+
+    A library that is not in the list (a configured override) leaves no trace in the text.
+    """
+    boosting = [name for name in LIBRARY_APIS if name in allowed_libraries]
+    if not boosting:
+        return ""
+    apis = ", ".join(f"{LIBRARY_APIS[name]} ({name})" for name in boosting)
+    rules = "; ".join(f"{name}: {LIBRARY_RULES[name]}" for name in boosting)
+    return (
+        f"Besides the models of scikit-learn, the bundle can use {apis}, through their "
+        "scikit-learn-compatible classes. Rules for the bundle: model files only under the "
+        f"directory named by BUNDLE_MODEL_DIR; explicit thread counts (thread_count or n_jobs) "
+        f"and explicit seeds. Per library, {rules}."
+    )
+
+
+def render_prompt(
+    instructions: str, role_input: object, limits_note: str = "", libraries: bool = False
+) -> str:
     """The role instructions followed by the input, serialized deterministically.
 
     ``role_input`` is any typed input with ``to_dict()``. The JSON contract of
-    the output is added later by ``LlmClient.ask``.
+    the output is added later by ``LlmClient.ask``. ``limits_note`` (and, with
+    ``libraries``, the note about the allowed libraries) is appended to the
+    instructions only when the input carries ``limits``, so an input without
+    limits renders exactly as before.
     """
+    text = instructions.strip()
+    limits = getattr(role_input, "limits", None)
+    if limits is not None and limits_note:
+        text = f"{text}\n\n{limits_note.strip()}"
+        if libraries and (extra := libraries_note(limits.allowed_libraries)):
+            text = f"{text}\n{extra}"
     payload = json.dumps(role_input.to_dict(), sort_keys=True, ensure_ascii=False)
-    return f"{instructions.strip()}\n\nInput (JSON):\n{payload}"
+    return f"{text}\n\nInput (JSON):\n{payload}"
