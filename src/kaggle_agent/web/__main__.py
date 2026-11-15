@@ -11,7 +11,6 @@ enough and needs no change to the registry.
 """
 
 import argparse
-import errno
 import sys
 
 from kaggle_agent.registry import RegistryError
@@ -34,6 +33,10 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+class BindError(Exception):
+    """The server could not listen on the requested address (werkzeug exits instead of raising)."""
+
+
 def make_web_server(app, host: str, port: int, threaded: bool = False):
     """A werkzeug server for ``app``; port 0 picks a free port (read ``server_port``).
 
@@ -41,7 +44,10 @@ def make_web_server(app, host: str, port: int, threaded: bool = False):
     """
     from werkzeug.serving import make_server
 
-    return make_server(host, port, app, threaded=threaded)
+    try:
+        return make_server(host, port, app, threaded=threaded)
+    except SystemExit:  # werkzeug prints the OS error and exits when the bind fails
+        raise BindError(f"cannot listen on {host}:{port}") from None
 
 
 def main(argv: list[str] | None = None, run=None) -> int:
@@ -73,11 +79,9 @@ def main(argv: list[str] | None = None, run=None) -> int:
                 server.server_close()
     try:
         run(app, args.host, args.port, False)
-    except OSError as exc:
-        if exc.errno != errno.EADDRINUSE:
-            raise
+    except BindError:
         print(
-            f"error: port {args.port} on {args.host} is already in use; "
+            f"error: port {args.port} on {args.host} is already in use or not available; "
             "choose another with --port (for example --port 8001)",
             file=sys.stderr,
         )
