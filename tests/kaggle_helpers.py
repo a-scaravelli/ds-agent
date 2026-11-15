@@ -130,6 +130,8 @@ class StubApi:
         self.submit_ref = 77
         self.pages = make_pages()
         self.page_name_args = []
+        self.listed_files = ["train.csv", "sample_submission.csv"]
+        self.downloaded_names = []
 
     def authenticate(self):
         self.authenticate_calls += 1
@@ -152,10 +154,11 @@ class StubApi:
 
     def competition_list_files(self, competition, page_token=None, page_size=20):
         self._enter("competition_list_files")
-        return SimpleNamespace(files=[SimpleNamespace(name="train.csv"), SimpleNamespace(name="sample_submission.csv")])
+        return SimpleNamespace(files=[SimpleNamespace(name=n) for n in self.listed_files])
 
     def competition_download_file(self, competition, file_name, path=None, force=False, quiet=False):
         self._enter("competition_download_file")
+        self.downloaded_names.append(file_name)
         (Path(path) / file_name).write_text(SAMPLE_CSV)
 
     def competition_get_submission_limits(self, competition_name):

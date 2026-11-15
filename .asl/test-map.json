@@ -2,331 +2,103 @@
  "cases": {
   "1": [
    {
-    "file": "tests/test_orchestrator_build.py",
-    "name": "test_a_context_is_built_from_the_config_with_every_external_piece_injected"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_sample_submission_csv_is_still_found"
    }
   ],
   "2": [
    {
-    "file": "tests/test_orchestrator_build.py",
-    "name": "test_the_claude_calls_are_recorded_once"
-   },
-   {
-    "file": "tests/test_orchestrator_build.py",
-    "name": "test_a_client_with_an_on_call_hook_is_refused"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_titanic_gender_submission_is_accepted"
    }
   ],
   "3": [
    {
-    "file": "tests/test_orchestrator_config.py",
-    "name": "test_a_valid_config_is_accepted_with_documented_defaults"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_sample_and_submission_name_wins_over_submission_only"
    }
   ],
   "4": [
    {
-    "file": "tests/test_orchestrator_config.py",
-    "name": "test_strict_validation_names_the_key_path"
-   },
-   {
-    "file": "tests/test_orchestrator_config.py",
-    "name": "test_a_secret_like_key_is_refused_and_points_to_the_credential_mechanisms"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_selection_is_case_insensitive"
    }
   ],
   "5": [
    {
-    "file": "tests/test_orchestrator_config.py",
-    "name": "test_metric_direction_and_target_come_from_competition_info_and_the_spec"
-   },
-   {
-    "file": "tests/test_orchestrator_config.py",
-    "name": "test_an_unknown_or_ambiguous_metric_asks_for_an_explicit_one"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_best_match_then_shortest_name_whatever_the_listing_order"
    }
   ],
   "6": [
    {
-    "file": "tests/test_orchestrator_cli_flow.py",
-    "name": "test_start_creates_the_project_and_runs_until_the_lead_is_needed"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_only_csv_files_qualify"
    }
   ],
   "7": [
    {
-    "file": "tests/test_orchestrator_cli_flow.py",
-    "name": "test_start_twice_does_not_create_a_second_cycle_nor_call_anything"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_no_candidate_keeps_the_error_and_lists_the_names_seen"
    }
   ],
   "8": [
    {
-    "file": "tests/test_orchestrator_cli_flow.py",
-    "name": "test_a_full_cycle_runs_through_the_command_line_up_to_the_review"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_only_the_sample_file_is_downloaded"
    }
   ],
   "9": [
    {
     "file": "tests/test_orchestrator_cli_flow.py",
-    "name": "test_accept_finishes_the_cycle_and_the_report_and_bundle_exist"
+    "name": "test_start_does_not_need_a_file_named_sample_submission"
    }
   ],
   "10": [
    {
-    "file": "tests/test_orchestrator_resume.py",
-    "name": "test_resume_after_a_quota_error_in_the_middle_of_a_round"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_six_is_pinned_with_an_explanatory_comment"
    }
   ],
   "11": [
-   {
-    "file": "tests/test_orchestrator_resume.py",
-    "name": "test_resume_after_a_crash_repeats_no_attempt_and_no_holdout_read"
-   }
-  ],
-  "12": [
-   {
-    "file": "tests/test_orchestrator_resume.py",
-    "name": "test_a_plan_revision_is_applied_once_and_survives_a_suspension"
-   }
-  ],
-  "13": [
-   {
-    "file": "tests/test_orchestrator_resume.py",
-    "name": "test_a_continue_answer_is_not_recorded_and_is_reused_after_a_quota_error"
-   }
-  ],
-  "14": [
-   {
-    "file": "tests/test_orchestrator_lead_file.py",
-    "name": "test_a_missing_file_an_empty_file_or_another_table_returns_none"
-   }
-  ],
-  "15": [
-   {
-    "file": "tests/test_orchestrator_lead_file.py",
-    "name": "test_a_malformed_or_invalid_file_raises_with_the_key_path"
-   },
-   {
-    "file": "tests/test_orchestrator_lead_file.py",
-    "name": "test_an_invalid_lead_file_ends_the_command_with_the_lead_file_code_and_changes_nothing"
-   }
-  ],
-  "16": [
-   {
-    "file": "tests/test_orchestrator_lead_file.py",
-    "name": "test_a_partial_file_leaves_the_plan_waiting_and_status_says_which_keys_to_fill"
-   }
-  ],
-  "17": [
-   {
-    "file": "tests/test_orchestrator_lead_file.py",
-    "name": "test_consumed_decisions_are_ignored"
-   },
-   {
-    "file": "tests/test_orchestrator_lead_file.py",
-    "name": "test_applied_guidance_and_revision_are_not_applied_again"
-   }
-  ],
-  "18": [
-   {
-    "file": "tests/test_orchestrator_lead_file.py",
-    "name": "test_a_file_edited_while_waiting_is_read_again_at_every_call"
-   }
-  ],
-  "19": [
-   {
-    "file": "tests/test_orchestrator_lead_file.py",
-    "name": "test_the_lead_file_is_never_edited_and_the_file_flow_writes_the_notices"
-   }
-  ],
-  "20": [
-   {
-    "file": "tests/test_orchestrator_cli_flow.py",
-    "name": "test_status_tells_the_lead_the_next_key_to_fill_in_every_state"
-   }
-  ],
-  "21": [
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_nothing_is_submitted_before_the_review_is_accepted"
-   }
-  ],
-  "22": [
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_dry_run_prints_what_would_be_sent_and_sends_nothing"
-   }
-  ],
-  "23": [
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_nothing_is_sent_without_the_flag_and_a_submit_key_in_the_lead_file_is_an_error"
-   }
-  ],
-  "24": [
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_an_invalid_submission_file_is_refused"
-   }
-  ],
-  "25": [
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_the_daily_limit_refuses_with_the_reset_time"
-   },
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_recorded_submissions_fill_the_guard_even_when_kaggle_reports_room"
-   }
-  ],
-  "26": [
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_a_confirmed_submission_is_sent_once_recorded_scored_and_shown"
-   }
-  ],
-  "27": [
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_the_wait_is_bounded_and_a_rerun_resumes_without_sending_again"
-   }
-  ],
-  "28": [
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_a_crash_between_send_and_record_leaves_a_marker_and_the_rerun_refuses"
-   }
-  ],
-  "29": [
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_the_lead_can_proceed_after_checking_by_hand"
-   }
-  ],
-  "30": [
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_the_marker_is_written_before_the_send_and_marked_recorded_after"
-   }
-  ],
-  "31": [
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_the_dry_run_never_writes_a_marker_or_a_row"
-   }
-  ],
-  "32": [
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_the_submission_comes_from_the_stored_model_through_predict_without_pickle"
-   },
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_a_matrix_of_probabilities_fills_several_columns"
-   }
-  ],
-  "33": [
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_the_holdout_is_read_once_across_resume_and_submit"
-   }
-  ],
-  "34": [
-   {
-    "file": "tests/test_orchestrator_cli_flow.py",
-    "name": "test_the_result_is_reproducible_with_a_real_bundle_runner"
-   }
-  ],
-  "35": [
-   {
-    "file": "tests/test_orchestrator_resume.py",
-    "name": "test_a_changed_config_is_refused_after_start"
-   },
-   {
-    "file": "tests/test_orchestrator_resume.py",
-    "name": "test_changed_data_is_refused_but_model_names_and_timeouts_may_change"
-   }
-  ],
-  "36": [
-   {
-    "file": "tests/test_orchestrator_guards.py",
-    "name": "test_exit_codes_are_distinct_and_documented"
-   },
-   {
-    "file": "tests/test_orchestrator_cli_flow.py",
-    "name": "test_accept_finishes_the_cycle_and_the_report_and_bundle_exist"
-   },
-   {
-    "file": "tests/test_orchestrator_resume.py",
-    "name": "test_resume_after_a_quota_error_in_the_middle_of_a_round"
-   },
-   {
-    "file": "tests/test_orchestrator_submit.py",
-    "name": "test_nothing_is_submitted_before_the_review_is_accepted"
-   }
-  ],
-  "37": [
-   {
-    "file": "tests/test_orchestrator_guards.py",
-    "name": "test_the_frozen_and_untouched_packages_keep_their_pinned_hashes"
-   },
    {
     "file": "tests/test_orchestrator_guards.py",
     "name": "test_dependencies_are_unchanged"
    },
    {
-    "file": "tests/test_orchestrator_guards.py",
-    "name": "test_the_orchestrator_name_is_used_only_by_its_own_package"
-   },
-   {
-    "file": "tests/test_orchestrator_guards.py",
-    "name": "test_no_other_package_imports_the_orchestrator"
-   },
-   {
-    "file": "tests/test_orchestrator_guards.py",
-    "name": "test_the_orchestrator_imports_no_network_module_and_builds_real_adapters_only_lazily"
+    "file": "tests/test_no_modeling_logic.py",
+    "name": "test_runtime_dependencies_are_the_pinned_libraries"
    }
   ],
-  "38": [
+  "12": [
    {
-    "file": "tests/test_web_app.py",
-    "name": "test_cycle_page_shows_the_submission_and_its_score"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_placeholder_carries_the_installed_version"
    },
    {
-    "file": "tests/test_web_readonly.py",
-    "name": "test_other_methods_answer_405_and_leave_the_file_unchanged"
-   },
-   {
-    "file": "tests/test_web_readonly.py",
-    "name": "test_the_app_calls_only_read_methods_of_the_registry"
+    "file": "tests/test_kaggle_real.py",
+    "name": "test_response_processor_runs_on_a_canned_response"
    }
   ],
-  "39": [
-   {
-    "file": "tests/test_orchestrator_manual_real.py",
-    "name": "test_manual_real_start_stops_waiting_for_the_lead"
-   },
-   {
-    "file": "tests/test_orchestrator_manual_real.py",
-    "name": "test_manual_real_dry_run_submit_after_the_lead_accepted"
-   },
-   {
-    "file": "tests/test_orchestrator_guards.py",
-    "name": "test_only_the_manual_test_names_the_manual_variable"
-   },
+  "13": [
    {
     "file": "tests/test_orchestrator_docs.py",
-    "name": "test_the_readme_documents_the_manual_real_run_and_its_cost"
+    "name": "test_the_readme_explains_six_and_the_sample_file_selection"
    }
   ],
-  "40": [
+  "14": [
+   {
+    "file": "tests/test_orchestrator_guards.py",
+    "name": "test_the_frozen_and_untouched_packages_keep_their_pinned_hashes"
+   }
+  ],
+  "15": [
    {
     "file": "tests/test_orchestrator_docs.py",
-    "name": "test_the_baseline_comes_from_the_seed_plan_built_from_the_config"
+    "name": "test_the_documentation_the_design_note_and_the_test_map_are_complete"
    }
   ],
-  "41": [
-   {
-    "file": "tests/test_orchestrator_docs.py",
-    "name": "test_the_known_limits_state_that_the_submission_uses_the_development_only_model"
-   }
-  ],
-  "42": [
+  "16": [
    {
     "file": "tests/test_orchestrator_docs.py",
     "name": "test_the_documentation_the_design_note_and_the_test_map_are_complete"

@@ -127,7 +127,7 @@ def test_runtime_dependencies_are_the_pinned_libraries():
     pyproject = tomllib.loads((SRC.parent.parent / "pyproject.toml").read_text(encoding="utf-8"))
     deps = pyproject["project"]["dependencies"]
     names = sorted(d.split("==")[0] for d in deps)
-    assert names == ["flask", "kaggle", "numpy", "pandas", "scikit-learn"]
+    assert names == ["flask", "kaggle", "numpy", "pandas", "scikit-learn", "six"]
     assert all("==" in d and d.split("==")[1][:1].isdigit() for d in deps)
     everything = " ".join(
         deps + [d for group in pyproject["project"].get("optional-dependencies", {}).values() for d in group]

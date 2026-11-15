@@ -10,7 +10,7 @@ Design plus the first pieces of code: the design document is in [docs/design.md]
 
 ## Stack
 
-Python 3.12, pandas, scikit-learn, LightGBM and local MLflow are a starting point, not a constraint: libraries are chosen ticket by ticket, with the criteria of section 1 of the design. The runtime dependencies are pinned with `==` in `pyproject.toml`: pandas, numpy and scikit-learn (only `evaluation` imports them) and the official `kaggle` package (only `kaggle/real.py` imports it). The data model, the registry, the rest of the Kaggle client and the Claude adapter use only the standard library (the adapter spawns the `claude` CLI, which is not a Python dependency). Flask is pinned too and only `web` imports it.
+Python 3.12, pandas, scikit-learn, LightGBM and local MLflow are a starting point, not a constraint: libraries are chosen ticket by ticket, with the criteria of section 1 of the design. The runtime dependencies are pinned with `==` in `pyproject.toml`: pandas, numpy and scikit-learn (only `evaluation` imports them) and the official `kaggle` package (only `kaggle/real.py` imports it). The data model, the registry, the rest of the Kaggle client and the Claude adapter use only the standard library (the adapter spawns the `claude` CLI, which is not a Python dependency). Flask is pinned too and only `web` imports it. `six` is pinned as well, only because `kaggle==2.2.4` imports it without declaring it (first real run on Kaggle).
 
 ## Data model (`kaggle_agent.proposals`)
 
@@ -134,6 +134,8 @@ Access to Kaggle sits behind the `KaggleClient` interface. `FakeKaggleClient` is
 2. `~/.kaggle/access_token` (permissions `600`);
 3. legacy `KAGGLE_USERNAME` and `KAGGLE_KEY` environment variables (both);
 4. legacy `~/.kaggle/kaggle.json` (permissions `600`).
+
+**Sample submission file.** The real client picks it among the listed files, CSV only and case-insensitive: first names containing both `sample` and `submission` (`sample_submission.csv`), otherwise names containing `submission` (Titanic's `gender_submission.csv`). Among several it prefers the best `sample_submission` match, then the shortest name, then sorted order. Only that file is downloaded. If none qualifies, the error lists the file names seen.
 
 An empty value counts as absent. A credentials file readable by group or others raises `InsecureCredentialsError` (`chmod 600` it). `access_token` and `kaggle.json` are in `.gitignore`. Only the Kaggle client reads credentials; they are never logged, never put in an error message, never stored in the registry and never passed to the model or the sandbox. The secret is handed to the library object directly and `os.environ` is not modified.
 
@@ -503,7 +505,7 @@ folder = writer.write(request)   # a verified bundle folder, or a BundleError / 
 
 Step 12 of the design, level 1. One command line runs a tabular Kaggle competition end to end. The lead decides through a file, and the submission is sent only on the lead's explicit command after the review.
 
-**Install.** `python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'`. Python 3.12 or newer, and pandas, numpy and scikit-learn must be importable by the interpreter (the bundles run with `python -I`).
+**Install.** `python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'`. Python 3.12 or newer, and pandas, numpy and scikit-learn must be importable by the interpreter (the bundles run with `python -I`). `six` is an explicit pin (`six==1.17.0`) because `kaggle==2.2.4` imports it at import time without declaring it, so `import kaggle` fails in a clean virtualenv without it.
 
 **Credentials** (nothing secret goes into the configuration; a key that looks like a secret is refused). Kaggle: `KAGGLE_USERNAME` and `KAGGLE_KEY`, or `~/.kaggle/kaggle.json`, or the access token, as in the Kaggle client section. Accept the competition rules on the Kaggle site first. Claude: the `claude` CLI logged in with the subscription (as in the Claude adapter section).
 

@@ -195,12 +195,12 @@ def test_unconfirmed_submission_is_an_error(tmp_path):
 def _needs_library():
     if importlib.util.find_spec("kaggle") is None:
         pytest.skip("the kaggle library is not installed")
-    # the pinned package does not declare every import (for example `six`): skip, do not fail
+    # six is now a declared dependency; this only guards a library or a dependency not installed here
     saved = {k: v for k, v in sys.modules.items() if k == "kaggle" or k.startswith("kaggle.")}
     try:
         real.load_api_class()
     except KaggleError:
-        pytest.skip("the kaggle library is installed but incomplete (an undeclared dependency is missing)")
+        pytest.skip("the kaggle library is installed but one of its dependencies is missing")
     finally:
         for name in [k for k in sys.modules if k == "kaggle" or k.startswith("kaggle.")]:
             del sys.modules[name]
@@ -343,3 +343,104 @@ def test_page_names_are_normalized_across_case_and_separators():
     assert info.pages["Data Description"] == "first"
     assert info.pages["data_description"] == "second"
     assert real._normalize_page_name("Data  Description") == real._normalize_page_name("data-description")
+
+
+# -- sample submission selection (first real run, competition 'titanic') ------
+
+TRAIN_TEST = ["train.csv", "test.csv"]
+
+
+def _spec_for(listed, competition="comp"):
+    client, api = make_real()
+    api.listed_files = list(listed)
+    return client.get_submission_spec(competition), api
+
+
+# 1
+def test_sample_submission_csv_is_still_found():
+    spec, api = _spec_for(["train.csv", "sample_submission.csv"])
+    assert api.downloaded_names == ["sample_submission.csv"]
+    assert spec.columns == ("id", "target") and spec.expected_ids == ("a", "b", "c")
+
+
+# 2
+def test_titanic_gender_submission_is_accepted():
+    spec, api = _spec_for([*TRAIN_TEST, "gender_submission.csv"], "titanic")
+    assert api.downloaded_names == ["gender_submission.csv"]
+    assert spec.columns == ("id", "target")
+
+
+# 3
+@pytest.mark.parametrize("order", [("gender_submission.csv", "sample_submission.csv"),
+                                   ("sample_submission.csv", "gender_submission.csv")])
+def test_sample_and_submission_name_wins_over_submission_only(order):
+    _, api = _spec_for([*TRAIN_TEST, *order])
+    assert api.downloaded_names == ["sample_submission.csv"]
+
+
+# 4
+def test_selection_is_case_insensitive():
+    _, api = _spec_for(["Gender_Submission.csv", "Sample_Submission.CSV"])
+    assert api.downloaded_names == ["Sample_Submission.CSV"]
+    _, api = _spec_for(["Train.CSV", "Gender_Submission.CSV"])
+    assert api.downloaded_names == ["Gender_Submission.CSV"]
+
+
+# 5
+@pytest.mark.parametrize("names, expected", [
+    (["sample_submission_v2.csv", "sample_submission.csv", "my_sample_submission.csv"], "sample_submission.csv"),
+    (["sample_submission_v2.csv", "a_sample_submission_b.csv"], "sample_submission_v2.csv"),
+    (["long_name_submission.csv", "gender_submission.csv", "a_submission.csv"], "a_submission.csv"),
+    (["b_submission.csv", "a_submission.csv"], "a_submission.csv"),
+])
+def test_best_match_then_shortest_name_whatever_the_listing_order(names, expected):
+    import itertools
+
+    for order in itertools.permutations(names):
+        _, api = _spec_for([*TRAIN_TEST, *order])
+        assert api.downloaded_names == [expected], order
+
+
+# 6
+def test_only_csv_files_qualify():
+    client, api = make_real()
+    api.listed_files = ["train.csv", "sample_submission.csv.zip", "sample_submission.json", "submission_notes.txt"]
+    with pytest.raises(KaggleError, match="has no sample submission file"):
+        client.get_submission_spec("comp")
+    assert "competition_download_file" not in api.calls and api.downloaded_names == []
+
+
+# 7
+@pytest.mark.parametrize("listed, shown", [
+    (["train.csv", "test.csv"], "files seen: 'test.csv', 'train.csv'"),
+    ([], "files seen: none"),
+])
+def test_no_candidate_keeps_the_error_and_lists_the_names_seen(listed, shown):
+    client, api = make_real()
+    api.listed_files = listed
+    with pytest.raises(KaggleError) as info:
+        client.get_submission_spec("comp")
+    message = str(info.value)
+    assert message.startswith("competition 'comp' has no sample submission file")
+    assert shown in message and SECRET not in message
+
+
+# 8
+def test_only_the_sample_file_is_downloaded():
+    _, api = _spec_for([*TRAIN_TEST, "gender_submission.csv"])
+    assert api.downloaded_names == ["gender_submission.csv"]
+    assert api.calls.count("competition_download_file") == 1
+    assert "competition_download_files" not in api.calls
+
+
+# 10
+def test_six_is_pinned_with_an_explanatory_comment():
+    import tomllib
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    text = path.read_text(encoding="utf-8")
+    deps = tomllib.loads(text)["project"]["dependencies"]
+    assert [d for d in deps if d.startswith("six")] == [f"six=={importlib.metadata.version('six')}"]
+    comment = "\n".join(line for line in text.splitlines() if line.strip().startswith("#"))
+    assert "kaggle==2.2.4" in comment and "upload_file.py" in comment and "does not declare" in comment
