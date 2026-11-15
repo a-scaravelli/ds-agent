@@ -19,12 +19,14 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from kaggle_agent.agents import (
+    RunLimits,
     run_coordinator,
     run_data,
     run_feature_engineering,
     run_modeling,
     run_reviewer,
 )
+from kaggle_agent.budget import CycleLimits
 from kaggle_agent.llm import LlmClient, ToolPermissions
 from kaggle_agent.registry import Registry
 
@@ -61,4 +63,27 @@ def client_roles(
         reviewer=lambda ctx, inp, report_id: run_reviewer(
             client, registry, ctx, inp, permissions, report_id, **extra
         ),
+    )
+
+
+def role_limits(ctx, current_round: int) -> RunLimits:
+    """What every role is told about the run, built the same way on a fresh start and on resume.
+
+    The cycle limits come from the stored ``Cycle.parameters`` (``ctx.limits`` is only the
+    fallback for a cycle that has none); the significance rule, the validation scheme and the
+    repetitions come from the frozen protocol; the libraries from ``ctx.allowed_libraries``.
+    ``ctx`` is a ``CycleContext`` (duck-typed here: ``context`` imports this module).
+    """
+    limits = CycleLimits.resolve(ctx.registry.get_cycle(ctx.cycle_id), ctx.limits)
+    protocol = ctx.engine.protocol
+    return RunLimits(
+        rounds=limits.rounds,
+        candidates=limits.candidates,
+        stagnation_k=limits.stagnation_rounds,
+        fix_retries=limits.fix_retries,
+        current_round=current_round,
+        threshold_k=protocol.threshold_k,
+        validation_scheme=protocol.validation_scheme,
+        repetitions=protocol.repetitions,
+        allowed_libraries=tuple(ctx.allowed_libraries),
     )

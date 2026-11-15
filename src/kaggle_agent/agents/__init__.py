@@ -59,6 +59,7 @@ from .summaries import (
     DataSummary,
     MetricValue,
     RegistrySummary,
+    RunLimits,
 )
 
 __all__ = [
@@ -80,6 +81,7 @@ __all__ = [
     "RegistrySummary",
     "ReviewerInput",
     "ReviewerNotes",
+    "RunLimits",
     "RoleConfigurationError",
     "RoleRejectedError",
     "TraceContext",

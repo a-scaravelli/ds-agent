@@ -25,6 +25,7 @@ from .candidate import CandidateRunner
 from .context import CycleContext
 from .derive import CycleView
 from .errors import CycleSuspended, TransitionError
+from .roles import role_limits
 from .round import RoundPipeline
 from .states import (
     AWAITING_GUIDANCE,
@@ -129,6 +130,7 @@ class CycleMachine:
                 metric=ctx.engine.protocol.metric,
                 history=RegistrySummary(),
                 guidance=tuple(self._revisions),
+                limits=role_limits(ctx, 0),
             )
             ctx.roles.coordinator(
                 TraceContext(ctx.cycle_id, ids.setup_round_id(ctx.cycle_id)), role_input

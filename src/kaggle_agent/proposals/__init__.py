@@ -4,12 +4,16 @@ from .attempt import Attempt
 from .errors import OBJECT_LABELS, ValidationError
 from .goal import DIRECTIONS, GoalCriteria, GoalCriterion
 from .guidance import Guidance
+from .libraries import ALLOWED_LIBRARIES, LIBRARY_APIS, LIBRARY_RULES
 from .plan import MAX_PLAN_WORDS, ShortPlan
 from .roles import ROLES, validate_role
 from .round import ReviewerReport, Round
 from .suggestion import Suggestion
 
 __all__ = [
+    "ALLOWED_LIBRARIES",
+    "LIBRARY_APIS",
+    "LIBRARY_RULES",
     "Attempt",
     "DIRECTIONS",
     "GoalCriteria",

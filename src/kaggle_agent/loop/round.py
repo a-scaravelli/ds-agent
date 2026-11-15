@@ -23,6 +23,7 @@ from .candidate import CandidateRunner, clean
 from .context import CycleContext
 from .derive import VALIDATION, CycleView, RoundState, is_placeholder
 from .errors import LoopError
+from .roles import role_limits
 from .states import AWAITING_GUIDANCE, ITERATING, REPORTING
 
 DEFAULT_TASK = "Improve the validation metric with a new, falsifiable hypothesis."
@@ -116,7 +117,8 @@ class RoundPipeline:
         ctx = self.ctx
         results = self._results(state)
         plan = self.registry.get_cycle(ctx.cycle_id).plan
-        role_input = ReviewerInput(state.round_id, plan, self._reviewer_goal(), results)
+        role_input = ReviewerInput(state.round_id, plan, self._reviewer_goal(), results,
+                                  role_limits(ctx, state.index))
         report_id = ids.report_id(state.round_id)
         try:
             report = ctx.roles.reviewer(TraceContext(ctx.cycle_id, state.round_id), role_input, report_id)
@@ -159,6 +161,7 @@ class RoundPipeline:
             history=view.registry_summary(),
             reports=view.recent_reports(),
             guidance=view.guidance_texts(),
+            limits=role_limits(ctx, state.index),
         )
         ctx.roles.coordinator(TraceContext(ctx.cycle_id, state.round_id), role_input)
         if not view.last_round().has_direction:

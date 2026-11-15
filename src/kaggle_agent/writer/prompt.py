@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from kaggle_agent.agents import DataSummary
 from kaggle_agent.bundle import ENTRY_POINT_NAMES, MANIFEST_NAME, MODEL_DIR_ENV, MODEL_FOLDER
 from kaggle_agent.loop.writer import BundleRequest
+from kaggle_agent.proposals import LIBRARY_APIS, LIBRARY_RULES
 
 from .workspace import BUNDLE_SUBFOLDER
 
@@ -71,6 +72,20 @@ def _previous(files: dict[str, str]) -> str:
     return "\n\n".join(f"--- {name} ---\n{text}" for name, text in files.items())
 
 
+def _libraries(allowed_dependencies: tuple[str, ...]) -> str:
+    """The rules for the boosting libraries that are allowed (nothing if none is)."""
+    boosting = [name for name in LIBRARY_APIS if name in allowed_dependencies]
+    if not boosting:
+        return ""
+    apis = ", ".join(f"{LIBRARY_APIS[name]} ({name})" for name in boosting)
+    rules = "; ".join(f"{name}: {LIBRARY_RULES[name]}" for name in boosting)
+    return (
+        f"\n- Libraries: use the scikit-learn-compatible classes {apis}. Save model files only under "
+        f"the directory named by {MODEL_DIR_ENV}. Set explicit thread counts (thread_count or n_jobs) "
+        f"and explicit seeds. Per library, {rules}."
+    )
+
+
 def build_prompt(request: BundleRequest, task: WriterTask, allowed_dependencies: tuple[str, ...],
                  previous: dict[str, str] | None = None) -> str:
     """The first prompt of a write; ``previous`` holds the old bundle code of a fix request."""
@@ -102,7 +117,8 @@ def build_prompt(request: BundleRequest, task: WriterTask, allowed_dependencies:
         "and no other types. Never report your own score.\n"
         "- Allowed imports: the Python standard library and "
         f"{', '.join(allowed_dependencies)}. List every third-party library you import in "
-        "dependencies. Import nothing else, use no network and no subprocess.\n"
+        "dependencies. Import nothing else, use no network and no subprocess."
+        + _libraries(allowed_dependencies) + "\n"
         "- Only the bundle folder is checked: do not read or write other files.",
         "## Task\n"
         f"Target column: {task.target}. Metric: {task.metric} ({task.direction}). "

@@ -18,7 +18,7 @@ from kaggle_agent.proposals.errors import check_keys, require_text
 
 from .call import PURPOSES, Registry, CandidateRoleResult, TraceContext, utc_now, invoke_role
 from .prompting import render_prompt
-from .summaries import DataFindings, JsonObject, RegistrySummary, object_from
+from .summaries import RunLimits, DataFindings, JsonObject, RegistrySummary, object_from
 
 ROLE = "modeling"
 
@@ -30,6 +30,12 @@ about the model and its hyperparameters: what you change, why, the evidence you
 have (or mark the attempt exploratory) and how to measure it. Leave bundle_id
 out. The id of the attempt is assigned by the fixed code: any id you write is
 replaced. You only see summaries, never rows, labels or holdout data."""
+
+LIMITS_NOTE = """\
+Run limits (the "limits" object of the input): stay within the candidates per
+round and the current round, and propose only models from the libraries in
+allowed_libraries; anything else not listed (torch, tensorflow) is not
+allowed."""
 
 
 @dataclass(frozen=True)
@@ -43,10 +49,10 @@ class ModelingInput(JsonObject):
     task: str
     history: RegistrySummary
     previous_attempt: Attempt
+    limits: RunLimits | None = None
 
     _FIELDS: ClassVar[tuple[str, ...]] = (
-        "candidate_id", "plan", "findings", "task", "history", "previous_attempt",
-    )
+        "candidate_id", "plan", "findings", "task", "history", "previous_attempt", "limits")
 
     def __post_init__(self) -> None:
         require_text("candidate_id", self.candidate_id)
@@ -59,9 +65,11 @@ class ModelingInput(JsonObject):
             raise ValueError("history must be a RegistrySummary")
         if not isinstance(self.previous_attempt, Attempt):
             raise ValueError("previous_attempt must be an Attempt")
+        if self.limits is not None and not isinstance(self.limits, RunLimits):
+            raise ValueError("limits must be RunLimits or None")
 
     def to_dict(self) -> dict:
-        return {
+        data = {
             "candidate_id": self.candidate_id,
             "plan": self.plan.to_dict(),
             "findings": self.findings.to_dict(),
@@ -69,6 +77,9 @@ class ModelingInput(JsonObject):
             "history": self.history.to_dict(),
             "previous_attempt": self.previous_attempt.to_dict(),
         }
+        if self.limits is not None:
+            data["limits"] = self.limits.to_dict()
+        return data
 
     @classmethod
     def from_dict(cls, data: dict) -> "ModelingInput":
@@ -80,12 +91,13 @@ class ModelingInput(JsonObject):
             task=data.get("task"),
             history=object_from("history", data.get("history"), RegistrySummary),
             previous_attempt=object_from("previous_attempt", data.get("previous_attempt"), Attempt),
+            limits=None if data.get("limits") is None else object_from("limits", data["limits"], RunLimits),
         )
 
 
 def build_modeling_prompt(role_input: ModelingInput) -> str:
     """The prompt of the modeling role: instructions and the serialized input."""
-    return render_prompt(INSTRUCTIONS, role_input)
+    return render_prompt(INSTRUCTIONS, role_input, LIMITS_NOTE, libraries=True)
 
 
 def run_modeling(

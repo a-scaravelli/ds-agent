@@ -42,6 +42,7 @@ from kaggle_agent.registry import (
 
 from . import ids
 from .context import CycleContext
+from .roles import role_limits
 from .derive import PLACEHOLDER_PREFIX, CycleView
 from .writer import BundleRequest, FixRequest, RoleOutputs
 
@@ -102,6 +103,7 @@ class CandidateRunner:
         ctx = self.ctx
         trace_ctx = TraceContext(ctx.cycle_id, round_id)
         plan = self.registry.get_cycle(ctx.cycle_id).plan
+        limits = role_limits(ctx, ids.round_index(ctx.cycle_id, round_id))
         findings = None
         reason = None
         rejections = 0
@@ -114,10 +116,10 @@ class CandidateRunner:
                     findings = ctx.roles.data(trace_ctx, DataInput(ctx.data_summary, text))
                 history = self.view.registry_summary()
                 fe = ctx.roles.feature_engineering(
-                    trace_ctx, FeatureEngineeringInput(cid, plan, findings, text, history)
+                    trace_ctx, FeatureEngineeringInput(cid, plan, findings, text, history, limits)
                 )
                 modeling = ctx.roles.modeling(
-                    trace_ctx, ModelingInput(cid, plan, findings, text, history, fe.output)
+                    trace_ctx, ModelingInput(cid, plan, findings, text, history, fe.output, limits)
                 )
                 outputs = RoleOutputs(findings, fe.output, modeling.output)
                 self._register(round_id, cid, outputs, (fe, modeling))
