@@ -1042,7 +1042,8 @@ def test_read_only_opening_reads_the_same_data_and_never_writes(tmp_path):
         with pytest.raises(RegistryError, match="read-only"):
             new_attempt(ro, "A2")
     assert path.read_bytes() == before
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["registry.db"]
+    # the file is in WAL mode: a reader may leave -shm and -wal files, the main file is untouched
+    assert {p.name for p in tmp_path.iterdir()} <= {"registry.db", "registry.db-shm", "registry.db-wal"}
 
 
 def test_read_only_rejects_memory_and_missing_file_without_creating_it(tmp_path):
@@ -1224,3 +1225,91 @@ def test_old_files_gain_the_holdout_outcome_and_report_tables(tmp_path):
         assert r.get_holdout_outcome("OLD") is None
         r.add_holdout_outcome(_holdout(cycle_id="OLD"))
     assert {"holdout_outcomes", "final_reports"} <= _tables(path)
+
+
+# --- WAL and busy timeout (ticket 26, additive) ---
+
+
+def _journal_mode(path) -> str:
+    db = sqlite3.connect(path)
+    try:
+        return db.execute("PRAGMA journal_mode").fetchone()[0]
+    finally:
+        db.close()
+
+
+def _old_style_file(path):
+    """A rollback-journal file with the first schema only: no rounds, bundles, reports, columns."""
+    db = sqlite3.connect(path)
+    db.executescript(
+        """
+        CREATE TABLE cycles (id TEXT PRIMARY KEY, plan TEXT NOT NULL, iterations INTEGER NOT NULL,
+            stagnation_k INTEGER NOT NULL, max_fix_retries INTEGER NOT NULL, state TEXT NOT NULL);
+        CREATE TABLE attempts (id TEXT PRIMARY KEY, cycle_id TEXT NOT NULL, iteration INTEGER NOT NULL,
+            fingerprint TEXT NOT NULL UNIQUE, closed INTEGER NOT NULL DEFAULT 0, conclusion TEXT,
+            proposal TEXT NOT NULL);
+        """
+    )
+    plan = make_cycle("OLD").plan.to_json()
+    db.execute("INSERT INTO cycles VALUES ('OLD', ?, 5, 2, 3, 'DONE')", (plan,))
+    db.commit()
+    db.close()
+
+
+# 3
+def test_the_writer_enables_wal_and_old_files_still_open_and_keep_their_rows(tmp_path):
+    path = tmp_path / "old.db"
+    _old_style_file(path)
+    assert _journal_mode(path) == "delete"
+    with SqliteRegistry(path, read_only=True):  # an old file opens read-only as it is
+        pass
+    assert _journal_mode(path) == "delete"  # a reader never changes the mode
+    with SqliteRegistry(path) as rw:
+        assert [c.id for c in rw.list_cycles()] == ["OLD"]
+        assert rw._db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        assert rw._db.execute("PRAGMA busy_timeout").fetchone()[0] == 5000
+    assert _journal_mode(path) == "wal"  # stored in the header: every reader sees it
+    with SqliteRegistry(path, read_only=True) as ro:
+        assert ro._db.execute("PRAGMA busy_timeout").fetchone()[0] == 5000
+        assert [c.id for c in ro.list_cycles()] == ["OLD"]
+
+
+def test_memory_registries_are_not_switched_to_wal():
+    with SqliteRegistry() as reg:
+        assert reg._db.execute("PRAGMA journal_mode").fetchone()[0] == "memory"
+
+
+def test_a_failed_wal_switch_is_ignored(tmp_path):
+    path = tmp_path / "busy.db"
+    _old_style_file(path)
+    holder = sqlite3.connect(path, isolation_level=None)
+    holder.execute("BEGIN EXCLUSIVE")
+    try:
+        # the other connection holds the file: the switch cannot happen and is swallowed
+        # (the schema step then fails or waits for the timeout; only the switch is under test)
+        import kaggle_agent.registry.sqlite as module
+
+        original = module._BUSY_TIMEOUT_MS
+        module._BUSY_TIMEOUT_MS = 50
+        try:
+            with pytest.raises(sqlite3.OperationalError, match="locked"):
+                SqliteRegistry(path)
+        finally:
+            module._BUSY_TIMEOUT_MS = original
+    finally:
+        holder.execute("ROLLBACK")
+        holder.close()
+    assert _journal_mode(path) == "delete"
+
+
+def test_a_read_only_reader_works_during_an_open_write_transaction(tmp_path):
+    path = tmp_path / "r.db"
+    with SqliteRegistry(path) as writer:
+        writer.add_cycle(make_cycle("C1"))
+        writer._db.execute("BEGIN IMMEDIATE")
+        try:
+            writer._db.execute("UPDATE cycles SET state = 'PAUSED' WHERE id = 'C1'")
+            with SqliteRegistry(path, read_only=True) as reader:
+                assert reader.get_cycle("C1").state == "ITERATING"  # the committed value
+        finally:
+            writer._db.execute("ROLLBACK")
