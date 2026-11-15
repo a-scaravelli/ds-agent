@@ -1,51 +1,107 @@
 {% extends "base.html" %}
-{% from "macros.html" import candidate_table %}
-{% block title %}Cycle {{ cycle.id }}{% endblock %}
+{% from "macros.html" import badge, score, hash, empty, value %}
+{% block title %}Run {{ summary.id }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='vendor/uplot.min.css') }}">{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/uplot.iife.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}" defer></script>
+{% endblock %}
 {% block body %}
-<h1>Cycle {{ cycle.id }}</h1>
-<p>State: {{ cycle.state }}; project: {{ cycle.project_id or '-' }}; iterations: {{ cycle.iterations }};
-stagnation k: {{ cycle.stagnation_k }}; max fix retries: {{ cycle.max_fix_retries }};
-protocol hash: {{ cycle.protocol_hash or '-' }}</p>
-<h2>Plan</h2>
-<pre>{{ cycle.plan.to_dict() | pretty }}</pre>
+{% set p = summary.protocol %}
+<h1>Run {{ summary.id }}</h1>
+<p class="subtitle">{{ badge(summary.status, summary.state) }} project {{ summary.project_id or '-' }}; metric <b>{{ p.metric or '-' }}</b> ({{ p.direction }} is better, from {{ p.direction_source }})</p>
 
-<h2>Rounds</h2>
-{% for r in rounds %}
-<h3><a href="{{ url_for('round_view', cycle_id=cycle.id, round_id=r.detail.round.id) }}">Round {{ r.detail.position }}: {{ r.detail.round.id }}</a></h3>
-<ul>{% for task in r.detail.round.tasks %}<li>{{ task }}</li>{% endfor %}</ul>
-{% if r.candidates %}{{ candidate_table(r.candidates) }}{% else %}<p>No candidates.</p>{% endif %}
+<div class="kpis">
+<div class="kpi"><div class="label">Rounds done</div><div class="value">{{ summary.rounds_done }} of {{ summary.rounds_planned }}</div></div>
+<div class="kpi"><div class="label">Best score</div><div class="value">{{ score(summary.best.mean, summary.best.dispersion) if summary.best else '-' }}</div></div>
+<div class="kpi"><div class="label">Baseline</div><div class="value">{{ summary.baseline.mean | num if summary.baseline else '-' }}</div></div>
+<div class="kpi"><div class="label">Improvement bar</div><div class="value">{{ chart.bar | num }}</div></div>
+<div class="kpi"><div class="label">Chosen attempt</div><div class="value">{% if summary.chosen %}<a href="{{ url_for('attempt', attempt_id=summary.chosen.attempt_id) }}">{{ summary.chosen.attempt_id }}</a> <span class="muted">({{ summary.chosen.source }})</span>{% else %}-{% endif %}</div></div>
+<div class="kpi"><div class="label">Stop reason</div><div class="value">{{ summary.stop_reason or 'not stopped yet' }}</div></div>
+</div>
+
+<section class="panel" aria-labelledby="chart-h">
+<h2 id="chart-h">Score by attempt</h2>
+<p class="note">Mean with error bars (dispersion), the baseline (dashed), the improvement bar (dotted) and the chosen attempt (ring). Failed attempts have no score.</p>
+<div class="chart" id="score-chart" data-chart-url="{{ url_for('api.chart', run_id=summary.id, best=request.args.get('best')) }}"></div>
+{% if chart.points %}
+<details>
+<summary>Table of the same numbers</summary>
+<div class="table-wrap"><table>
+<thead><tr><th>Iteration</th><th>Attempt</th><th>Round</th><th>Outcome</th><th class="num">Mean</th><th class="num">Dispersion</th><th>Marks</th></tr></thead>
+<tbody>
+{% for pt in chart.points %}
+<tr><td>{{ pt.iteration }}</td>
+<td><a href="{{ url_for('attempt', attempt_id=pt.attempt_id) }}">{{ pt.attempt_id }}</a></td>
+<td>{% if pt.round_id %}<a href="{{ url_for('round_view', cycle_id=summary.id, round_id=pt.round_id) }}">{{ pt.round_id }}</a>{% else %}-{% endif %}</td>
+<td>{{ badge(pt.outcome) }}</td>
+<td class="num">{{ pt.mean | num }}</td><td class="num">{{ pt.dispersion | num(4) }}</td>
+<td>{% if pt.is_baseline %}baseline {% endif %}{% if pt.chosen %}<span class="chosen-mark">chosen</span>{% endif %}{% if pt.is_real %} real improvement{% endif %}</td></tr>
+{% endfor %}
+</tbody></table></div>
+</details>
 {% else %}
-<p>No rounds.</p>
-{% endfor %}
+{{ empty("No scored attempt yet", "The chart appears when an attempt has a validation score.") }}
+{% endif %}
+</section>
 
-<h2>Not in a round</h2>
-{% if unrounded %}{{ candidate_table(unrounded) }}{% else %}<p>None.</p>{% endif %}
+<div class="grid">
+<section class="panel" aria-labelledby="proto-h">
+<h2 id="proto-h">Protocol</h2>
+<dl class="facts">
+<dt>Metric</dt><dd>{{ p.metric or '-' }} <span class="muted">({{ p.sources.metric or 'unknown' }})</span></dd>
+<dt>Direction</dt><dd>{{ p.direction }} <span class="muted">({{ p.direction_source }})</span></dd>
+<dt>Scheme</dt><dd>{{ p.scheme or '-' }} <span class="muted">({{ p.sources.scheme or 'unknown' }})</span></dd>
+<dt>Repeats</dt><dd>{{ p.repeats if p.repeats is not none else '-' }} <span class="muted">({{ p.sources.repeats or 'unknown' }})</span></dd>
+<dt>Threshold k</dt><dd>{{ p.threshold_k | num }} <span class="muted">({{ p.sources.threshold_k or 'unknown' }})</span></dd>
+<dt>Seed</dt><dd>{{ p.seed if p.seed is not none else '-' }} <span class="muted">({{ p.sources.seed or 'unknown' }})</span></dd>
+<dt>Hash</dt><dd>{{ hash(p.hash) }} <span class="muted">({{ p.sources.hash or 'unknown' }})</span></dd>
+</dl>
+{% if not p.project_file %}<p class="note">No project.json next to the registry: fields come from the plan and the stored role inputs.</p>{% endif %}
+</section>
+<section class="panel" aria-labelledby="limits-h">
+<h2 id="limits-h">Limits</h2>
+<dl class="facts">
+{% for k, v in summary.limits.items() %}<dt>{{ k }}</dt><dd>{{ v if v is not none else '-' }}</dd>{% endfor %}
+</dl>
+</section>
+<section class="panel" aria-labelledby="plan-h">
+<h2 id="plan-h">Plan</h2>
+{{ value(summary.plan) }}
+</section>
+</div>
 
-<h2>Attempt timeline</h2>
-{% if timeline %}
-<table>
-<tr><th>Iteration</th><th>Attempt</th><th>Outcome</th><th>Failure kind</th></tr>
-{% for a in timeline %}
-<tr><td>{{ a.iteration }}</td>
-<td><a href="{{ url_for('attempt', attempt_id=a.attempt_id) }}">{{ a.attempt_id }}</a></td>
-<td>{{ a.outcome or 'open' }}</td><td>{{ a.failure_kind or '-' }}</td></tr>
-{% endfor %}
-</table>
-{% else %}<p>No attempts.</p>{% endif %}
+<div class="grid">
+<section class="panel" aria-labelledby="worked-h">
+<h2 id="worked-h">What worked</h2>
+{% if summary.worked %}
+<ul>{% for w in summary.worked %}<li><a href="{{ url_for('attempt', attempt_id=w.attempt_id) }}">{{ w.attempt_id }}</a>: +{{ w.difference | num(4) }} against a threshold of {{ w.threshold | num(4) }}</li>{% endfor %}</ul>
+{% else %}{{ empty("Nothing yet", "No comparison found a real improvement.") }}{% endif %}
+</section>
+<section class="panel" aria-labelledby="failed-h">
+<h2 id="failed-h">What failed</h2>
+{% if summary.failed %}
+<ul>{% for f in summary.failed %}<li><a href="{{ url_for('attempt', attempt_id=f.attempt_id) }}">{{ f.attempt_id }}</a> {{ f.failure_kind }}: {{ f.what_changed }}<br><span class="muted">{{ f.reason }}</span></li>{% endfor %}</ul>
+{% else %}{{ empty("No failure", "No attempt failed.") }}{% endif %}
+</section>
+</div>
 
 <h2>Bundles</h2>
 {% if bundles %}
-<ul>{% for b in bundles %}<li>{{ b.id }} (folder hash {{ b.folder_hash }}, reference {{ b.reference }})</li>{% endfor %}</ul>
-{% else %}<p>None.</p>{% endif %}
+<div class="table-wrap"><table>
+<thead><tr><th>Bundle</th><th>Folder hash</th><th>Reference</th></tr></thead>
+<tbody>{% for b in bundles %}
+<tr><td>{{ b.id }}</td><td>{{ hash(b.folder_hash) }}</td><td class="wrap"><code>{{ b.reference }}</code></td></tr>
+{% endfor %}</tbody></table></div>
+{% else %}{{ empty("No bundle", "No bundle is registered for this run.") }}{% endif %}
 
 <h2>Submissions</h2>
 {% if submissions %}
-<table>
-<tr><th>Submission</th><th>Status</th><th>Public score</th><th>Submitted at</th></tr>
-{% for s in submissions %}
+<div class="table-wrap"><table>
+<thead><tr><th>Submission</th><th>Status</th><th class="num">Public score</th><th>Submitted at</th></tr></thead>
+<tbody>{% for s in submissions %}
 <tr><td>{{ s.submission_id }}</td><td>{{ s.status }}</td>
-<td>{{ s.public_score if s.public_score is not none else '-' }}</td><td>{{ s.submitted_at }}</td></tr>
-{% endfor %}
-</table>
-{% else %}<p>None.</p>{% endif %}
+<td class="num">{{ s.public_score if s.public_score is not none else '-' }}</td><td>{{ s.submitted_at }}</td></tr>
+{% endfor %}</tbody></table></div>
+{% else %}{{ empty("No submission", "Nothing was submitted for this run.") }}{% endif %}
 {% endblock %}

@@ -1,15 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Guidance {{ cycle.id }}{% endblock %}
+{% from "macros.html" import empty, md %}
+{% block title %}Guidance {{ run.id }}{% endblock %}
 {% block body %}
-<h1>Lead guidance of cycle {{ cycle.id }}</h1>
-<p class="note">Guidance is written outside the web at level 1; this page only shows it.</p>
-{% for item in items %}{% set g = item.guidance %}
-<h4>{{ g.id }}: round <a href="{{ url_for('round_view', cycle_id=cycle.id, round_id=g.round_id) }}">{{ g.round_id }}</a>
-<span class="note">{{ g.created_at }}</span></h4>
-<pre>{{ g.text }}</pre>
-<p class="note">Suggestion created: {{ item.suggestion.id }}
-(<a href="{{ url_for('suggestions') }}">all suggestions</a>)</p>
+<h1>Lead guidance of {{ run.id }}</h1>
+<p class="subtitle">Guidance is written outside the web; this page only shows it.</p>
+{% for g in items %}
+<section class="panel">
+<h2>{{ g.id }}: round <a href="{{ url_for('round_view', cycle_id=run.id, round_id=g.round_id) }}">{{ g.round_id }}</a> <span class="muted">{{ g.created_at }}</span></h2>
+{{ md(g.text) }}
+<p class="note">Suggestion created: {{ g.suggestion_id }} (<a href="{{ url_for('suggestions') }}">all suggestions</a>)</p>
+</section>
 {% else %}
-<p>No guidance.</p>
+{{ empty("No guidance", "The lead has given no guidance for this run.") }}
 {% endfor %}
 {% endblock %}

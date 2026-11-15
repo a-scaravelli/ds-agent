@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ title }}{% endblock %}
 {% block body %}
+<div class="error-state" role="alert">
 <h1>{{ status }} {{ title }}</h1>
 <p>{{ message }}</p>
-<p><a href="{{ url_for('cycles') }}">Back to the cycles</a></p>
+</div>
+<p><a href="{{ url_for('cycles') }}">Back to the runs</a></p>
 {% endblock %}

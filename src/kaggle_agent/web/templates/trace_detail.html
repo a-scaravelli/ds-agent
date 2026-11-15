@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Trace {{ trace.n }}{% endblock %}
+{% block body %}
+<h1>Role trace #{{ trace.n }}</h1>
+<p class="subtitle"><a href="{{ url_for('traces', cycle_id=cycle_id) }}">Back to the LLM trace</a></p>
+{% include "trace_fragment.html" %}
+{% endblock %}

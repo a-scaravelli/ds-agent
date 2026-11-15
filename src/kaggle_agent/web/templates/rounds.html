@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge, empty %}
+{% block title %}Rounds {{ run.id }}{% endblock %}
+{% block body %}
+<h1>Rounds of {{ run.id }}</h1>
+<p class="subtitle">{{ run.rounds_done }} of {{ run.rounds_planned }} rounds done.</p>
+{% if not rounds %}
+{{ empty("No rounds yet", "Rounds appear when the coordinator sets the first tasks.") }}
+{% else %}
+<div class="table-wrap"><table>
+<thead><tr><th>Position</th><th>Round</th><th>Tasks</th><th class="num">Candidates</th><th>State</th></tr></thead>
+<tbody>
+{% for r in rounds %}
+<tr><td>{{ r.position }}</td>
+<td><a href="{{ url_for('round_view', cycle_id=run.id, round_id=r.id) }}">{{ r.id }}</a>{% if r.is_setup %} <span class="muted">(setup)</span>{% endif %}</td>
+<td class="wrap">{{ r.tasks | join('; ') or '-' }}</td>
+<td class="num">{{ r.candidates | length }}</td>
+<td>{{ badge('succeeded' if r.complete else 'running', 'done' if r.complete else 'open') }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
+{% endblock %}
