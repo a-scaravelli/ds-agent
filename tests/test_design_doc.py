@@ -258,8 +258,8 @@ def test_attempt_traceability_fields(sections):
 
 def test_web_list_and_chart(sections):
     low = sections[13].lower()
-    assert "list/timeline of attempts" in low
-    assert "chart of the metric per iteration" in low and "highlighted" in low
+    assert "list/timeline" in low and "list of runs" in low
+    assert "chart of the score per attempt" in low and "chosen attempt marked" in low
 
 
 def test_web_detail_and_suggestions_without_reading_code(sections):
@@ -270,7 +270,9 @@ def test_web_detail_and_suggestions_without_reading_code(sections):
 
 
 def test_graphic_design_deferred(sections):
-    assert "deferred to a later ticket" in sections[13].lower()
+    low = sections[13].lower()
+    assert "design system" in low and "sober" in low and "tokens" in low
+    assert "polished visual design of later iterations" in low  # not a goal of this ticket
     s15 = sections[15]
     tickets = " ".join(re.findall(r"^\d+\. \*\*.+$", s15, flags=re.M)).lower()
     assert "graphic design" not in tickets

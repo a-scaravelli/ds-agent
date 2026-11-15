@@ -330,3 +330,21 @@ def html_tags(html: str) -> list:
     collector = _Collector()
     collector.feed(html)
     return collector.tags
+
+
+class SpyRegistry:
+    """Delegates to a real registry and records the name of every method called."""
+
+    def __init__(self, inner):
+        self._inner = inner
+        self.calls = set()
+
+    def __getattribute__(self, name):
+        if name.startswith("_") or name in ("calls",):
+            return object.__getattribute__(self, name)
+        inner = object.__getattribute__(self, "_inner")
+        calls = object.__getattribute__(self, "calls")
+        target = getattr(inner, name)
+        if callable(target):
+            calls.add(name)
+        return target
