@@ -10,8 +10,8 @@ Invariants every implementation keeps:
   the answer with the proposal types, retries a bounded number of times and
   records the consumption, and only calls the ``_run`` hook to talk to the
   model. An implementation overrides ``_run`` and cannot skip the checks.
-- ``_run`` may raise ``RateLimitError``, ``QuotaExhaustedError`` or
-  ``CliFailureError``. Any other exception is mapped to ``CliFailureError``,
+- ``_run`` may raise ``RateLimitError``, ``QuotaExhaustedError``,
+  ``CliFailureError`` or its subclass ``AuthenticationError`` (CLI not logged in). Any other exception is mapped to ``CliFailureError``,
   so the caller sees only ``LlmError``.
 - A rate limit is retried with a bounded backoff (``BackoffPolicy``) using the
   injected ``sleep``; an exhausted quota is raised at once, without waiting.

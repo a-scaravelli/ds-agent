@@ -20,13 +20,13 @@ PINNED = {
     "loop": "65394233b94a92e7d41e87bb7c33bc374a4257a8daf6e05f92af053ee8719ae8",
     "pipeline": "612f737d5af5dd10e3ddd0c4071928abc4d2ebc77e5a9bc3b876ff941ee9543c",
     "writer": "7c55b7ad8aef4c3e0e2a63d07f1fbec4b5b0262add989c6179392899c28a970e",
-    "llm": "3a218b7783b9fddd051703819e47b94a7f09ffe10c4f678fb992c1138e20dddc",
+    "llm": "acbe904742217e7fc6062554462a0f9fb1b43a2a33a92d1a7adf9b741c25464a",
     "kaggle": "844b183fa141703d045b676cf886a7449655fad56ad375d72a1c4758dd8e594a",
     "bundle": "d082d3d2c7191c7a0d8ab7d0b4fea23a7bcce706f874b6fe490832705ebb7985",
     "registry": "ab5bc75eebc24452575e9fe4a383246745a0808d5252b77cbbf41c43ac607cef",
 }
 WEB_EDITED = {"views.py", "cycle.html"}
-WEB_REST_HASH = "da5a0886fa9377bf9080fee7ea6e800cd63533235f5bbdcb04ba8c81676fa86f"
+WEB_REST_HASH = "4b9d027af9050e7ad2deda2a40229269eddad493d825ef1360034f841f955c05"
 NETWORK = {"socket", "urllib", "http", "requests", "httpx", "ftplib", "smtplib", "subprocess", "asyncio"}
 REAL_ADAPTERS = {"RealKaggleClient", "RealClaudeClient", "SubprocessSandbox"}
 

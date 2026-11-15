@@ -2,106 +2,128 @@
  "cases": {
   "1": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_sample_submission_csv_is_still_found"
+    "file": "tests/test_web_server.py",
+    "name": "test_the_real_server_answers_requests_from_other_threads_with_200"
    }
   ],
   "2": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_titanic_gender_submission_is_accepted"
+    "file": "tests/test_web_server.py",
+    "name": "test_a_threaded_server_fails_with_500_which_is_the_bug_the_test_detects"
    }
   ],
   "3": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_sample_and_submission_name_wins_over_submission_only"
+    "file": "tests/test_web_server.py",
+    "name": "test_the_real_server_is_read_only_and_leaves_the_file_untouched"
    }
   ],
   "4": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_selection_is_case_insensitive"
+    "file": "tests/test_web_server.py",
+    "name": "test_main_serves_single_threaded_and_the_choice_is_documented"
    }
   ],
   "5": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_best_match_then_shortest_name_whatever_the_listing_order"
+    "file": "tests/test_web_server.py",
+    "name": "test_a_busy_port_gives_a_clear_message_naming_port_option"
    }
   ],
   "6": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_only_csv_files_qualify"
+    "file": "tests/test_llm_real.py",
+    "name": "test_a_401_envelope_gives_the_typed_authentication_error"
    }
   ],
   "7": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_no_candidate_keeps_the_error_and_lists_the_names_seen"
+    "file": "tests/test_llm_real.py",
+    "name": "test_authentication_is_detected_by_status_text_stderr_or_non_json"
    }
   ],
   "8": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_only_the_sample_file_is_downloaded"
+    "file": "tests/test_llm_real.py",
+    "name": "test_the_authentication_failure_is_recorded_once_as_cli_error"
    }
   ],
   "9": [
    {
-    "file": "tests/test_orchestrator_cli_flow.py",
-    "name": "test_start_does_not_need_a_file_named_sample_submission"
+    "file": "tests/test_llm_real.py",
+    "name": "test_quota_and_rate_limit_are_not_taken_for_authentication"
+   },
+   {
+    "file": "tests/test_llm_real.py",
+    "name": "test_rate_limit_and_quota_envelopes"
    }
   ],
   "10": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_six_is_pinned_with_an_explanatory_comment"
+    "file": "tests/test_llm_real.py",
+    "name": "test_generic_failures_keep_a_short_ascii_one_line_excerpt"
    }
   ],
   "11": [
    {
-    "file": "tests/test_orchestrator_guards.py",
-    "name": "test_dependencies_are_unchanged"
-   },
-   {
-    "file": "tests/test_no_modeling_logic.py",
-    "name": "test_runtime_dependencies_are_the_pinned_libraries"
+    "file": "tests/test_llm_real.py",
+    "name": "test_excerpts_never_contain_the_prompt_or_secrets"
    }
   ],
   "12": [
    {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_placeholder_carries_the_installed_version"
-   },
-   {
-    "file": "tests/test_kaggle_real.py",
-    "name": "test_response_processor_runs_on_a_canned_response"
+    "file": "tests/test_orchestrator_resume.py",
+    "name": "test_an_authentication_error_prints_the_login_message_with_code_11"
    }
   ],
   "13": [
    {
-    "file": "tests/test_orchestrator_docs.py",
-    "name": "test_the_readme_explains_six_and_the_sample_file_selection"
+    "file": "tests/test_orchestrator_resume.py",
+    "name": "test_resume_after_logging_in_continues_with_nothing_lost_or_repeated"
    }
   ],
   "14": [
+   {
+    "file": "tests/test_orchestrator_cli_flow.py",
+    "name": "test_quota_keeps_its_message_and_a_real_client_with_a_401_envelope_gives_the_login_message"
+   }
+  ],
+  "15": [
    {
     "file": "tests/test_orchestrator_guards.py",
     "name": "test_the_frozen_and_untouched_packages_keep_their_pinned_hashes"
    }
   ],
-  "15": [
+  "16": [
+   {
+    "file": "tests/test_orchestrator_guards.py",
+    "name": "test_the_frozen_and_untouched_packages_keep_their_pinned_hashes"
+   },
+   {
+    "file": "tests/test_orchestrator_guards.py",
+    "name": "test_dependencies_are_unchanged"
+   }
+  ],
+  "17": [
+   {
+    "file": "tests/test_orchestrator_docs.py",
+    "name": "test_the_readme_explains_the_web_choice_the_busy_port_and_the_login_error"
+   }
+  ],
+  "18": [
    {
     "file": "tests/test_orchestrator_docs.py",
     "name": "test_the_documentation_the_design_note_and_the_test_map_are_complete"
    }
   ],
-  "16": [
+  "19": [
    {
-    "file": "tests/test_orchestrator_docs.py",
-    "name": "test_the_documentation_the_design_note_and_the_test_map_are_complete"
+    "file": "tests/test_web_server.py",
+    "name": "test_the_real_server_answers_requests_from_other_threads_with_200"
+   },
+   {
+    "file": "tests/test_llm_real.py",
+    "name": "test_a_401_envelope_gives_the_typed_authentication_error"
    }
   ]
  }

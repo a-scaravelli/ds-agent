@@ -9,7 +9,7 @@ from kaggle_agent.orchestrator import codes
 from kaggle_agent.orchestrator.config import baseline_text
 
 ROOT = Path(__file__).resolve().parent.parent
-PLAN_CASES = 16
+PLAN_CASES = 19
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 
 
@@ -83,3 +83,15 @@ def test_the_readme_explains_six_and_the_sample_file_selection():
     assert "**Sample submission file.**" in client
     assert "sample_submission.csv" in client and "gender_submission.csv" in client
     assert "file names seen" in client
+
+
+# 17
+def test_the_readme_explains_the_web_choice_the_busy_port_and_the_login_error():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    web = readme.split("## Web interface")[1].split("\n## ")[0]
+    assert "single-threaded" in web and "`--port`" in web and "port is busy" in web
+    text = section()
+    assert "`claude auth login`" in text and "expired Claude login" in text
+    assert "11 suspended" in text
+    claude = readme.split("## Claude adapter")[1].split("\n## ")[0]
+    assert "`AuthenticationError`" in claude and "200 printable ASCII characters" in claude
