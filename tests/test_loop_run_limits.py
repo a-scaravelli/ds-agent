@@ -193,3 +193,13 @@ def test_the_list_of_libraries_is_written_in_one_place_only():
     pattern = re.compile(r"""["']scikit-learn["']\s*,\s*["']xgboost["']""")
     found = [p.relative_to(SRC).as_posix() for p in SRC.rglob("*.py") if pattern.search(p.read_text("utf-8"))]
     assert found == ["proposals/libraries.py"]
+
+
+# 5
+def test_the_limits_take_the_protocol_values_and_the_rule_names_the_threshold(tmp_path):
+    setup = make_setup(tmp_path, threshold_k=1.5)
+    protocol = setup.engine.protocol
+    built = role_limits(setup.ctx, 2)
+    assert built.threshold_k == 1.5 and built.validation_scheme == protocol.validation_scheme
+    assert built.repetitions == protocol.repetitions and built.current_round == 2
+    assert "1.5 times the baseline dispersion" in built.significance_rule

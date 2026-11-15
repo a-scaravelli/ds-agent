@@ -26,7 +26,7 @@ This document is the design on which all later tickets are based. It does not im
 
 **Principle on the stack**
 
-Python 3.12, pandas, scikit-learn, LightGBM and local MLflow are a **starting point, not a constraint**. The design does not fix them. Each development ticket chooses the libraries it needs, evaluating the alternatives at that time and documenting the choice. The selection criteria are:
+Python 3.12, pandas, scikit-learn, LightGBM and local MLflow are a **starting point, not a constraint** (xgboost, lightgbm and catboost are now confirmed as libraries the bundles may import; see the last section). The design does not fix them. Each development ticket chooses the libraries it needs, evaluating the alternatives at that time and documenting the choice. The selection criteria are:
 
 1. works on a Mac without GPU;
 2. no paid API or service;
@@ -183,7 +183,7 @@ Rejected alternatives for this decision:
 - *Pure Python for metrics and partitions*: rejected because reimplementing them is error-prone (ties, stratification, edge cases) and gives no benefit on the criteria.
 - *polars or pyarrow instead of pandas*: rejected because they are further from the stack the generated code and Kaggle notebooks use, with no need shown by the data sizes in scope.
 - *scipy alone*: rejected because it offers statistics but no ready-made partitioning and metric building blocks.
-- *Adding LightGBM or MLflow now*: out of this ticket; the engine needs no model library (candidates are supplied by the caller) and MLflow was not adopted for the registry.
+- *Adding LightGBM or MLflow now*: out of this ticket (lightgbm was added later, with xgboost and catboost, as a library that bundles may import; the engine itself still needs none); the engine needs no model library (candidates are supplied by the caller) and MLflow was not adopted for the registry.
 
 Rejected alternatives:
 
@@ -529,7 +529,7 @@ Rejected alternative: a single large implementation ticket, because it is not re
 - The public leaderboard can be poorly informative; the protocol tries not to depend on it.
 - The test of the document checks structure and keywords, not quality: human review remains necessary.
 
-**Starting-point libraries:** pandas, numpy and scikit-learn were confirmed in the evaluation ticket (section 5) and the official `kaggle` package in the Kaggle ticket (section 10); all are pinned in `pyproject.toml`. LightGBM is still to be confirmed in the ticket that uses it. MLflow was not adopted for the registry (section 7) and remains only an optional future view.
+**Starting-point libraries:** pandas, numpy and scikit-learn were confirmed in the evaluation ticket (section 5) and the official `kaggle` package in the Kaggle ticket (section 10); all are pinned in `pyproject.toml`. xgboost, lightgbm and catboost were confirmed in the ticket that tells the roles the allowed libraries: they are pinned with `==`, bundles may import them (through their scikit-learn-compatible classes) next to numpy, pandas and scikit-learn, and no module of `src/` imports them; torch, tensorflow and anything else stay not allowed. The three need no network and, for xgboost and lightgbm, the OpenMP runtime. MLflow was not adopted for the registry (section 7) and remains only an optional future view.
 
 **Questions for the human**
 

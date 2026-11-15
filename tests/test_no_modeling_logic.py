@@ -222,7 +222,7 @@ def test_only_llm_real_imports_subprocess_and_llm_uses_no_network_or_third_party
         if path.name != Path(__file__).name:
             assert "subprocess" not in {top for top, _ in _imports(path)} or path.name in {
                 "llm_helpers.py", "test_llm_real.py", "test_pipeline_command.py", "test_pipeline_flow.py",
-                "test_writer_manual_claude.py",
+                "test_writer_manual_claude.py", "test_agents_limits.py",  # ticket 25: fresh-interpreter import check
             } or "sandbox" in path.name, path
 
 

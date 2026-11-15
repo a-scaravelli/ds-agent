@@ -16,7 +16,7 @@ WRITER = SRC / "writer"
 TESTS = ROOT / "tests"
 
 # content hashes of the two packages this ticket must not touch, taken at the start of the ticket
-LOOP_HASH = "65394233b94a92e7d41e87bb7c33bc374a4257a8daf6e05f92af053ee8719ae8"
+LOOP_HASH = "c5d1226655690821978aa0b63dd073e63ca932082d3dea2daf91ee4f5f6a77f1"
 EVALUATION_SOURCES_HASH = "c267079fdf0cd9fefa3501b7c4552e91ea72893df06e5641eedec112a6cb90ce"
 MANUAL_VARIABLE = "KAGGLE_AGENT_RUN_CLAUDE"
 

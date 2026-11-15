@@ -215,3 +215,19 @@ def test_the_writer_prompt_lists_the_libraries_and_follows_the_configured_list()
     assert "XGBClassifier" in reduced
     plain = build_prompt(make_request("x"), task(), ("numpy", "pandas", "scikit-learn"))
     assert "Libraries:" not in plain and "XGBClassifier" not in plain
+
+
+# 20
+def test_the_readme_and_the_design_note_state_what_is_allowed_and_what_is_not():
+    root = SRC.parent.parent
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    install = readme.split("**Install.**")[1].split("**Credentials**")[0]
+    for text in ("xgboost 3.4.1", "lightgbm 4.7.0", "catboost 1.2.10", "brew install libomp", "transitive"):
+        assert text in install, text
+    agents = readme.split("## Role agents")[1].split("\n## ")[0]
+    for text in ("XGBClassifier", "LGBMClassifier", "CatBoostClassifier", "torch, tensorflow",
+                 "allow_writing_files=False", "catboost_info", "is advice in the prompt, not a validator",
+                 "not recorded in the protocol hash"):
+        assert text in agents, text
+    design = (root / "docs" / "design.md").read_text(encoding="utf-8")
+    assert "xgboost, lightgbm and catboost were confirmed" in design and "torch, tensorflow" in design
