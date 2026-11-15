@@ -1,0 +1,102 @@
+/* Design tokens of the cockpit: type scale, spacing, colours, status colours.
+   Light by default, dark through prefers-color-scheme. Colours are plain hex values so the tests
+   can read them and check the contrast of each foreground/background pair (WCAG AA, 4.5:1 for
+   text; 3:1 for large text and control borders). Pairs checked by tests/test_cockpit_assets.py:
+   --text/--bg, --text/--surface, --text-muted/--bg, --text-muted/--surface, --link/--surface,
+   --accent-fg/--accent, --border-strong/--surface (3:1), and --st-*-fg/--st-*-bg for the
+   statuses succeeded, failed, running, waiting, suspended and unknown. */
+
+:root {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.5rem;
+  --lh-tight: 1.25;
+  --lh-base: 1.45;
+
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+
+  --radius: 4px;
+  --nav-width: 13.5rem;
+  --content-max: 96rem;
+
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface-alt: #eef0f3;
+  --text: #1b1f27;
+  --text-muted: #4b5563;
+  --link: #0b57d0;
+  --accent: #1a56c4;
+  --accent-fg: #ffffff;
+  --border: #d5d9e0;
+  --border-strong: #6b7280;
+  --focus: #0b57d0;
+
+  --st-succeeded-fg: #14532d;
+  --st-succeeded-bg: #dcfce7;
+  --st-failed-fg: #7f1d1d;
+  --st-failed-bg: #fee2e2;
+  --st-running-fg: #1e3a8a;
+  --st-running-bg: #dbeafe;
+  --st-waiting-fg: #713f12;
+  --st-waiting-bg: #fef3c7;
+  --st-suspended-fg: #4c1d95;
+  --st-suspended-bg: #ede9fe;
+  --st-unknown-fg: #374151;
+  --st-unknown-bg: #e5e7eb;
+
+  --chart-line: #1a56c4;
+  --chart-error: #4b5563;
+  --chart-baseline: #6b7280;
+  --chart-bar: #b45309;
+  --chart-chosen: #15803d;
+  --chart-grid: #d5d9e0;
+  --chart-failed: #b91c1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1217;
+    --surface: #171b22;
+    --surface-alt: #1e232c;
+    --text: #e6e9ef;
+    --text-muted: #a3acba;
+    --link: #8ab4ff;
+    --accent: #5b8def;
+    --accent-fg: #0b1220;
+    --border: #2b323d;
+    --border-strong: #7f8998;
+    --focus: #8ab4ff;
+
+    --st-succeeded-fg: #86efac;
+    --st-succeeded-bg: #14391f;
+    --st-failed-fg: #fca5a5;
+    --st-failed-bg: #4a1515;
+    --st-running-fg: #93c5fd;
+    --st-running-bg: #162a52;
+    --st-waiting-fg: #fcd34d;
+    --st-waiting-bg: #4a3410;
+    --st-suspended-fg: #c4b5fd;
+    --st-suspended-bg: #2e2158;
+    --st-unknown-fg: #d1d5db;
+    --st-unknown-bg: #2b313b;
+
+    --chart-line: #7aa7ff;
+    --chart-error: #a3acba;
+    --chart-baseline: #9aa4b2;
+    --chart-bar: #f59e0b;
+    --chart-chosen: #4ade80;
+    --chart-grid: #2b323d;
+    --chart-failed: #f87171;
+  }
+}

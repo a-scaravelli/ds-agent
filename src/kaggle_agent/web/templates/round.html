@@ -1,23 +1,48 @@
 {% extends "base.html" %}
-{% from "macros.html" import candidate_table, trace_list %}
-{% block title %}Round {{ detail.round.id }}{% endblock %}
+{% from "macros.html" import badge, empty, md, value, candidate_table %}
+{% block title %}Round {{ round.id }}{% endblock %}
 {% block body %}
-<h1>Round {{ detail.position }}: {{ detail.round.id }}</h1>
-<p>Cycle <a href="{{ url_for('cycle', cycle_id=cycle.id) }}">{{ cycle.id }}</a></p>
-<h2>Tasks</h2>
-<ul>{% for task in detail.round.tasks %}<li>{{ task }}</li>{% else %}<li>No tasks.</li>{% endfor %}</ul>
+<h1>Round {{ round.position }}: {{ round.id }}</h1>
+<p class="subtitle">Run <a href="{{ url_for('cycle', cycle_id=run.id) }}">{{ run.id }}</a>{% if round.is_setup %}, setup round (baseline){% endif %}</p>
+
+<section class="panel" aria-labelledby="tasks-h">
+<h2 id="tasks-h">Tasks</h2>
+{% if round.tasks %}<ul>{% for t in round.tasks %}<li>{{ t }}</li>{% endfor %}</ul>{% else %}{{ empty("No tasks", "The coordinator set no task for this round.") }}{% endif %}
+</section>
+
 <h2>Candidates</h2>
-{% if candidates %}{{ candidate_table(candidates) }}{% else %}<p>No candidates.</p>{% endif %}
-<h2>Reviewer reports</h2>
-{% for r in reports %}
-<h4>{{ r.id }} <span class="note">{{ r.created_at }}</span></h4>
-<pre>{{ r.text }}</pre>
-{% else %}<p>No reports.</p>{% endfor %}
-<h2>Lead guidance</h2>
-{% for g in guidance %}
-<h4>{{ g.id }} <span class="note">{{ g.created_at }}</span></h4>
-<pre>{{ g.text }}</pre>
-{% else %}<p>No guidance.</p>{% endfor %}
-<h2>Role traces</h2>
-{{ trace_list(traces) }}
+{% if round.candidates %}{{ candidate_table(round.candidates) }}
+<p class="note">"vs bar" is the difference against the reference minus the significance threshold: above zero means the improvement is beyond the bar.</p>
+{% else %}{{ empty("No candidates", "No candidate was created in this round.") }}{% endif %}
+
+{% set titles = {'data': 'Data findings', 'feature_engineering': 'Feature engineering plan', 'modeling': 'Modeling plan', 'coordinator': 'Coordinator direction'} %}
+{% for role, title in titles.items() %}
+<section class="panel" aria-labelledby="role-{{ role }}-h">
+<h2 id="role-{{ role }}-h">{{ title }}</h2>
+{% set outs = round.role_outputs.get(role, []) %}
+{% if outs %}
+{% for o in outs %}
+<h3>{{ o.output_type or 'no output' }}{% if o.candidate_id %} for <a href="{{ url_for('attempt', attempt_id=o.candidate_id) }}">{{ o.candidate_id }}</a>{% endif %} {{ badge(o.outcome) }}</h3>
+{% if o.output is none %}<p class="muted">The role produced no output.</p>{% else %}{{ value(o.output) }}{% endif %}
+<p class="note"><a href="{{ url_for('trace_view', cycle_id=run.id, n=o.n) }}">Full trace #{{ o.n }}</a></p>
+{% endfor %}
+{% else %}{{ empty("Nothing recorded", "No output of this role in this round.") }}{% endif %}
+</section>
+{% endfor %}
+
+<section class="panel" aria-labelledby="rev-h">
+<h2 id="rev-h">Reviewer report</h2>
+{% for r in round.reviewer_reports %}
+<h3>{{ r.id }} <span class="muted">{{ r.created_at }}</span></h3>
+{{ md(r.text) }}
+{% else %}{{ empty("No report", "The reviewer has not written a report for this round.") }}{% endfor %}
+</section>
+
+<section class="panel" aria-labelledby="guid-h">
+<h2 id="guid-h">Guidance given</h2>
+{% for g in round.guidance %}
+<h3>{{ g.id }} <span class="muted">{{ g.created_at }}</span></h3>
+{{ md(g.text) }}
+{% else %}{{ empty("No guidance", "The lead gave no guidance after this round.") }}{% endfor %}
+</section>
 {% endblock %}

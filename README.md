@@ -240,19 +240,52 @@ print(result.value, result.consumption, result.calls[0].model, result.stripped_v
 
 ## Web interface (`kaggle_agent.web`)
 
-A read-only, server-rendered web interface over the registry. Start it with a single command:
+A read-only, server-rendered web interface over the registry, with a JSON API (see the Cockpit section below). Start it with a single command:
 
 ```bash
 python -m kaggle_agent.web --db PATH
 ```
 
-It binds to `127.0.0.1:8000` (options `--host` and `--port`), has no authentication and never writes: the registry file is opened with SQLite `mode=ro`, only GET routes exist, and no page has a form or input. Guidance and approvals stay outside the web at level 1. A registry file created by an older version is not migrated in read-only mode: open it once with the current version first. The command exits with code 2 and a message if the file is missing or not a registry. The server is single-threaded on purpose (`threaded=False`): the registry keeps one SQLite connection, which only the thread that created it may use, and a local read-only tool for one user does not need concurrent requests. If the port is busy the command exits with code 2 and a message saying so; choose another one with `--port` (for example `--port 8001`).
-
-Views: the list of cycles (`/`); a cycle with its rounds, their candidates and the timeline of attempts (`/cycles/<id>`); a round with tasks, candidates, reports, guidance and traces; the metric series per round and per iteration with an SVG chart (`/cycles/<id>/metrics?partition=&best=`); reviewer reports; role traces with typed input and output and outcome (`?role=&round=`); lead guidance; suggestions with the cycles they spawned; and the candidate detail (`/attempts/<id>`) with rationale, hypothesis, runs, `failure_kind`, bundle and the link to the pipeline.
+It binds to `127.0.0.1:8000` (options `--host` and `--port`), has no authentication and never writes: every request opens its own SQLite connection with `mode=ro`, only GET routes exist, and no page has a write form. Guidance and approvals stay outside the web in this ticket. The server is a threaded server with one read-only connection per request: this reverses the single-thread choice of ticket 24 (`threaded=False`, one shared connection), because the cockpit needs concurrent requests (the live updates of ticket 2 use server-sent events). The orchestrator opens the registry file for writing and turns on WAL, so a reader never blocks it. A read-only reader of a WAL file needs a writable folder for the `-shm` file. A registry file created by an older version is not migrated in read-only mode: it still opens, and a page shows "not available in this registry file" for what it lacks; open it once with the orchestrator to migrate it (and to switch it to WAL). The command exits with code 2 and a message if the file is missing or not a registry. If the port is busy the command exits with code 2 and a message saying so; choose another one with `--port` (for example `--port 8001`).
 
 - Pipeline link: the web looks in the artifacts of the runs for an entry `pipeline:<reference>`. It is a link only for `http` and `https` references; anything else is shown as text, so local files are never served. Without one the page says "no pipeline yet". The convention lives in `pipeline_reference` in `web/views.py`, to be agreed with the pipeline step.
-- Direction of the metric: the registry stores only `protocol_hash`, so the direction of the metric is not readable through the registry interface. The chart highlights the maximum by default and offers a link to switch (`best=min`).
+- Direction of the metric: the registry stores only `protocol_hash`, so the direction is read from `project.json` next to the registry, else inferred from the stored comparisons, else taken from the `best` query parameter (default `max`). Every page says which source was used.
 - Library: Flask 3.1.3, pinned with `==` in `pyproject.toml` (the reasons and the rejected alternatives are in section 13 of the design). Python 3.12 was checked here; 3.13 and 3.14 could not be checked in the environment that built this ticket (no network access to those interpreters), so run `pip install .` and the test suite once on 3.14 before relying on it. The transitive dependencies of Flask (werkzeug, jinja2, markupsafe, itsdangerous, click, blinker) are not pinned.
+
+## Cockpit (`kaggle_agent.web`, ticket 26: foundation and explorer, read only)
+
+The cockpit lets a data scientist follow and inspect a whole competition from the browser on their own machine. Start it on a project folder (the folder of the registry is the default project):
+
+```bash
+python -m kaggle_agent.web --db project/registry.db --project project
+```
+
+`--project` is only used to read `project.json` (metric, direction and protocol); there is no `--workspace` option because the web never reads a bundle folder, so there is no code view and no diff. Open `http://127.0.0.1:8000/`. Press `/` to search a list and `g` then a letter to navigate (`r` runs, `o` overview, `n` rounds, `a` attempts, `t` LLM trace, `p` report, `u` guidance, `s` suggestions).
+
+**Page map.**
+
+| Page | URL |
+|------|-----|
+| Runs list | `/` |
+| Run overview (score chart, stop reason, worked and failed, protocol, limits, bundles) | `/cycles/<id>` |
+| Rounds, and one round (tasks, role outputs, reviewer report, candidates with verdicts, guidance) | `/cycles/<id>/rounds`, `/cycles/<id>/rounds/<round>` |
+| Attempts (filter by outcome, round, score range, text) | `/cycles/<id>/attempts` |
+| Attempt | `/attempts/<id>` |
+| LLM trace, and one stored role trace | `/cycles/<id>/traces`, `/cycles/<id>/traces/<n>` |
+| Final report, holdout panel, submissions | `/cycles/<id>/report` |
+| Lead guidance, suggestions | `/cycles/<id>/guidance`, `/suggestions` |
+
+The old `/cycles/<id>/metrics` and `/cycles/<id>/reports` URLs answer 301 to `/cycles/<id>` and `/cycles/<id>/report`.
+
+**JSON API.** Read only, GET only, under `/api`, every answer `{api_version, data, warnings}`; the shapes are in `docs/api.md` and checked by a test. Routes: `/api/meta`, `/api/runs`, `/api/runs/<id>`, `/api/runs/<id>/chart`, `/api/runs/<id>/rounds`, `/api/runs/<id>/rounds/<round>`, `/api/runs/<id>/attempts` (filters `outcome`, `round`, `min_score`, `max_score`, `q`), `/api/runs/<id>/executions`, `/api/runs/<id>/comparisons`, `/api/runs/<id>/reviewer-reports`, `/api/runs/<id>/guidance`, `/api/runs/<id>/submissions`, `/api/runs/<id>/holdout`, `/api/runs/<id>/final-report`, `/api/runs/<id>/bundles`, `/api/runs/<id>/llm-calls`, `/api/runs/<id>/role-traces`, `/api/runs/<id>/role-traces/<n>`, `/api/attempts/<id>`, `/api/attempts/<id>/executions` and `/api/suggestions`.
+
+**Concurrency.** The server is threaded. Every request opens its own read-only registry connection (`mode=ro`, `query_only`) and closes it. The orchestrator turns on WAL (`PRAGMA journal_mode=WAL`) and a busy timeout when it opens the file for writing, so a page request while it writes works; an old file stays in rollback-journal mode until the orchestrator next opens it. This is the only registry change (additive, no schema change). A page may mix two moments while the orchestrator writes.
+
+**Security.** Local only: it binds to `127.0.0.1` by default (`--host 0.0.0.0` prints a warning) and answers 403 to any request whose Host header is not `localhost` or `127.0.0.1` (DNS rebinding). Every response carries a Content-Security-Policy that allows only same-origin assets (no inline script or style), `nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, and `no-store` under `/api`. Text from the model is escaped; Markdown is rendered by marked with raw HTML escaped and only http, https and relative links kept. No route writes. `web/security.py` holds the CSRF token and Origin check that ticket 2 will use; no route uses it yet.
+
+**Vendored assets.** htmx, uPlot and marked are static files in `src/kaggle_agent/web/static/vendor/`, with names, versions, licences and SHA-256 in `src/kaggle_agent/web/static/VENDORED.md`. There is no build step, no CDN and no network access at runtime or in tests.
+
+**Manual checklist for a real run folder.** Not run by the automatic tests (they cannot execute JavaScript). With a real project folder: (1) `python -m kaggle_agent.web --db <folder>/registry.db --project <folder>` while the orchestrator runs; (2) open the runs list and the overview, and check that the chart shows the points with error bars, the baseline, the bar and the chosen attempt, in light and in dark mode; (3) open a round, an attempt, the LLM trace (open a stored trace) and the report; (4) check that the keyboard shortcuts work and that the layout holds at 1280 px and at a narrow width; (5) run `KAGGLE_AGENT_RUN_COCKPIT_DIR=<folder> .venv/bin/pytest tests/test_cockpit_manual.py` to check that every page answers 200. It was not run on macOS here: run the tests once on a Mac before relying on it.
 
 ## Light sandbox (`kaggle_agent.sandbox`)
 

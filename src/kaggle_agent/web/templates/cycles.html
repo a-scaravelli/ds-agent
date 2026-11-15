@@ -1,23 +1,47 @@
 {% extends "base.html" %}
-{% block title %}Cycles{% endblock %}
+{% from "macros.html" import badge, score, empty %}
+{% block title %}Runs{% endblock %}
 {% block body %}
-<h1>Cycles</h1>
-{% if not cycles %}
-<p>No cycles in the registry.</p>
+<h1>Runs</h1>
+<p class="subtitle">One row per cycle; a project may have several.</p>
+{% if not runs %}
+{{ empty("No runs in the registry", "Start the orchestrator on this project folder; its cycles appear here.") }}
 {% else %}
-<table>
-<tr><th>Cycle</th><th>State</th><th>Project</th><th>Iterations</th><th>Stagnation k</th><th>Max fix retries</th><th>Protocol hash</th></tr>
-{% for c in cycles %}
-<tr>
-<td><a href="{{ url_for('cycle', cycle_id=c.id) }}">{{ c.id }}</a></td>
-<td>{{ c.state }}</td>
-<td>{{ c.project_id or '-' }}</td>
-<td>{{ c.iterations }}</td>
-<td>{{ c.stagnation_k }}</td>
-<td>{{ c.max_fix_retries }}</td>
-<td>{{ c.protocol_hash or '-' }}</td>
+<div class="toolbar">
+<label>Search<input type="search" id="runs-q" data-filter-input data-filter-for="runs-table" data-filter="text" placeholder="id, project, plan"></label>
+<label>Status<select data-filter-for="runs-table" data-filter="status">
+<option value="">all</option>
+{% for s in ('running', 'waiting', 'succeeded', 'failed', 'unknown') %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+</select></label>
+<span class="count" data-filter-count="runs-table"></span>
+</div>
+<div class="table-wrap">
+<table id="runs-table" data-filterable>
+<thead><tr>
+<th data-sort="text"><button class="sort" type="button">Run</button></th>
+<th data-sort="text"><button class="sort" type="button">Status</button></th>
+<th>Plan</th>
+<th data-sort="number"><button class="sort" type="button">Rounds</button></th>
+<th class="num" data-sort="number"><button class="sort" type="button">Best score</button></th>
+<th>Chosen model</th>
+<th class="num">Holdout</th>
+<th>Submission</th>
+</tr></thead>
+<tbody>
+{% for r in runs %}
+<tr data-status="{{ r.status }}" data-text="{{ (r.id ~ ' ' ~ (r.project_id or '') ~ ' ' ~ r.plan.metric ~ ' ' ~ r.plan.validation ~ ' ' ~ r.plan.models | join(' ') ~ ' ' ~ r.state) | lower }}">
+<td><a href="{{ url_for('cycle', cycle_id=r.id) }}">{{ r.id }}</a><br><span class="muted">{{ r.project_id or '-' }}</span></td>
+<td>{{ badge(r.status, r.status) }}<br><span class="muted">{{ r.state }}</span></td>
+<td class="wrap"><b>{{ r.plan.metric }}</b>, {{ r.plan.validation }}<br><span class="muted">{{ r.plan.models | join(', ') }}</span></td>
+<td data-value="{{ r.rounds_done }}"><progress max="{{ r.rounds_planned }}" value="{{ r.rounds_done }}" aria-label="rounds done"></progress> {{ r.rounds_done }} of {{ r.rounds_planned }}</td>
+<td class="num" data-value="{{ r.best.mean if r.best else '' }}">{{ score(r.best.mean, r.best.dispersion) if r.best else '-' }}</td>
+<td>{% if r.chosen %}{{ r.chosen.model or r.chosen.attempt_id }}{% else %}-{% endif %}</td>
+<td class="num">{% if r.holdout.status != 'sealed' %}{{ (r.holdout.score | num) if r.holdout.score is not none else r.holdout.status }}{% else %}<span class="muted">sealed</span>{% endif %}</td>
+<td>{% if r.submission %}{{ r.submission.status }}{% if r.submission.public_score is not none %}, public {{ r.submission.public_score | num }}{% endif %}{% else %}-{% endif %}</td>
 </tr>
 {% endfor %}
+</tbody>
 </table>
+</div>
 {% endif %}
 {% endblock %}

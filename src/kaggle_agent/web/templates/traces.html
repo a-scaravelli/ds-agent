@@ -1,17 +1,66 @@
 {% extends "base.html" %}
-{% from "macros.html" import trace_list %}
-{% block title %}Traces {{ cycle.id }}{% endblock %}
+{% from "macros.html" import badge, empty %}
+{% block title %}LLM trace {{ run.id }}{% endblock %}
 {% block body %}
-<h1>Role traces of cycle {{ cycle.id }}</h1>
-<p>Filter (links):
-<a href="{{ url_for('traces', cycle_id=cycle.id) }}">all</a>
-{% for role in ['coordinator', 'data', 'feature_engineering', 'modeling', 'reviewer'] %}
-| <a href="{{ url_for('traces', cycle_id=cycle.id, role=role) }}">{{ role }}</a>
+<h1>LLM trace of {{ run.id }}</h1>
+<p class="subtitle">Calls per role with outcome, tokens and duration; open a stored role trace to see its input and output.</p>
+<form class="toolbar" method="get" action="{{ url_for('traces', cycle_id=run.id) }}" role="search">
+<label>Search<input type="search" name="q" value="{{ q }}" data-filter-input data-filter-for="calls-table" data-filter="text" placeholder="purpose, model, reason"></label>
+<label>Role<select name="role" data-filter-for="calls-table" data-filter="role">
+<option value="">all</option>
+{% for r in roles %}<option value="{{ r }}"{% if role == r %} selected{% endif %}>{{ r }}</option>{% endfor %}
+</select></label>
+<label>Outcome<select name="outcome" data-filter-for="calls-table" data-filter="outcome">
+<option value="">all</option>
+{% for o in ('ok', 'rate_limited', 'quota', 'cli_error', 'invalid_output') %}<option value="{{ o }}"{% if outcome == o %} selected{% endif %}>{{ o }}</option>{% endfor %}
+</select></label>
+<label>Round<select name="round">
+<option value="">all</option>
+{% for r in round_ids %}<option value="{{ r }}"{% if round_id == r %} selected{% endif %}>{{ r }}</option>{% endfor %}
+</select></label>
+<button type="submit">Apply</button>
+<span class="count" data-filter-count="calls-table"></span>
+</form>
+
+<h2>Calls</h2>
+{% if calls %}
+<div class="table-wrap"><table>
+<thead><tr><th>Role</th><th class="num">Calls</th><th class="num">Not ok</th><th class="num">Input tokens</th><th class="num">Output tokens</th><th class="num">Time (s)</th></tr></thead>
+<tbody>
+{% for g in by_role %}
+<tr><td>{{ g.role or 'no role' }}</td><td class="num">{{ g.calls }}</td><td class="num">{{ g.not_ok }}</td><td class="num">{{ g.input_tokens }}</td><td class="num">{{ g.output_tokens }}</td><td class="num">{{ g.seconds | num(4) }}</td></tr>
 {% endfor %}
-</p>
-<p>Round:
-{% for rid in round_ids %}<a href="{{ url_for('traces', cycle_id=cycle.id, round=rid, role=role) }}">{{ rid }}</a> {% endfor %}
-</p>
-{% if role or round_id %}<p class="note">Showing role: {{ role or 'any' }}; round: {{ round_id or 'any' }}</p>{% endif %}
-{{ trace_list(traces) }}
+</tbody></table></div>
+<div class="table-wrap"><table id="calls-table" data-filterable>
+<thead><tr><th data-sort="text"><button class="sort" type="button">Role</button></th><th>Purpose</th><th>Purpose hash</th><th data-sort="text"><button class="sort" type="button">Outcome</button></th>
+<th class="num" data-sort="number"><button class="sort" type="button">Input tokens</button></th><th class="num" data-sort="number"><button class="sort" type="button">Output tokens</button></th><th class="num" data-sort="number"><button class="sort" type="button">Duration (s)</button></th><th>Model</th><th>Started</th></tr></thead>
+<tbody>
+{% for c in calls %}
+<tr data-role="{{ c.role or '' }}" data-outcome="{{ c.outcome }}" data-text="{{ (c.purpose ~ ' ' ~ (c.model or '') ~ ' ' ~ (c.rejection_reason or '')) | lower }}">
+<td>{{ c.role or '-' }}</td><td class="wrap">{{ c.purpose }}{% if c.rejection_reason %}<br><span class="muted">{{ c.rejection_reason }}</span>{% endif %}</td>
+<td><code>{{ c.purpose_hash }}</code></td>
+<td>{{ badge('succeeded' if c.outcome == 'ok' else 'failed', c.outcome) }}</td>
+<td class="num">{{ c.input_tokens if c.input_tokens is not none else '-' }}</td><td class="num">{{ c.output_tokens if c.output_tokens is not none else '-' }}</td>
+<td class="num">{{ c.duration_seconds | num(4) }}</td><td>{{ c.model or '-' }}</td><td>{{ c.started_at }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+<p class="note">The registry stores no prompt: the purpose hash is a short hash of the purpose text.</p>
+{% else %}{{ empty("No LLM calls", "No call matches, or none was recorded for this run.") }}{% endif %}
+
+<h2>Role traces</h2>
+{% if traces %}
+<div class="table-wrap"><table>
+<thead><tr><th>#</th><th>Role</th><th>Round</th><th>Candidate</th><th>Input type</th><th>Output type</th><th>Outcome</th><th>Created</th><th>Open</th></tr></thead>
+<tbody>
+{% for t in traces %}
+<tr><td>{{ t.n }}</td><td>{{ t.role }}</td>
+<td><a href="{{ url_for('round_view', cycle_id=run.id, round_id=t.round_id) }}">{{ t.round_id }}</a></td>
+<td>{% if t.candidate_id %}<a href="{{ url_for('attempt', attempt_id=t.candidate_id) }}">{{ t.candidate_id }}</a>{% else %}-{% endif %}</td>
+<td>{{ t.input_type }}</td><td>{{ t.output_type or '-' }}</td>
+<td>{{ badge('succeeded' if t.outcome == 'ok' else 'failed', t.outcome) }}</td><td>{{ t.created_at }}</td>
+<td><a href="{{ url_for('trace_view', cycle_id=run.id, n=t.n) }}" hx-get="{{ url_for('trace_view', cycle_id=run.id, n=t.n) }}" hx-target="#trace-{{ t.n }}" hx-swap="innerHTML">Open</a></td></tr>
+<tr><td colspan="9" id="trace-{{ t.n }}"></td></tr>
+{% endfor %}
+</tbody></table></div>
+{% else %}{{ empty("No role traces", "No role trace matches the filter.") }}{% endif %}
 {% endblock %}

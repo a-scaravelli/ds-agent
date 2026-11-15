@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "macros.html" import badge, score, empty %}
+{% block title %}Attempts {{ run.id }}{% endblock %}
+{% block body %}
+<h1>Attempts of {{ run.id }}</h1>
+<p class="subtitle">Press <kbd>/</kbd> to search. Filters apply in the browser.</p>
+{% if not attempts and not filters.values() | select | list %}
+{{ empty("No attempts yet", "Attempts appear when a round starts.") }}
+{% else %}
+<form class="toolbar" method="get" action="{{ url_for('attempts', cycle_id=run.id) }}" role="search">
+<label>Text<input type="search" name="q" value="{{ filters.q or '' }}" data-filter-input data-filter-for="attempts-table" data-filter="text" placeholder="id, hypothesis, reason"></label>
+<label>Outcome<select name="outcome" data-filter-for="attempts-table" data-filter="outcome">
+<option value="">all</option>
+{% for o in outcomes %}<option value="{{ o }}"{% if filters.outcome == o %} selected{% endif %}>{{ o }}</option>{% endfor %}
+</select></label>
+<label>Round<select name="round" data-filter-for="attempts-table" data-filter="round">
+<option value="">all</option>
+{% for r in round_ids %}<option value="{{ r }}"{% if filters.round == r %} selected{% endif %}>{{ r }}</option>{% endfor %}
+</select></label>
+<label>Score from<input type="number" step="any" name="min_score" value="{{ filters.min_score or '' }}" data-filter-for="attempts-table" data-filter="min"></label>
+<label>Score to<input type="number" step="any" name="max_score" value="{{ filters.max_score or '' }}" data-filter-for="attempts-table" data-filter="max"></label>
+<button type="submit">Apply</button>
+<span class="count" data-filter-count="attempts-table"></span>
+</form>
+<div class="table-wrap">
+<table id="attempts-table" data-filterable>
+<thead><tr>
+<th class="num" data-sort="number"><button class="sort" type="button">Iteration</button></th>
+<th data-sort="text"><button class="sort" type="button">Attempt</button></th>
+<th data-sort="text"><button class="sort" type="button">Round</button></th>
+<th data-sort="text"><button class="sort" type="button">Outcome</button></th>
+<th class="num" data-sort="number"><button class="sort" type="button">Score</button></th>
+<th class="num">Runs</th>
+<th>Hypothesis</th>
+</tr></thead>
+<tbody>
+{% for a in attempts %}
+<tr data-outcome="{{ a.outcome or 'open' }}" data-round="{{ a.round_id or '' }}" data-score="{{ a.mean if a.mean is not none else '' }}" data-text="{{ (a.id ~ ' ' ~ a.hypothesis ~ ' ' ~ a.what_changed ~ ' ' ~ (a.reason or '') ~ ' ' ~ (a.failure_kind or '')) | lower }}">
+<td class="num">{{ a.iteration }}</td>
+<td><a href="{{ url_for('attempt', attempt_id=a.id) }}">{{ a.id }}</a>{% if a.chosen %} <span class="chosen-mark" title="chosen attempt">&#10003;</span>{% endif %}</td>
+<td>{% if a.round_id %}<a href="{{ url_for('round_view', cycle_id=run.id, round_id=a.round_id) }}">{{ a.round_id }}</a>{% else %}-{% endif %}</td>
+<td>{{ badge(a.outcome or 'open') }}{% if a.failure_kind %} <span class="muted">{{ a.failure_kind }}</span>{% endif %}</td>
+<td class="num" data-value="{{ a.mean if a.mean is not none else '' }}">{{ score(a.mean, a.dispersion) }}</td>
+<td class="num">{{ a.runs }}</td>
+<td class="wrap">{{ a.hypothesis }}</td>
+</tr>
+{% endfor %}
+</tbody></table></div>
+{% if not attempts %}{{ empty("No attempt matches", "Change or clear the filters.") }}{% endif %}
+{% endif %}
+{% endblock %}

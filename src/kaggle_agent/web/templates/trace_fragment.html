@@ -1,0 +1,8 @@
+{# partial returned for an htmx request: no shell #}
+<div class="trace-fragment">
+<p class="note">Trace #{{ trace.n }}: role {{ trace.role }}, round {{ trace.round_id }}{% if trace.candidate_id %}, candidate {{ trace.candidate_id }}{% endif %}, outcome {{ trace.outcome }}{% if trace.llm_call_id is not none %}, LLM call id {{ trace.llm_call_id }}{% endif %}.</p>
+<h3>Input ({{ trace.input_type }})</h3>
+<pre>{{ trace.input | pretty }}</pre>
+<h3>Output{% if trace.output_type %} ({{ trace.output_type }}){% endif %}</h3>
+{% if trace.output is none %}<p class="muted">no output</p>{% else %}<pre>{{ trace.output | pretty }}</pre>{% endif %}
+</div>

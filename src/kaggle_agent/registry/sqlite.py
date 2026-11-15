@@ -179,6 +179,8 @@ CREATE TABLE IF NOT EXISTS role_traces (
 );
 """
 
+_BUSY_TIMEOUT_MS = 5000
+
 # the last execution of every attempt, joined to the attempt row
 _LAST_EXECUTION = (
     "LEFT JOIN executions e ON e.attempt_id = a.id AND e.sequence = "
@@ -207,6 +209,9 @@ class SqliteRegistry(Registry):
             try:
                 self._db = sqlite3.connect(uri, uri=True, isolation_level=None)
                 self._db.execute("PRAGMA query_only = ON")
+                # a reader waits a little for a lock instead of failing at once; it cannot
+                # change the journal mode (mode=ro), so it works on WAL and on old files
+                self._db.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")
                 self._db.execute("PRAGMA foreign_keys = ON")
                 self._db.execute("SELECT 1 FROM cycles LIMIT 1")
             except sqlite3.Error as exc:
@@ -214,6 +219,15 @@ class SqliteRegistry(Registry):
             return
         # autocommit mode: transactions are explicit, see ``_transaction``
         self._db = sqlite3.connect(str(path), isolation_level=None)
+        self._db.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")
+        if str(path) != ":memory:":
+            # WAL lets a reader (the web page) work while this connection writes. The mode is
+            # stored in the file header, so every later reader sees it. A failed switch (for
+            # example another connection holds the file) keeps the old journal mode.
+            try:
+                self._db.execute("PRAGMA journal_mode = WAL")
+            except sqlite3.OperationalError:
+                pass
         self._db.execute("PRAGMA foreign_keys = ON")
         self._db.executescript(_SCHEMA)
         self._migrate()

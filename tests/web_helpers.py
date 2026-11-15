@@ -148,19 +148,24 @@ def registry(db_path):
 
 
 @pytest.fixture
-def web_client(registry):
-    return create_app(registry).test_client()
+def web_client(db_path):
+    """The app over the fixture file, one read-only connection per request (as in production)."""
+    return create_app(lambda: SqliteRegistry(db_path, read_only=True)).test_client()
 
 
 def all_urls():
-    """One valid URL for every route of the app, built from the fixture ids."""
+    """One valid URL for every page route of the app, built from the fixture ids."""
     return {
         "cycles": "/",
         "cycle": f"/cycles/{MAIN}",
+        "rounds": f"/cycles/{MAIN}/rounds",
         "round_view": f"/cycles/{MAIN}/rounds/R1",
+        "attempts": f"/cycles/{MAIN}/attempts",
         "metrics": f"/cycles/{MAIN}/metrics",
         "reports": f"/cycles/{MAIN}/reports",
         "traces": f"/cycles/{MAIN}/traces",
+        "trace_view": f"/cycles/{MAIN}/traces/2",
+        "report": f"/cycles/{MAIN}/report",
         "guidance": f"/cycles/{MAIN}/guidance",
         "attempt": "/attempts/A1",
         "suggestions": "/suggestions",

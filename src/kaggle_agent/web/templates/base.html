@@ -2,31 +2,53 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>{% block title %}Registry{% endblock %} - kaggle_agent</title>
-<style>
-body { font-family: sans-serif; margin: 1.5em; max-width: 70em; color: #222; }
-nav a { margin-right: 1em; }
-table { border-collapse: collapse; margin: 0.5em 0 1em; }
-th, td { border: 1px solid #bbb; padding: 0.25em 0.6em; text-align: left; vertical-align: top; }
-pre { background: #f4f4f4; padding: 0.5em; overflow-x: auto; white-space: pre-wrap; }
-.note { color: #555; font-size: 0.9em; }
-.failed { color: #a00; }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token }}">
+<meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false}'>
+<title>{% block title %}Cockpit{% endblock %} - kaggle_agent</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+{% block head %}{% endblock %}
+<script src="{{ url_for('static', filename='vendor/htmx.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='vendor/marked.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/markdown.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+{% block scripts %}{% endblock %}
 </head>
 <body>
-<nav>
-<a href="{{ url_for('cycles') }}">Cycles</a>
-<a href="{{ url_for('suggestions') }}">Suggestions</a>
-{% if cycle is defined and cycle %}
-| cycle <b>{{ cycle.id }}</b>:
-<a href="{{ url_for('cycle', cycle_id=cycle.id) }}">rounds</a>
-<a href="{{ url_for('metrics', cycle_id=cycle.id) }}">metrics</a>
-<a href="{{ url_for('reports', cycle_id=cycle.id) }}">reports</a>
-<a href="{{ url_for('traces', cycle_id=cycle.id) }}">traces</a>
-<a href="{{ url_for('guidance', cycle_id=cycle.id) }}">guidance</a>
+<a class="skip-link" href="#main">Skip to the content</a>
+{% set ep = request.endpoint or '' %}
+<nav class="side-nav" aria-label="Main">
+<p class="brand">kaggle_agent</p>
+<h2>Project</h2>
+<ul>
+<li><a href="{{ url_for('cycles') }}" data-key="r"{% if ep == 'cycles' %} aria-current="page"{% endif %}>Runs <kbd>g r</kbd></a></li>
+<li><a href="{{ url_for('suggestions') }}" data-key="s"{% if ep == 'suggestions' %} aria-current="page"{% endif %}>Suggestions <kbd>g s</kbd></a></li>
+</ul>
+{% if run %}
+<h2>Run {{ run.id }}</h2>
+<ul>
+<li><a href="{{ url_for('cycle', cycle_id=run.id) }}" data-key="o"{% if ep == 'cycle' %} aria-current="page"{% endif %}>Overview <kbd>g o</kbd></a></li>
+<li><a href="{{ url_for('rounds', cycle_id=run.id) }}" data-key="n"{% if ep in ('rounds', 'round_view') %} aria-current="page"{% endif %}>Rounds <kbd>g n</kbd></a></li>
+<li><a href="{{ url_for('attempts', cycle_id=run.id) }}" data-key="a"{% if ep in ('attempts', 'attempt') %} aria-current="page"{% endif %}>Attempts <kbd>g a</kbd></a></li>
+<li><a href="{{ url_for('traces', cycle_id=run.id) }}" data-key="t"{% if ep in ('traces', 'trace_view') %} aria-current="page"{% endif %}>LLM trace <kbd>g t</kbd></a></li>
+<li><a href="{{ url_for('report', cycle_id=run.id) }}" data-key="p"{% if ep == 'report' %} aria-current="page"{% endif %}>Report and submissions <kbd>g p</kbd></a></li>
+<li><a href="{{ url_for('guidance', cycle_id=run.id) }}" data-key="u"{% if ep == 'guidance' %} aria-current="page"{% endif %}>Guidance <kbd>g u</kbd></a></li>
+</ul>
 {% endif %}
 </nav>
-<hr>
+<header class="status-bar" role="banner">
+<span class="field">Project <b>{{ (run.project_id if run else None) or project_name or '-' }}</b></span>
+{% if run %}
+<span class="field">Cycle <b>{{ run.id }}</b></span>
+<span class="field">State <span class="badge status-{{ run.status }}">{{ run.state }}</span></span>
+{% endif %}
+<div id="live-ticker" aria-live="polite"></div>
+</header>
+<main id="main" tabindex="-1">
+{% from "macros.html" import warnings_box %}
+{{ warnings_box(warnings) }}
 {% block body %}{% endblock %}
+</main>
 </body>
 </html>

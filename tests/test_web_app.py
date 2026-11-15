@@ -1,4 +1,4 @@
-"""Views of the read-only web interface, rendered from a fixture registry (no network)."""
+"""Pages of the cockpit over the small fixture registry of web_helpers (no network)."""
 
 import re
 import tomllib
@@ -31,42 +31,36 @@ def _after(text, marker):
     return text[text.index(marker):]
 
 
-# 1, 2
-def test_cycles_list_shows_every_cycle_with_its_data(web_client):
+def test_runs_list_shows_every_cycle_with_its_data(web_client):
     html = page(web_client, "/")
     for cycle_id in (EMPTY, MAIN, CHILD):
         assert f'href="/cycles/{cycle_id}"' in html
     assert "proj-1" in html and "ITERATING" in html and "PLANNING" in html
-    assert ">12<" in html and ">4<" in html
+    assert "3 of 12" in html and "0 of 10" in html
 
 
 def test_empty_registry_shows_a_message():
     with SqliteRegistry() as reg:
         html = page(create_app(reg).test_client(), "/")
-    assert "No cycles" in html
+    assert "No runs in the registry" in html
 
 
-# 3
-def test_cycle_view_lists_rounds_candidates_and_the_group_outside_rounds(web_client):
+def test_overview_lists_the_rounds_in_the_chart_table_and_the_bundles(web_client):
     html = page(web_client, f"/cycles/{MAIN}")
-    positions = [html.index(f"Round {n}: R{n}") for n in (1, 2, 3)]
+    assert f'data-chart-url="/api/runs/{MAIN}/chart"' in html
+    for attempt_id in ("A1", "A2", "B1", "X1"):
+        assert f'href="/attempts/{attempt_id}"' in html
+    assert "bundle-1" in html and "folderhash1" in html
+    rounds = page(web_client, f"/cycles/{MAIN}/rounds")
+    positions = [rounds.index(f">R{n}</a>") for n in (1, 2, 3)]
     assert positions == sorted(positions)
     for task in ("explore models", "check leakage", "combine models", "prune"):
-        assert task in html
-    outside = html.index("Not in a round")
-    timeline = html.index("Attempt timeline")
-    for attempt_id in ("A1", "A2", "A3", "B1", "B2", "C1"):
-        assert html.index(f'href="/attempts/{attempt_id}"') < outside
-    assert outside < html.index('href="/attempts/X1"') < timeline
-    row_b1 = re.search(r"<tr>(?:(?!</tr>).)*?>B1</a>.*?</tr>", html, re.S).group(0)
-    assert 'href="/attempts/A2"' in row_b1 and ">4<" in row_b1
-    assert "<td>-</td>" in re.search(r"<tr>(?:(?!</tr>).)*?>A1</a>.*?</tr>", html, re.S).group(0)
+        assert task in rounds
 
 
-# 4
-def test_round_view_shows_only_its_own_reports_guidance_and_traces(web_client):
+def test_round_view_shows_only_its_own_reports_guidance_and_outputs(web_client):
     r1 = page(web_client, f"/cycles/{MAIN}/rounds/R1")
-    for text in ("explore models", "report one", "guidance one", "trees", "retry", "A3"):
+    for text in ("explore models", "report one", "guidance one", "trees", "A3"):
         assert text in r1
     for text in ("report two", "blend", "combine models"):
         assert text not in r1
@@ -77,8 +71,7 @@ def test_round_view_shows_only_its_own_reports_guidance_and_traces(web_client):
         assert text not in r2
 
 
-# 5
-def test_candidate_detail_shows_rationale_hypothesis_and_what_changed(web_client):
+def test_attempt_detail_shows_rationale_hypothesis_and_what_changed(web_client):
     a1 = page(web_client, "/attempts/A1")
     for text in ("because trees", "trees help", "add trees", "ev-1", "ev-2", "A1 concluded"):
         assert text in a1
@@ -87,17 +80,14 @@ def test_candidate_detail_shows_rationale_hypothesis_and_what_changed(web_client
     assert 'href="/cycles/main/rounds/R2"' in b1
 
 
-# 6
-def test_candidate_detail_shows_the_runs_in_order(web_client):
+def test_attempt_detail_shows_the_runs_in_order(web_client):
     html = page(web_client, "/attempts/A1")
     assert html.index("A1-crash1") < html.index("A1-ok")
-    for text in ("fix1", "fixed-code", ">11<", ">1.5<", "lr", "cpu", "validation: mean 0.7",
+    for text in ("fix1", "fixed-code", ">11<", "lr", "cpu", "validation: mean 0.7",
                  "dispersion 0.02", "cv: mean 0.68", "Traceback: boom"):
         assert text in html
-    assert "Artifacts" in page(web_client, "/attempts/B1")
 
 
-# 7
 @pytest.mark.parametrize(
     "attempt_id, kind, reason",
     [("A3", "code_error", "Traceback: boom"), ("B2", "timeout", "ran out of time"),
@@ -106,15 +96,14 @@ def test_candidate_detail_shows_the_runs_in_order(web_client):
 def test_failures_show_failure_kind_and_reason(web_client, attempt_id, kind, reason):
     html = page(web_client, f"/attempts/{attempt_id}")
     assert kind in html and reason in html
-    cycle = page(web_client, f"/cycles/{MAIN}")
-    row = re.search(rf"<tr>(?:(?!</tr>).)*?>{attempt_id}</a>.*?</tr>", cycle, re.S).group(0)
+    attempts = page(web_client, f"/cycles/{MAIN}/attempts")
+    row = re.search(rf"<tr [^>]*>(?:(?!</tr>).)*?>{attempt_id}</a>.*?</tr>", attempts, re.S).group(0)
     assert kind in row and "failed" in row
 
 
-# 8, 9
 def test_pipeline_link_only_when_it_exists(web_client):
     with_link = page(web_client, "/attempts/B1")
-    assert f'<a href="{PIPELINE_URL}">' in with_link
+    assert f'<a href="{PIPELINE_URL}"' in with_link
     without = page(web_client, "/attempts/A2")
     assert "no pipeline yet" in without and "example.test" not in without
 
@@ -123,90 +112,48 @@ def test_pipeline_reference_never_links_local_files(web_client):
     html = page(web_client, "/attempts/X1")
     assert "/etc/passwd" in html
     assert 'href="/etc/passwd"' not in html and 'href="pipeline' not in html
-    section = _after(html, "<h2>Pipeline</h2>")
-    assert "<a " not in section[: section.index("<h2>Runs</h2>")]
 
 
-# 10, 11, 12
-def test_metric_series_per_round_and_chart(web_client, registry):
-    html = page(web_client, f"/cycles/{MAIN}/metrics?partition=validation")
-    assert html.count("<circle") == 3
-    series = registry.metric_series_by_round(MAIN, "validation")
-    table = _after(html, "<h2>Per round</h2>")
-    table = table[: table.index("<h2>Per iteration</h2>")]
-    for r in series:
-        for p in r.points:
-            assert f">{p.attempt_id}</a>" in table and f"{p.mean:.6g}" in table
-    for absent in ("A3", "B2", "C1"):
-        assert f">{absent}</a>" not in table
-    assert "partition=cv" in html
-    cv = page(web_client, f"/cycles/{MAIN}/metrics?partition=cv")
-    assert cv.count("<circle") == 2
-
-
-def test_best_is_highlighted_by_the_declared_direction(web_client):
+def test_the_best_follows_the_best_parameter_without_a_project_file(web_client):
     def best(query):
-        html = page(web_client, f"/cycles/{MAIN}/metrics?partition=validation{query}")
-        return re.findall(r'class="point best"[^>]*>\s*<title>(\w+):', html), html
+        return web_client.get(f"/api/runs/{MAIN}{query}").get_json()["data"]
 
-    assert best("&best=max")[0] == ["B1"]
-    assert best("&best=min")[0] == ["A1"]
-    default, html = best("")
-    assert default == ["B1"]
-    assert "not stored in the registry" in html and "best=min" in html
-    empty = page(web_client, f"/cycles/{EMPTY}/metrics")
-    assert "No metric data" in empty and "<svg" not in empty
+    assert best("")["best"]["attempt_id"] == "B1"
+    assert best("?best=min")["best"]["attempt_id"] == "X1"
+    assert best("?best=min")["protocol"]["direction_source"] == "best parameter"
+    assert best("")["protocol"]["direction_source"] == "default (max)"
 
 
-def test_metric_series_per_iteration(web_client, registry):
-    html = page(web_client, f"/cycles/{MAIN}/metrics?partition=validation")
-    table = _after(html, "<h2>Per iteration</h2>")
-    series = registry.metric_series(MAIN, "validation")
-    assert [p.iteration for p in series] == [1, 2, 4, 7]
-    for p in series:
-        assert f">{p.attempt_id}</a>" in table and f"<td>{p.iteration}</td>" in table
-        assert f"{p.mean:.6g}" in table and f"{p.dispersion:.4g}" in table
+def test_the_run_without_scores_has_an_empty_chart_state(web_client):
+    html = page(web_client, f"/cycles/{EMPTY}")
+    assert "No scored attempt yet" in html and "<table" not in html.split("Bundles")[0]
 
 
-# 13
-def test_reviewer_reports_grouped_by_round(web_client):
-    html = page(web_client, f"/cycles/{MAIN}/reports")
-    assert html.index("report one") < html.index("report two text")
-    assert 'href="/cycles/main/rounds/R1"' in html and 'href="/cycles/main/rounds/R2"' in html
-    assert html.count("2026-10-30T10:00:00+00:00") == 2
+def test_reviewer_reports_and_guidance_appear_in_their_round(web_client):
+    html = page(web_client, f"/cycles/{MAIN}/rounds/R1")
+    assert "report one" in html and "guidance one: focus on trees" in html
 
 
-# 14
-def test_role_traces_show_typed_input_output_and_outcome(web_client):
+def test_traces_page_shows_calls_and_typed_role_traces(web_client):
     html = page(web_client, f"/cycles/{MAIN}/traces")
-    for text in ("coordinator", "modeling", "reviewer", "Input (Goal)", "Output (Round)",
-                 "Input (ReviewRequest)", "no output", "invalid_output",
-                 "LLM call id</th><td>1</td>", 'href="/attempts/A1"', "start"):
+    for text in ("coordinator", "modeling", "reviewer", "Goal", "Round", "ReviewRequest",
+                 "invalid_output", 'href="/attempts/A1"'):
         assert text in html
+    fragment = page(web_client, f"/cycles/{MAIN}/traces/1")
+    assert "Input (Goal)" in fragment and "Output (Round)" in fragment
 
 
-# 15
 def test_trace_filters(web_client):
     by_role = page(web_client, f"/cycles/{MAIN}/traces?role=modeling")
-    assert "trees" in by_role and "blend" in by_role and "ReviewRequest" not in by_role
+    assert "ReviewRequest" not in by_role and "Goal" not in by_role
     by_round = page(web_client, f"/cycles/{MAIN}/traces?round=R2")
-    assert "blend" in by_round and "ReviewRequest" in by_round and "trees" not in by_round
-    both = page(web_client, f"/cycles/{MAIN}/traces?role=modeling&round=R2")
-    assert "blend" in both and "retry" not in both
+    assert "ReviewRequest" in by_round and ">R1</a>" not in by_round.split("Role traces")[1]
     bad = web_client.get(f"/cycles/{MAIN}/traces?role=banana")
     text = bad.get_data(as_text=True)
     assert bad.status_code == 400 and "role" in text and "Traceback" not in text
     assert web_client.get(f"/cycles/{MAIN}/traces?round=nope").status_code == 404
 
 
-# 16
-def test_candidate_traces_appear_in_the_detail(web_client):
-    a1 = page(web_client, "/attempts/A1")
-    assert "trees" in a1 and "retry" in a1 and "blend" not in a1
-    assert "blend" in page(web_client, "/attempts/B1")
-
-
-# 17
 def test_guidance_and_suggestions(web_client):
     guidance = page(web_client, f"/cycles/{MAIN}/guidance")
     assert "guidance one: focus on trees" in guidance and "2026-10-30" in guidance
@@ -218,24 +165,26 @@ def test_guidance_and_suggestions(web_client):
     assert html.count('href="/cycles/main"') >= 2
 
 
-# 18
-def test_every_view_responds_and_none_is_left_out(web_client):
+def test_every_page_route_responds_and_none_is_left_out(web_client):
     app = web_client.application
-    endpoints = {r.endpoint for r in app.url_map.iter_rules() if r.endpoint != "static"}
+    endpoints = {
+        r.endpoint for r in app.url_map.iter_rules()
+        if r.endpoint != "static" and not r.endpoint.startswith("api.")
+    }
     urls = all_urls()
     assert endpoints == set(urls)
-    for url in urls.values():
-        assert "<h1>" in page(web_client, url)
+    for name, url in urls.items():
+        response = web_client.get(url)
+        assert response.status_code in (200, 301), (name, url)
 
 
-# 19
-def test_unknown_ids_give_a_plain_404(web_client):
+def test_unknown_ids_give_a_styled_404(web_client):
     for url in ("/cycles/nope", "/attempts/nope", f"/cycles/{MAIN}/rounds/nope",
-                "/cycles/nope/metrics", "/cycles/nope/reports", "/elsewhere"):
+                "/cycles/nope/attempts", "/cycles/nope/report", "/cycles/nope/traces/1", "/elsewhere"):
         response = web_client.get(url)
         text = response.get_data(as_text=True)
         assert response.status_code == 404 and "Traceback" not in text, url
-        assert "<h1>404" in text
+        assert "404" in text and 'class="error-state"' in text
 
 
 def test_ids_with_a_slash_work_in_links_and_routes():
@@ -248,53 +197,52 @@ def test_ids_with_a_slash_work_in_links_and_routes():
         assert 'href="/cycles/org/c1"' in page(client, "/")
         assert 'href="/attempts/org/a1"' in page(client, "/cycles/org/c1")
         assert "org/a1" in page(client, "/attempts/org/a1")
-        page(client, "/cycles/org/c1/metrics")
+        page(client, "/cycles/org/c1/attempts")
+        assert client.get("/api/runs/org/c1").get_json()["data"]["id"] == "org/c1"
 
 
-# 20
 def test_untrusted_registry_text_is_escaped(web_client):
-    for url in ("/attempts/X1", f"/cycles/{MAIN}/reports", f"/cycles/{MAIN}/traces",
-                f"/cycles/{MAIN}/rounds/R1", f"/cycles/{MAIN}/metrics", "/attempts/A1"):
+    for url in ("/attempts/X1", f"/cycles/{MAIN}/traces/6", f"/cycles/{MAIN}/rounds/R1",
+                f"/cycles/{MAIN}/attempts", "/attempts/A1", f"/cycles/{MAIN}/report"):
         html = page(web_client, url)
-        assert SCRIPT not in html and "<script" not in html, url
+        assert SCRIPT not in html, url
+        assert not re.search(r"<script(?![^>]*\ssrc=)", html), url
     assert "&lt;script&gt;" in page(web_client, "/attempts/X1")
-    assert "&lt;script&gt;" in page(web_client, f"/cycles/{MAIN}/reports")
-    assert "&lt;script&gt;" in page(web_client, f"/cycles/{MAIN}/traces")
+    assert "&lt;script&gt;" in page(web_client, f"/cycles/{MAIN}/rounds/R1")
+    assert "&lt;script&gt;" in page(web_client, f"/cycles/{MAIN}/traces/6")
 
 
-# 30
 def test_views_run_with_the_network_disabled(web_client):
     import socket
 
     with pytest.raises(AssertionError, match="network"):
         socket.socket().connect(("127.0.0.1", 9))
     for url in all_urls().values():
-        page(web_client, url)
+        assert web_client.get(url).status_code in (200, 301), url
 
 
-# 34
 def test_templates_are_package_resources_and_declared_in_package_data():
     templates = resources.files("kaggle_agent.web") / "templates"
     names = {t.name for t in templates.iterdir() if t.name.endswith(".html")}
     referenced = set()
-    app_source = (resources.files("kaggle_agent.web") / "app.py").read_text(encoding="utf-8")
-    referenced |= set(re.findall(r'"(\w+\.html)"', app_source))
+    for module in ("app.py", "pages.py"):
+        source = (resources.files("kaggle_agent.web") / module).read_text(encoding="utf-8")
+        referenced |= set(re.findall(r'"(\w+\.html)"', source))
     for name in names:
         text = (templates / name).read_text(encoding="utf-8")
         referenced |= set(re.findall(r'(?:extends|from|include|import)\s+"(\w+\.html)"', text))
     assert referenced and referenced <= names
-    assert {"base.html", "cycles.html", "cycle.html", "round.html", "metrics.html",
-            "reports.html", "traces.html", "guidance.html", "attempt.html",
+    assert {"base.html", "cycles.html", "cycle.html", "attempts.html", "rounds.html", "round.html",
+            "traces.html", "trace_fragment.html", "report.html", "guidance.html", "attempt.html",
             "suggestions.html", "error.html"} <= names
+    assert not {"metrics.html", "reports.html"} & names
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     setuptools = pyproject["tool"]["setuptools"]
-    assert setuptools["package-data"] == {"kaggle_agent.web": ["templates/*.html"]}
+    assert setuptools["package-data"] == {"kaggle_agent.web": ["templates/*.html", "static/**"]}
     assert "include-package-data" not in setuptools
     assert setuptools["packages"] == {"find": {"where": ["src"]}}
-    assert "py-modules" not in setuptools
 
 
-# 35, 36
 def _web_section():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     start = readme.index("## Web interface (`kaggle_agent.web`)")
@@ -329,7 +277,7 @@ def test_pipeline_reference_convention():
     assert pipeline_reference(["other"]) is None and pipeline_reference([]) is None
 
 
-def test_cycle_page_shows_the_submission_and_its_score():
+def test_overview_shows_the_submission_and_its_score():
     from registry_helpers import make_cycle
 
     from kaggle_agent.registry import SubmissionEntry
@@ -342,5 +290,5 @@ def test_cycle_page_shows_the_submission_and_its_score():
         client = create_app(reg).test_client()
         html = page(client, "/cycles/S1")
         assert client.post("/cycles/S1").status_code == 405
-    block = _after(html, "Submissions")
+    block = _after(html, "<h2>Submissions</h2>")
     assert "sub-7" in block and "complete" in block and "0.8125" in block and "2026-01-01T12:00:00" in block

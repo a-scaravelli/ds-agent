@@ -223,6 +223,7 @@ def test_only_llm_real_imports_subprocess_and_llm_uses_no_network_or_third_party
             assert "subprocess" not in {top for top, _ in _imports(path)} or path.name in {
                 "llm_helpers.py", "test_llm_real.py", "test_pipeline_command.py", "test_pipeline_flow.py",
                 "test_writer_manual_claude.py", "test_agents_limits.py",  # ticket 25: fresh-interpreter import check
+                    "test_cockpit_assets.py",  # ticket 26: runs markdown.js with node when it is installed
             } or "sandbox" in path.name, path
 
 
@@ -310,7 +311,8 @@ def _web_modules():
 
 def test_web_imports_only_stdlib_flask_proposals_registry_and_itself():
     stdlib = set(sys.stdlib_module_names)
-    forbidden = {"evaluation", "llm", "kaggle", "sandbox", "loop", "review", "budget"}
+    forbidden = {"evaluation", "llm", "kaggle", "sandbox", "loop", "review", "budget",
+                 "orchestrator", "pipeline", "bundle"}
     assert _web_modules()
     for path in _web_modules():
         for top, full in _imports(path):
@@ -319,6 +321,7 @@ def test_web_imports_only_stdlib_flask_proposals_registry_and_itself():
             if top == "kaggle_agent":
                 parts = full.split(".")
                 assert len(parts) > 1 and parts[1] in {"proposals", "registry", "web"}, full
+                assert parts[1] not in forbidden, full
             if top == "<relative>":
                 assert full.lstrip(".").split(".")[0] not in forbidden, f"{path}: {full}"
 
@@ -332,6 +335,96 @@ def test_only_the_web_start_module_imports_the_sqlite_registry():
             continue
         for top, _ in _imports(path):
             assert top != "flask", path
+
+
+# 32 (ticket 26): the structural web guard. The web package never reads a bundle folder: the only
+# function that opens a file is data.read_project_file (project.json), and no path call gets a
+# string about the workspace or the bundles folder. Written on the code, not on the words.
+
+FILE_CALLS = {"open", "read_text", "read_bytes", "iterdir", "glob", "rglob", "listdir", "scandir",
+              "walk", "write_text", "write_bytes", "unlink"}
+PATH_CALLS = {"open", "Path", "PurePath", "PosixPath", "joinpath", "with_name", "relative_to"}
+
+
+def _call_name(node: ast.Call) -> str | None:
+    if isinstance(node.func, ast.Name):
+        return node.func.id
+    if isinstance(node.func, ast.Attribute):
+        return node.func.attr
+    return None
+
+
+def _root_name(node: ast.AST) -> str | None:
+    while isinstance(node, ast.Attribute):
+        node = node.value
+    return node.id if isinstance(node, ast.Name) else None
+
+
+def _mentions_bundle_folder(node: ast.AST) -> bool:
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Constant) and isinstance(sub.value, str):
+            text = sub.value.lower()
+            if "workspace" in text or "bundles/" in text or "/bundles" in text or text == "bundles":
+                return True
+    return False
+
+
+def _enclosing_functions(tree: ast.AST):
+    """Map every node to the name of the innermost function that contains it."""
+    owner = {}
+
+    def visit(node, current):
+        for child in ast.iter_child_nodes(node):
+            name = child.name if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) else current
+            owner[child] = name
+            visit(child, name)
+
+    visit(tree, None)
+    return owner
+
+
+def test_web_opens_files_only_in_read_project_file():
+    assert (WEB / "data.py").is_file()
+    found = []
+    for path in _web_modules():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        owner = _enclosing_functions(tree)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and _call_name(node) in FILE_CALLS:
+                found.append((path.name, owner.get(node)))
+    assert found, "the guard must see the one file read of the web package"
+    assert set(found) == {("data.py", "read_project_file")}, found
+
+
+def test_web_passes_no_workspace_or_bundles_string_to_a_file_or_path_call():
+    for path in _web_modules():
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Call):
+                name = _call_name(node)
+                root = _root_name(node.func.value) if isinstance(node.func, ast.Attribute) else None
+                if name in PATH_CALLS | FILE_CALLS or root == "os":
+                    for arg in [*node.args, *(k.value for k in node.keywords)]:
+                        assert not _mentions_bundle_folder(arg), (path.name, node.lineno)
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):  # Path / "workspace"
+                assert not _mentions_bundle_folder(node), (path.name, node.lineno)
+
+
+def test_web_start_command_has_no_workspace_option():
+    tree = ast.parse((WEB / "__main__.py").read_text(encoding="utf-8"))
+    options = [
+        arg.value for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and _call_name(node) == "add_argument"
+        for arg in node.args if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+    ]
+    assert "--db" in options and "--project" in options
+    assert not [o for o in options if "workspace" in o]
+
+
+def test_the_structural_guard_detects_what_it_guards():
+    bad = ast.parse("def f(p):\n    return open(p)\n\nx = Path('a') / 'workspace'\ny = os.listdir('workspace/bundles/b1')")
+    calls = [n for n in ast.walk(bad) if isinstance(n, ast.Call) and _call_name(n) in FILE_CALLS]
+    assert len(calls) == 2
+    assert any(isinstance(n, ast.BinOp) and _mentions_bundle_folder(n) for n in ast.walk(bad))
 
 
 def test_sandbox_imports_only_stdlib_and_itself_and_subprocess_only_in_its_runner():

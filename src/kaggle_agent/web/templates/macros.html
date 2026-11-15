@@ -1,38 +1,54 @@
-{# shared macros: candidate rows come from views._candidate_row #}
-{% macro candidate_table(rows) %}
-<table>
-<tr><th>Iteration</th><th>Candidate</th><th>Parent</th><th>Phase</th><th>Outcome</th><th>Failure kind</th><th>Runs</th><th>Last metric</th><th>What changed</th></tr>
-{% for row in rows %}{% set s = row.summary %}
-<tr>
-<td>{{ s.iteration }}</td>
-<td><a href="{{ url_for('attempt', attempt_id=s.attempt_id) }}">{{ s.attempt_id }}</a></td>
-<td>{% if s.parent_id %}<a href="{{ url_for('attempt', attempt_id=s.parent_id) }}">{{ s.parent_id }}</a>{% else %}-{% endif %}</td>
-<td>{{ s.phase }}</td>
-<td class="{{ 'failed' if s.outcome == 'failed' }}">{{ s.outcome or 'open' }}</td>
-<td>{{ s.failure_kind or '-' }}</td>
-<td>{{ row.runs }}</td>
-<td>{% for m in row.metrics %}{{ m.partition }}: {{ '%.6g' % m.mean }} &plusmn; {{ '%.4g' % m.dispersion }}<br>{% else %}-{% endfor %}</td>
-<td>{{ row.what_changed }}</td>
-</tr>
-{% endfor %}
-</table>
+{# shared macros of the cockpit; every value is escaped by Jinja, nothing is marked safe #}
+{% macro badge(kind, label=none) %}<span class="badge status-{{ kind or 'open' }}">{{ label or kind or 'open' }}</span>{% endmacro %}
+
+{% macro score(mean, dispersion=none) %}{% if mean is none %}-{% else %}{{ mean | num }}{% if dispersion is not none %} <span class="muted">&plusmn; {{ dispersion | num(4) }}</span>{% endif %}{% endif %}{% endmacro %}
+
+{% macro hash(value) %}{% if value %}<code title="{{ value }}">{{ value[:12] }}</code>{% else %}-{% endif %}{% endmacro %}
+
+{% macro empty(title, message) %}
+<div class="empty" role="status"><strong>{{ title }}</strong>{{ message }}</div>
 {% endmacro %}
 
-{% macro trace_list(traces) %}
-{% for t in traces %}
-<table>
-<tr><th>Role</th><td>{{ t.role }}</td><th>Round</th>
-<td><a href="{{ url_for('round_view', cycle_id=t.cycle_id, round_id=t.round_id) }}">{{ t.round_id }}</a></td></tr>
-<tr><th>Candidate</th>
-<td>{% if t.candidate_id %}<a href="{{ url_for('attempt', attempt_id=t.candidate_id) }}">{{ t.candidate_id }}</a>{% else %}-{% endif %}</td>
-<th>Outcome</th><td>{{ t.outcome }}</td></tr>
-<tr><th>LLM call id</th><td>{{ t.llm_call_id if t.llm_call_id is not none else '-' }}</td>
-<th>Created</th><td>{{ t.created_at }}</td></tr>
-<tr><th>Input ({{ t.input_type }})</th><td colspan="3"><pre>{{ t.input | pretty }}</pre></td></tr>
-<tr><th>Output {% if t.output_type %}({{ t.output_type }}){% endif %}</th>
-<td colspan="3">{% if t.output is none %}no output{% else %}<pre>{{ t.output | pretty }}</pre>{% endif %}</td></tr>
-</table>
-{% else %}
-<p>No traces.</p>
+{% macro warnings_box(warnings) %}
+{% if warnings %}
+<div class="warnings" role="status">Some parts of this page are not available in this registry file:
+<ul>{% for w in warnings %}<li><b>{{ w.section }}</b>: {{ w.reason }}</li>{% endfor %}</ul></div>
+{% endif %}
+{% endmacro %}
+
+{# text that the browser renders as Markdown (markdown.js); plain text without JavaScript #}
+{% macro md(text) %}<div class="md" data-markdown>{{ text }}</div>{% endmacro %}
+
+{# a stored JSON value shown as nested definition lists and lists #}
+{% macro value(v, markdown_keys=()) %}
+{% if v is mapping %}
+<dl class="facts">{% for k, item in v.items() %}
+<dt>{{ k }}</dt><dd>{% if k in markdown_keys and item is string %}{{ md(item) }}{% else %}{{ value(item, markdown_keys) }}{% endif %}</dd>
+{% endfor %}</dl>
+{% elif v is iterable and v is not string %}
+{% if v %}<ul>{% for item in v %}<li>{{ value(item, markdown_keys) }}</li>{% endfor %}</ul>{% else %}-{% endif %}
+{% elif v is none %}-
+{% elif v is number %}{{ v | num }}
+{% else %}{{ v }}{% endif %}
+{% endmacro %}
+
+{# rows of candidates as built by data.round_detail #}
+{% macro candidate_table(rows) %}
+<div class="table-wrap"><table>
+<thead><tr><th>Iteration</th><th>Candidate</th><th>Parent</th><th>Outcome</th><th class="num">Score</th><th class="num">vs bar</th><th>Verdict</th><th class="num">Runs</th><th>What changed</th></tr></thead>
+<tbody>
+{% for r in rows %}
+<tr>
+<td>{{ r.iteration }}</td>
+<td><a href="{{ url_for('attempt', attempt_id=r.attempt_id) }}">{{ r.attempt_id }}</a></td>
+<td>{% if r.parent_id %}<a href="{{ url_for('attempt', attempt_id=r.parent_id) }}">{{ r.parent_id }}</a>{% else %}-{% endif %}</td>
+<td>{{ badge(r.outcome, r.outcome or 'open') }}{% if r.failure_kind %} <span class="muted">{{ r.failure_kind }}</span>{% endif %}</td>
+<td class="num">{{ score(r.mean, r.dispersion) }}</td>
+<td class="num">{% if r.comparison %}{{ r.comparison.vs_bar | num(4) }}{% else %}-{% endif %}</td>
+<td>{% if r.comparison %}{{ badge('succeeded' if r.comparison.is_real else 'unknown', r.comparison.verdict) }}{% else %}-{% endif %}</td>
+<td class="num">{{ r.runs }}</td>
+<td class="wrap">{{ r.what_changed }}</td>
+</tr>
 {% endfor %}
+</tbody></table></div>
 {% endmacro %}

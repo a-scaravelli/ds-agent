@@ -9,7 +9,7 @@ from kaggle_agent.orchestrator import codes
 from kaggle_agent.orchestrator.config import baseline_text
 
 ROOT = Path(__file__).resolve().parent.parent
-PLAN_CASES = 20
+PLAN_CASES = 34
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 
 
@@ -89,7 +89,8 @@ def test_the_readme_explains_six_and_the_sample_file_selection():
 def test_the_readme_explains_the_web_choice_the_busy_port_and_the_login_error():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     web = readme.split("## Web interface")[1].split("\n## ")[0]
-    assert "single-threaded" in web and "`--port`" in web and "port is busy" in web
+    assert "threaded server" in web and "one read-only connection per request" in web
+    assert "ticket 24" in web and "`--port`" in web and "port is busy" in web
     text = section()
     assert "`claude auth login`" in text and "expired Claude login" in text
     assert "11 suspended" in text
