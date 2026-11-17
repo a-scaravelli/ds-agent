@@ -35,6 +35,15 @@ def _pretty(value: object) -> str:
     return json.dumps(value, indent=2, ensure_ascii=False, sort_keys=True, default=str)
 
 
+def _short(text, limit: int = 120) -> str:
+    """The text cut at a word boundary near ``limit`` characters (with an ellipsis); short text as is."""
+    text = "" if text is None else str(text)
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(" ", 1)[0] or text[:limit]
+    return cut.rstrip(" ,;:.") + "..."
+
+
 def _num(value, digits: int = 6) -> str:
     """A number for display with ``digits`` significant digits; ``-`` for a missing value."""
     if value is None:
@@ -57,6 +66,7 @@ def create_app(source, project_dir=None, journal_mode=None, controller=None, sse
     app = Flask(__name__)
     app.jinja_env.filters["pretty"] = _pretty
     app.jinja_env.filters["num"] = _num
+    app.jinja_env.filters["short"] = _short
     app.jinja_env.trim_blocks = True
     app.jinja_env.lstrip_blocks = True
     app.config["PROJECT_DIR"] = None if project_dir is None else Path(project_dir)

@@ -13,6 +13,9 @@
 <script src="{{ url_for('static', filename='vendor/marked.min.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/markdown.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/cockpit.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/live.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/notify.js') }}" defer></script>
 {% block scripts %}{% endblock %}
 </head>
 <body>
@@ -24,6 +27,15 @@
 <ul>
 <li><a href="{{ url_for('cycles') }}" data-key="r"{% if ep == 'cycles' %} aria-current="page"{% endif %}>Runs <kbd>g r</kbd></a></li>
 <li><a href="{{ url_for('suggestions') }}" data-key="s"{% if ep == 'suggestions' %} aria-current="page"{% endif %}>Suggestions <kbd>g s</kbd></a></li>
+</ul>
+<h2>Cockpit</h2>
+<ul>
+<li><a href="{{ url_for('live_page') }}" data-key="l"{% if ep == 'live_page' %} aria-current="page"{% endif %}>Live <kbd>g l</kbd></a></li>
+<li><a href="{{ url_for('run_control') }}" data-key="c"{% if ep == 'run_control' %} aria-current="page"{% endif %}>Run control <kbd>g c</kbd></a></li>
+<li><a href="{{ url_for('decisions_page') }}" data-key="d"{% if ep == 'decisions_page' %} aria-current="page"{% endif %}>Decisions <kbd>g d</kbd></a></li>
+<li><a href="{{ url_for('setup') }}" data-key="e"{% if ep == 'setup' %} aria-current="page"{% endif %}>Setup <kbd>g e</kbd></a></li>
+<li><a href="{{ url_for('environment_page') }}" data-key="v"{% if ep == 'environment_page' %} aria-current="page"{% endif %}>Environment <kbd>g v</kbd></a></li>
+<li><a href="{{ url_for('audit_page') }}" data-key="i"{% if ep == 'audit_page' %} aria-current="page"{% endif %}>Audit log <kbd>g i</kbd></a></li>
 </ul>
 {% if run %}
 <h2>Run {{ run.id }}</h2>
@@ -43,7 +55,8 @@
 <span class="field">Cycle <b>{{ run.id }}</b></span>
 <span class="field">State <span class="badge status-{{ run.status }}">{{ run.state }}</span></span>
 {% endif %}
-<div id="live-ticker" aria-live="polite"></div>
+<span class="field">Run <span id="run-chip" class="badge status-unknown">...</span></span>
+<div id="live-ticker" aria-live="polite" data-stream-url="{{ url_for('api.event_stream') }}" data-events-url="{{ url_for('api.events') }}" data-run-url="{{ url_for('api.run_state') }}" data-console-url="{{ url_for('api.console') }}">no live data yet</div>
 </header>
 <main id="main" tabindex="-1">
 {% from "macros.html" import warnings_box %}

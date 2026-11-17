@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "macros.html" import empty %}
+{% block title %}Setup{% endblock %}
+{% block body %}
+{% set comp = cfg.get('competition', {}) %}
+{% set lim = cfg.get('limits', {}) %}
+{% set prot = cfg.get('protocol', {}) %}
+{% set mods = cfg.get('models', {}) %}
+{% set ro = ' readonly' if started else '' %}
+<h1>Setup</h1>
+<p class="subtitle">The competition, the limits and the protocol of this project. The form writes <code>config.toml</code> through the same strict checks as the command line; secrets are refused, and there is no field for one.</p>
+{% if started %}<div class="warnings" role="status">The project is already started. The frozen settings (competition, metric, validation scheme, seed, threshold, holdout) are read-only: a change means a new plan version or a new run.</div>{% endif %}
+{% if not config_exists %}<p class="note">No <code>config.toml</code> yet: fill the form and save it.</p>{% endif %}
+
+<form id="config-form" class="stack" data-validate="{{ url_for('writes.config_validate') }}" data-save="{{ url_for('writes.config_save') }}" data-started="{{ 'yes' if started else 'no' }}">
+<fieldset><legend>Competition</legend>
+<label>Competition slug<input name="competition.slug" required value="{{ comp.get('slug', '') }}"{{ ro }}><span class="error" data-error-for="competition.slug"></span></label>
+<label>Target column<input name="competition.target" value="{{ comp.get('target', 'from_submission_spec') }}"{{ ro }}><span class="hint">or <code>from_submission_spec</code>: the second column of the sample submission</span><span class="error" data-error-for="competition.target"></span></label>
+<label>Metric<input name="competition.metric" value="{{ comp.get('metric', 'from_competition_info') }}"{{ ro }}><span class="hint"><code>from_competition_info</code> reads it from the competition text; if the text is ambiguous the program refuses and asks you to name the metric.</span><span class="error" data-error-for="competition.metric"></span></label>
+<label>Direction<select name="competition.direction"{% if started %} disabled{% endif %}>
+{% for d in ('from_metric', 'maximize', 'minimize') %}<option value="{{ d }}"{% if comp.get('direction', 'from_metric') == d %} selected{% endif %}>{{ d }}</option>{% endfor %}</select><span class="error" data-error-for="competition.direction"></span></label>
+</fieldset>
+
+<fieldset><legend>Limits</legend>
+<label>Rounds<input type="number" min="1" name="limits.rounds" value="{{ lim.get('rounds', 5) }}"><span class="error" data-error-for="limits.rounds"></span></label>
+<label>Candidates per round<input type="number" min="1" name="limits.candidates" value="{{ lim.get('candidates', 3) }}"><span class="error" data-error-for="limits.candidates"></span></label>
+<label>Stagnation (rounds without improvement before stopping)<input type="number" min="1" name="limits.stagnation" value="{{ lim.get('stagnation', 2) }}"><span class="error" data-error-for="limits.stagnation"></span></label>
+<label>Pause every (rounds between your guidance)<input type="number" min="1" name="limits.pause_every" value="{{ lim.get('pause_every', 1) }}"><span class="error" data-error-for="limits.pause_every"></span></label>
+<label>Fix retries (per attempt)<input type="number" min="0" name="limits.fix_retries" value="{{ lim.get('fix_retries', 3) }}"><span class="error" data-error-for="limits.fix_retries"></span></label>
+</fieldset>
+
+<fieldset><legend>Validation protocol</legend>
+<label>Validation scheme<select name="protocol.validation_scheme"{% if started %} disabled{% endif %}>
+{% for d in ('random', 'group', 'chronological') %}<option value="{{ d }}"{% if prot.get('validation_scheme', 'random') == d %} selected{% endif %}>{{ d }}</option>{% endfor %}</select><span class="error" data-error-for="protocol.validation_scheme"></span></label>
+<label>Folds<input type="number" min="2" name="protocol.validation_params.n_folds" value="{{ prot.get('validation_params', {}).get('n_folds', 5) }}"{{ ro }}></label>
+<label>Repeats<input type="number" min="1" name="protocol.repetitions" value="{{ prot.get('repetitions', 1) }}"{{ ro }}><span class="error" data-error-for="protocol.repetitions"></span></label>
+<label>Seed<input type="number" min="0" name="protocol.seed" value="{{ prot.get('seed', 0) }}"{{ ro }}><span class="error" data-error-for="protocol.seed"></span></label>
+<label>Holdout share<input type="number" step="0.01" min="0.01" max="0.99" name="protocol.holdout_share" value="{{ prot.get('holdout_share', 0.2) }}"{{ ro }}><span class="error" data-error-for="protocol.holdout_share"></span></label>
+<label>Threshold k<input type="number" step="0.1" min="0" name="protocol.threshold_k" id="threshold-k" value="{{ prot.get('threshold_k', 1.0) }}"{{ ro }}><span class="error" data-error-for="protocol.threshold_k"></span></label>
+<p class="note" id="threshold-words">An improvement counts as real only if it beats the best model so far by more than <b id="k-value">{{ prot.get('threshold_k', 1.0) }}</b> times the baseline noise (how much the baseline score moves between validation folds). The resulting bar is <b id="bar-value">known after the baseline has run</b>.</p>
+</fieldset>
+
+<fieldset><legend>Models per role (optional)</legend>
+{% for role in ('coordinator', 'data', 'feature_engineering', 'modeling', 'reviewer', 'writer') %}
+<label>{{ role }}<input name="models.{{ role }}" value="{{ mods.get(role, '') }}" placeholder="default model of the Claude CLI"></label>
+{% endfor %}
+</fieldset>
+
+<fieldset><legend>Fixed by the program (display only)</legend>
+<p>Allowed libraries for the models: {% for l in libraries %}<code>{{ l }}</code> {% endfor %}</p>
+<p>Seed plan baseline: <code id="baseline-text">simplest sensible model for {{ comp.get('metric', '<metric>') }} on {{ comp.get('target', '<target>') }}</code></p>
+</fieldset>
+
+<div class="toolbar">
+<button type="button" id="config-validate">Check</button>
+<button type="submit" id="config-save">Save settings</button>
+</div>
+<p id="config-message" class="note" role="status"></p>
+</form>
+
+<section class="panel" aria-labelledby="preview-h">
+<h2 id="preview-h">Protocol preview</h2>
+<p class="note">What will be frozen when you approve the plan: folds, holdout share, sizes and the hash. Computed in the background from the saved settings.</p>
+<button type="button" id="run-preview" data-post="{{ url_for('writes.job_preview') }}" data-job-url="{{ url_for('api.job', job_id='JOB') }}" data-target="preview-result">Compute the preview</button>
+<div id="preview-result" class="job-result" aria-live="polite"></div>
+</section>
+<section class="panel" aria-labelledby="profile-h">
+<h2 id="profile-h">Data profile (development part only)</h2>
+<p class="note">Schema, missing values, distributions, target balance, duplicates and ID-like columns, computed on the development rows only; the holdout is never read.</p>
+<button type="button" id="run-profile" data-post="{{ url_for('writes.job_profile') }}" data-job-url="{{ url_for('api.job', job_id='JOB') }}" data-target="profile-result">Compute the profile</button>
+<div id="profile-result" class="job-result" aria-live="polite"></div>
+</section>
+{% endblock %}

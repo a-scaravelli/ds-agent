@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "macros.html" import empty %}
+{% block title %}Audit log{% endblock %}
+{% block body %}
+<h1>Audit log</h1>
+<p class="subtitle">Every action you took from the page (who, when, what, why), oldest first, with the relevant events of the run.</p>
+{% if not entries %}
+{{ empty("Nothing recorded yet", "Your actions from the page appear here.") }}
+{% else %}
+<div class="table-wrap"><table id="audit-table">
+<thead><tr><th>When (UTC)</th><th>Who</th><th>What</th><th>Why</th><th>Details</th></tr></thead>
+<tbody>
+{% for e in entries %}
+<tr data-source="{{ e.source }}"><td>{{ e.at }}</td><td>{{ e.who }}</td><td><b>{{ e.what }}</b></td><td class="wrap">{{ e.why or '-' }}</td>
+<td class="wrap"><code>{{ e.payload | tojson }}</code></td></tr>
+{% endfor %}
+</tbody></table></div>
+{% endif %}
+{% endblock %}

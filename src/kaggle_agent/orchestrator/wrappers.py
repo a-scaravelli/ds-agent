@@ -42,6 +42,7 @@ class EventingRegistry:
         self._stage: str | None = None
         self._stage_started = 0.0
         self._outcomes: dict[str, str] = {}
+        self._announced = None
 
     def __getattr__(self, name):
         return getattr(self._inner, name)
@@ -57,7 +58,16 @@ class EventingRegistry:
         if cycle.parameters is None:
             return cycle
         records, _ = read_jsonl(self._files.limit_changes)
-        return overlay_cycle(cycle, records) if records else cycle
+        if not records:
+            return cycle
+        shown = overlay_cycle(cycle, records)
+        effective = (shown.iterations, (shown.parameters or {}).get("candidates"), shown.stagnation_k,
+                     (shown.parameters or {}).get("pause_every"))
+        if effective != self._announced and shown is not cycle:
+            self._announced = effective
+            self._emitter.emit("limits_applied", rounds=effective[0], candidates=effective[1],
+                               stagnation=effective[2], pause_every=effective[3])
+        return shown
 
     # -- writes ------------------------------------------------------------------
 

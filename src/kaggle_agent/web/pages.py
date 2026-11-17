@@ -2,7 +2,8 @@
 
 from flask import current_app, redirect, render_template, request, url_for
 
-from . import data
+from . import audit, data, decisions, live, store
+from kaggle_agent.proposals import ALLOWED_LIBRARIES
 
 
 def _source() -> data.Source:
@@ -20,7 +21,8 @@ def register(app) -> None:
     @get("/")
     def cycles():
         src = _source()
-        return _page("cycles.html", src, runs=data.runs(src))
+        q = request.args.get("q") or None
+        return _page("cycles.html", src, runs=data.runs(src, q), q=q or "")
 
     @get("/cycles/<path:cycle_id>/rounds/<path:round_id>")
     def round_view(cycle_id, round_id):
@@ -120,3 +122,69 @@ def register(app) -> None:
     def suggestions():
         src = _source()
         return _page("suggestions.html", src, items=data.suggestions(src))
+
+    # -- cockpit pages: live progress, run control, decisions, setup, environment, audit ----------
+
+    def project():
+        return current_app.config["PROJECT_DIR"]
+
+    def controller():
+        return current_app.config.get("CONTROLLER")
+
+    @get("/live")
+    def live_page():
+        src = _source()
+        recent = live.events_after(project(), 0, 10 ** 9)[-60:] if project() else []
+        return _page("live.html", src, recent=recent)
+
+    @get("/run")
+    def run_control():
+        src = _source()
+        ctl = controller()
+        state = ctl.state() if ctl else {"state": "idle", "label": "idle", "text": "Nothing is running."}
+        settings = (store.read_json(store.cockpit_path(project(), "settings.json"), {}) or {}) if project() else {}
+        started = bool(project()) and store.exists(store.project_path(project(), "project.json"))
+        history = [r for r in (audit.timeline(project()) if project() else [])
+                   if str(r["what"]).startswith("run.") or r["what"] in (
+                       "finished", "paused", "stopped", "suspended", "error")][-20:]
+        return _page("run_control.html", src, state=state, started=started, history=history,
+                     auto_resume=bool(settings.get("auto_resume")))
+
+    @get("/decisions")
+    def decisions_page():
+        src = _source()
+        question = decisions.current_question(src) if project() else None
+        cycle_id = decisions.cycle_id_of(src) if project() else None
+        limits = None
+        report = None
+        if cycle_id:
+            try:
+                limits = data.limits_view(src, src.registry.get_cycle(cycle_id))
+            except Exception:
+                limits = None
+            if question and question["kind"] == "review":
+                report = data.final_report(src, cycle_id)
+        return _page("decisions.html", src, question=question, limits=limits, cycle_id=cycle_id,
+                     statuses=decisions.decision_statuses(project()) if project() else [],
+                     conflicts=decisions.conflicts(project(), question) if project() else [],
+                     lead=store.lead_toml_summary(project()) if project() else None,
+                     notices=store.read_notices(project()) if project() else [], report=report)
+
+    @get("/setup")
+    def setup():
+        src = _source()
+        ctl = controller()
+        raw = store.read_toml(ctl.config_path) if ctl else None
+        started = bool(project()) and store.exists(store.project_path(project(), "project.json"))
+        return _page("setup.html", src, cfg=raw or {}, config_exists=raw is not None, started=started,
+                     libraries=list(ALLOWED_LIBRARIES))
+
+    @get("/environment")
+    def environment_page():
+        src = _source()
+        return _page("environment.html", src)
+
+    @get("/audit")
+    def audit_page():
+        src = _source()
+        return _page("audit.html", src, entries=audit.timeline(project()) if project() else [])

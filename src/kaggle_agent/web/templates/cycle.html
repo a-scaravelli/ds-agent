@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import badge, score, hash, empty, value %}
+{% from "macros.html" import annotations, badge, score, hash, empty, value %}
 {% block title %}Run {{ summary.id }}{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='vendor/uplot.min.css') }}">{% endblock %}
 {% block scripts %}
@@ -13,12 +13,16 @@
 
 <div class="kpis">
 <div class="kpi"><div class="label">Rounds done</div><div class="value">{{ summary.rounds_done }} of {{ summary.rounds_planned }}</div></div>
-<div class="kpi"><div class="label">Best score</div><div class="value">{{ score(summary.best.mean, summary.best.dispersion) if summary.best else '-' }}</div></div>
+<div class="kpi"><div class="label">Best seen</div><div class="value">{{ score(summary.best_seen.mean, summary.best_seen.dispersion) if summary.best_seen else '-' }}</div></div>
+<div class="kpi"><div class="label">Chosen by the program (strict bar)</div><div class="value">{% if summary.chosen %}{{ summary.chosen.mean | num }}{% else %}-{% endif %}</div></div>
 <div class="kpi"><div class="label">Baseline</div><div class="value">{{ summary.baseline.mean | num if summary.baseline else '-' }}</div></div>
 <div class="kpi"><div class="label">Improvement bar</div><div class="value">{{ chart.bar | num }}</div></div>
 <div class="kpi"><div class="label">Chosen attempt</div><div class="value">{% if summary.chosen %}<a href="{{ url_for('attempt', attempt_id=summary.chosen.attempt_id) }}">{{ summary.chosen.attempt_id }}</a> <span class="muted">({{ summary.chosen.source }})</span>{% else %}-{% endif %}</div></div>
 <div class="kpi"><div class="label">Stop reason</div><div class="value">{{ summary.stop_reason or 'not stopped yet' }}</div></div>
 </div>
+
+{% set rule = summary.improvement_rule %}
+<p class="note" id="improvement-rule">{{ rule.text }}{% if rule.threshold_k is not none and rule.baseline_noise is not none %} Numbers: threshold_k {{ rule.threshold_k | num }} &times; baseline noise {{ rule.baseline_noise | num(4) }} = bar {{ rule.bar | num(4) }}{% if rule.difference is not none %}; mean paired difference of the chosen attempt {{ rule.difference | num(4) }} ({{ 'above' if rule.is_real else 'not above' }} the bar){% endif %}.{% endif %}</p>
 
 <section class="panel" aria-labelledby="chart-h">
 <h2 id="chart-h">Score by attempt</h2>
@@ -45,6 +49,8 @@
 {% endif %}
 </section>
 
+{{ annotations('run', summary.id, summary.notes, summary.tags) }}
+
 <div class="grid">
 <section class="panel" aria-labelledby="proto-h">
 <h2 id="proto-h">Protocol</h2>
@@ -64,6 +70,12 @@
 <dl class="facts">
 {% for k, v in summary.limits.items() %}<dt>{{ k }}</dt><dd>{{ v if v is not none else '-' }}</dd>{% endfor %}
 </dl>
+{% set lv = summary.limits_view %}
+<h3>Effective limits</h3>
+<p class="note">Stored limits are never rewritten. The effective value is the stored one overlaid by the changes you made (last wins); a resumed cycle uses them.</p>
+<dl class="facts">{% for k in ('rounds', 'candidates', 'stagnation') %}<dt>{{ k }}</dt><dd>{{ lv.base[k] if lv.base[k] is not none else '-' }} &rarr; <b>{{ lv.effective[k] if lv.effective[k] is not none else '-' }}</b></dd>{% endfor %}</dl>
+{% for c in lv.changes %}<p class="muted">{{ c.at }} {{ c.who }}: {{ c['values'] | tojson }} ({{ c.reason }})</p>{% endfor %}
+<p><a href="{{ url_for('decisions_page') }}">Change the limits</a></p>
 </section>
 <section class="panel" aria-labelledby="plan-h">
 <h2 id="plan-h">Plan</h2>

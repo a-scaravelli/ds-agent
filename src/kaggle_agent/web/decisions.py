@@ -77,8 +77,8 @@ def current_question(src: data.Source) -> dict | None:
                 "plan": plan_view(src, cycle_id)}
     if cycle.state == GUIDANCE_STATE:
         position = round_position(src, cycle_id)
-        rounds = data.rounds(src, cycle_id)
-        last = rounds[-1] if rounds else None
+        done = [r for r in data.rounds(src, cycle_id) if not r["is_setup"]]
+        last = data.round_detail(src, cycle_id, done[-1]["id"]) if done else None
         return {"kind": "guidance", "address": position, "state": cycle.state, "cycle": cycle_id,
                 "round": last}
     if cycle.state == REVIEW_STATE:
