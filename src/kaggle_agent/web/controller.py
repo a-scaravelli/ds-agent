@@ -219,7 +219,7 @@ class RunController:
             if self.active():
                 raise Conflict("a run is already active in this project; no second run is started")
             store.remove(store.cockpit_path(self.project_dir, "pause-request.json"))
-            console = store.open_console(store.cockpit_path(self.project_dir, "console.log"))
+            console = store.console_handle(store.cockpit_path(self.project_dir, "console.log"))
             try:
                 proc = self._spawn((*self.orchestrator_argv, command, "--config", str(self.config_path),
                                     "--supervised"), stdout=console, new_session=True)

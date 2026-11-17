@@ -227,7 +227,7 @@ class FileLock:
             self._fd = None
 
 
-def open_console(path):
+def console_handle(path):
     """The console log opened for append, to be inherited by the child process."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

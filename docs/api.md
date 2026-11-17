@@ -1,16 +1,19 @@
-# Cockpit JSON API (read only)
+# Cockpit JSON API
 
 The cockpit web server (`python -m kaggle_agent.web`) serves a JSON API under `/api`. The HTML
 pages call the same functions (`kaggle_agent/web/data.py`), so a different front end can replace
 the pages and keep this API. Version 1.
 
-- **GET only.** Any other method answers 405 with the error envelope. Nothing is ever written.
+- **GET, except the write endpoints.** Every endpoint is GET only, EXCEPT the POST endpoints listed under
+  "Write endpoints" below; any other method answers 405 with the error envelope. The web never writes
+  the registry: writes go to files in `<project>/cockpit/` and the orchestrator applies them.
 - **Local only.** Requests whose `Host` header is not `localhost` or `127.0.0.1` get 403.
 - **Envelope.** Every answer is `{"api_version": 1, "data": ..., "warnings": [...]}`.
   `warnings` lists `{"section", "reason"}` for each part of the registry file that is not
   available (an old file with fewer tables or columns); the matching `data` part is empty.
 - **Errors.** `{"api_version": 1, "error": {"status", "title", "message"}}` with status 400
-  (invalid filter), 403 (Host), 404 (unknown id), 405 (method) or 503 (registry unreadable).
+  (invalid filter or body), 403 (Host, CSRF token or Origin), 404 (unknown id), 405 (method), 409 (a stale
+  question, or a run already active), 429 (too many live streams) or 503 (registry or audit log unreadable).
 - **Ids.** Run (cycle), attempt and round ids may contain a slash; they are written as they are
   in the path.
 - **No code.** There is no endpoint for bundle files, code or diffs: the web never reads a bundle
@@ -63,6 +66,11 @@ holdout: object
 submission: object|null
 direction: string
 protocol_hash: string|null
+notes: array
+tags: array
+best_seen: object|null
+improvement_rule: object
+limits_effective: object
 ```
 
 ### GET /api/runs/<id>
@@ -97,6 +105,12 @@ counts: object
 protocol: object
 limits: object
 has_report: boolean
+notes: array
+tags: array
+best_seen: object|null
+improvement_rule: object
+limits_effective: object
+limits_view: object
 ```
 
 ### GET /api/runs/<id>/chart
@@ -179,6 +193,8 @@ runs: integer
 closed: boolean
 bundle_id: string|null
 chosen: boolean
+notes: array
+tags: array
 ```
 
 ### GET /api/runs/<id>/executions
@@ -403,6 +419,8 @@ bundle: object|null
 pipeline: object|null
 role_trace_count: integer
 direction: string
+notes: array
+tags: array
 ```
 
 ### GET /api/attempts/<id>/executions
@@ -436,6 +454,211 @@ text: string
 origin_cycle: string
 spawned_cycles: array
 ```
+
+## Live and cockpit endpoints (GET)
+
+### GET /api/events
+
+The event log of the run, polling fallback of the stream. Query: `after` (event id, default 0) and
+`limit` (default 200, at most 1000). Events come in id order; `last_id` is the id to ask next. Each event is
+`{"id", "at" (UTC), "type", "cycle", "data"}`; `data` is a small payload (role names, counts, tokens,
+durations, outcome codes, fold k of N, partial scores), never a prompt or a secret.
+
+```shape
+data: object
+events: array
+last_id: integer
+```
+
+### SSE /api/events/stream
+
+Server-sent events from the same log. Same origin only. It honours the `Last-Event-ID` header (or `after`),
+sends an `id:` per event, a heartbeat comment (`: heartbeat`) every 15 s and closes after at most 60 s, so
+the browser reconnects and resumes with no loss and no duplicate. It closes at once when the server stops. At
+most 8 streams are open at once: the next answers 429 with `Retry-After` and the page polls instead. A
+stream holds no registry connection.
+
+### GET /api/console
+
+The last bytes of the captured output of the orchestrator process (`tail`, bytes, default 8192, at most
+65536), with token-like text replaced by `[redacted]`.
+
+```shape
+data: object
+text: string
+bytes: integer
+```
+
+### GET /api/run
+
+The run controller state (`idle`, `running` with its stage, `waiting` with what for, `suspended` (quota or
+login), `finished`, `failed`, `paused`, `stopped`, `stopping`; `not responding` when the heartbeat is old), the
+limits of the cycle (`base`, `changes`, `effective`), the history and the settings.
+
+```shape
+data: object
+run: object
+limits: object|null
+history: array
+settings: object
+project_started: boolean
+```
+
+### GET /api/decisions/pending
+
+The question the cycle waits for (`plan`, `guidance` or `review`, with its address and what the page needs to
+show), every saved web decision with its status (`pending`, `applied`, `stale`), the conflicts with
+`lead.toml` (names and numbers only), the lead file summary and the notices of the run.
+
+```shape
+data: object
+question: object|null
+decisions: array
+conflicts: array
+lead_file: object|null
+notices: array
+```
+
+### GET /api/audit
+
+The audit log: every action of the DS (`who`, `at`, `what`, `why`, `payload`) merged chronologically with the
+relevant events of the run. Query: `limit`.
+
+```shape
+data: object
+entries: array
+```
+
+### GET /api/notes
+
+Notes and tags per run or attempt (the latest record wins; a deleted note is gone from the view).
+
+```shape
+data: object
+targets: array
+```
+
+### GET /api/environment
+
+The environment cards. The Claude card is `checking` until its background check ends. Query `refresh=1`
+starts a new check. Every card degrades to `unknown`.
+
+```shape
+data: object
+kaggle: object
+claude: object
+libraries: object
+openmp: object
+python: object
+disk: object
+checked_at: number
+```
+
+### GET /api/jobs/<id>
+
+A background job (`validate-config`, `preview`, `profile`): `status` is `running`, `done`, `failed` or `timeout`;
+`result` is the JSON the job wrote.
+
+```shape
+data: object
+id: string
+kind: string
+status: string
+started_at: string
+finished_at: string|null
+error: string|null
+result: object|null
+```
+
+### GET /api/config
+
+The current `config.toml` as parsed, whether the project is started, which keys are frozen and the allowed
+libraries (display only). There is no secret in it.
+
+```shape
+data: object
+exists: boolean
+config: object|null
+started: boolean
+frozen: array
+allowed_libraries: array
+```
+
+## Write endpoints (POST)
+
+Every one needs the CSRF token (header `X-CSRF-Token` or the form field `csrf_token`) and an `Origin` that
+matches the `Host`; otherwise 403 and nothing is written. The body is JSON. An action is first recorded in
+`cockpit/audit.jsonl` (who, when, what, why); if that fails the action is refused with 503. `request_id`
+makes a decision or a limit change idempotent: the same id again changes nothing. `confirm: true` is
+required where noted. Answers are `{"api_version": 1, "data": ..., "warnings": []}`.
+
+### POST /api/run/start
+
+Starts the orchestrator as a detached process (the project must not be started yet and `config.toml` must
+exist). 202 with `pid`; 409 if a run is active.
+
+### POST /api/run/resume
+
+Resumes a started project. 409 if a run is already active (a second run is never started).
+
+### POST /api/run/pause
+
+Asks the run to pause after the current call or candidate, at a safe checkpoint. 409 if nothing runs.
+
+### POST /api/run/stop
+
+Body `reason` (required) and `confirm: true`. SIGTERM to the process group, SIGKILL after the grace period.
+
+### POST /api/config/validate
+
+Body `{"config": {"competition": {...}, "limits": {...}, "protocol": {...}, "models": {...}}}`. Returns
+`{"ok", "errors": [{"key", "message"}], "resolved"}` from the strict validation of the orchestrator.
+
+### POST /api/config/save
+
+Same body. On `ok` the previous `config.toml` is kept in `cockpit/config-history/` and the new one is
+written atomically. Frozen settings of a started project are refused with the reason that a change means a
+new plan version or a new run.
+
+### POST /api/jobs/preview
+
+Starts the protocol preview as a background job; returns the job record (read `/api/jobs/<id>`).
+
+### POST /api/jobs/profile
+
+Starts the data profile (development part only) as a background job.
+
+### POST /api/decisions/plan
+
+Body `action` (`approve`, `revise` with `text`, or `own` with `plan` = {metric, validation,
+feature_engineering, models, baseline, tasks}, `reason` and `confirm: true`), `address` (the plan number
+asked). A stale address answers 409. The own plan is recorded as plan version n approved by the DS.
+
+### POST /api/decisions/guidance
+
+Body `action` (`guidance` with `text`, or `continue`) and `address` (the round number asked).
+
+### POST /api/decisions/review
+
+Body `confirm: true`. Accepts the final report.
+
+### POST /api/limits
+
+Body `values` (`rounds`, `candidates`, `stagnation`: integers of at least 1), `reason`, `confirm: true`. The
+change is appended to `cockpit/limit-changes.jsonl`; the orchestrator overlays it on the stored limits (never
+rewritten), also after a resume. A value below what is already done is accepted with a warning.
+
+### POST /api/notes
+
+Body `target` = `{"type": "run" | "attempt", "id"}`, `op` (`add`, `edit`, `delete`), `text`, `note_id`.
+
+### POST /api/tags
+
+Body `target` and `tags` (a list of at most 20 short texts; the latest list replaces the earlier one).
+
+### POST /api/settings
+
+Body `auto_resume` (boolean): resume the run by itself after a decision is saved.
 
 ## Registry file notes
 

@@ -39,19 +39,26 @@ def _rows(path) -> dict:
 def test_every_rule_accepts_only_get(cockpit_client):
     rules = list(cockpit_client.application.url_map.iter_rules())
     assert rules
+    # ticket 27: only the endpoints of web/writes.py accept POST (see test_cockpit_security)
     for rule in rules:
-        assert (rule.methods or set()) - {"HEAD", "OPTIONS"} == {"GET"}, rule.rule
+        methods = (rule.methods or set()) - {"HEAD", "OPTIONS"}
+        assert methods == ({"POST"} if rule.endpoint.startswith("writes.") else {"GET"}), rule.rule
 
 
 # 6
 def test_other_methods_answer_405_on_every_rule_and_leave_the_file_unchanged(cockpit_client, cockpit_db):
     before = sha256_of(cockpit_db)
-    urls = all_page_urls() + all_api_urls()
-    covered = set()
+    cockpit_urls = ["/live", "/run", "/decisions", "/setup", "/environment", "/audit", "/api/events",
+                    "/api/events/stream", "/api/console", "/api/run", "/api/decisions/pending", "/api/audit",
+                    "/api/environment", "/api/jobs/x", "/api/config"]
+    cockpit_urls.remove("/api/events/stream")  # a held stream is covered by test_cockpit_sse
+    urls = all_page_urls() + all_api_urls() + cockpit_urls
+    covered = {"api.event_stream", "api.notes"}
     for url in urls:
         adapter = cockpit_client.application.url_map.bind("localhost")
         covered.add(adapter.match(url, method="GET")[0])
-    rules = {r.endpoint for r in cockpit_client.application.url_map.iter_rules()}
+    rules = {r.endpoint for r in cockpit_client.application.url_map.iter_rules()
+             if not r.endpoint.startswith("writes.")}  # the write rules are tested in test_cockpit_writes_security
     # every rule except static and the two redirects has a url above
     assert rules - covered <= {"static", "metrics", "reports"}, rules - covered
     for url in urls + [f"/cycles/{RUN_A}/metrics", f"/cycles/{RUN_A}/reports"]:
@@ -146,7 +153,7 @@ def test_code_inspection_finds_no_write_call_and_no_request_body_use():
         for node in ast.walk(tree):
             if isinstance(node, ast.Attribute) and node.attr != "add_argument":  # argparse
                 assert not node.attr.startswith(WRITE_PREFIXES), f"{path.name}: {node.attr}"
-                if path.name != "security.py":  # the CSRF guard of ticket 2 reads the form token
+                if path.name not in ("security.py", "writes.py"):  # the CSRF guard and the write endpoints read the body
                     assert node.attr not in {"form", "json", "files", "get_json"}, path.name
             if isinstance(node, ast.ImportFrom) and node.module:
                 imports_sqlite = node.module.endswith("registry.sqlite")

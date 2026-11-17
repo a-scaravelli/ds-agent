@@ -51,13 +51,13 @@ def test_main_opens_the_registry_read_only_for_every_request(db_path):
     assert hashlib.sha256(db_path.read_bytes()).hexdigest() == before
 
 
-def test_missing_file_gives_exit_code_2_and_a_message(tmp_path, capsys):
+def test_missing_file_starts_the_setup_mode_and_creates_nothing(tmp_path, capsys):
+    # ticket 27: a missing registry is a project that is not started yet (the pages show the setup)
     missing = tmp_path / "nope.db"
     spy = RunSpy()
-    assert main(["--db", str(missing)], run=spy) == 2
-    err = capsys.readouterr().err
-    assert "does not exist" in err and "Traceback" not in err
-    assert not missing.exists() and not spy.calls
+    assert main(["--db", str(missing)], run=spy) == 0
+    assert "Traceback" not in capsys.readouterr().err
+    assert not missing.exists() and len(spy.calls) == 1
 
 
 def test_invalid_file_gives_exit_code_2(tmp_path, capsys):
@@ -67,10 +67,10 @@ def test_invalid_file_gives_exit_code_2(tmp_path, capsys):
     assert "Traceback" not in capsys.readouterr().err
 
 
-def test_db_option_is_required():
-    with pytest.raises(SystemExit) as exc:
-        main([], run=RunSpy())
-    assert exc.value.code == 2
+def test_db_option_is_optional_and_defaults_to_the_project_registry(tmp_path, monkeypatch):
+    # ticket 27: --db defaults to <project>/registry.db
+    spy = RunSpy()
+    assert main(["--project", str(tmp_path)], run=spy) == 0 and len(spy.calls) == 1
 
 
 # 25

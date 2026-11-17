@@ -109,6 +109,7 @@ class SSE:
 
     def close(self):
         try:
+            self.response.close()  # the response holds its own file object on the socket
             self.conn.close()
         except OSError:
             pass
@@ -136,6 +137,7 @@ class LiveProject:
         return self.dir / "registry.db"
 
     def _factory(self):
+        self.registry_opens = getattr(self, "registry_opens", 0) + 1
         path = self.registry_path()
         return SqliteRegistry(path, read_only=True) if path.exists() else NoRegistry()
 
@@ -300,3 +302,30 @@ def live_factory(tmp_path):
     yield make
     for project in made:
         project.cleanup()
+
+
+# -- in-process runs of the real orchestrator with the World fakes (no controller) ----------------
+
+def drive_supervised(world, to="STOPPED", extra=()):
+    """start -> approve -> continue after each round -> accept, every command with ``--supervised``."""
+    from orchestrator_helpers import GUIDE_CONTINUE, PLAN_APPROVE, REVIEW_ACCEPT
+
+    flag = ("--supervised", *extra)
+    assert world.run("start", *flag)[0] == 10
+    world.lead(PLAN_APPROVE)
+    assert world.run("resume", *flag)[0] == 10
+    world.lead(PLAN_APPROVE + GUIDE_CONTINUE.format(n=1))
+    assert world.run("resume", *flag)[0] == 10
+    world.lead(PLAN_APPROVE + GUIDE_CONTINUE.format(n=2))
+    assert world.run("resume", *flag)[0] == 10
+    if to == "AWAITING_REVIEW":
+        return
+    world.lead(PLAN_APPROVE + GUIDE_CONTINUE.format(n=2) + REVIEW_ACCEPT)
+    code, text = world.run("resume", *flag)
+    assert code == 0 and world.state() == "STOPPED", text
+
+
+def read_events(project_dir):
+    from kaggle_agent.orchestrator.cockpit import read_jsonl
+
+    return read_jsonl(Path(project_dir) / "cockpit" / "events.jsonl")[0]

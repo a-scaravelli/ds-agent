@@ -22,7 +22,8 @@
   if (button) {
     button.addEventListener("click", function () {
       if (!window.Notification) { describeState(); return; }
-      Notification.requestPermission().then(function (permission) {
+      var asking = Notification.requestPermission();
+      asking.then(function (permission) {
         localStorage.setItem("notify", permission === "granted" ? "on" : "off");
         describeState();
       });

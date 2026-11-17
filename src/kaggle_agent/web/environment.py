@@ -17,7 +17,7 @@ import time
 from importlib import metadata
 from pathlib import Path
 
-LIBRARIES = ("numpy", "pandas", "scikit-learn", "xgboost", "lightgbm", "catboost", "flask")
+LIBRARIES = ("numpy", "pandas", "flask", "xgboost", "lightgbm", "catboost", "scikit-learn")  # display list, not the allowed one
 CACHE_SECONDS = 30.0
 
 KAGGLE_STEPS = (
