@@ -76,6 +76,8 @@ class CycleMachine:
         try:
             self._prepare()
             while True:
+                # ticket 27: limits the DS extended while the cycle runs reach the pipeline and the stop rules
+                self.limits = CycleLimits.resolve(self.registry.get_cycle(self.ctx.cycle_id), self.ctx.limits)
                 state = self.registry.get_cycle(self.ctx.cycle_id).state
                 new = self._handler(state)()
                 if new is None:

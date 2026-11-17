@@ -16,7 +16,9 @@ TESTS = ROOT / "tests"
 # content hashes of the packages this ticket must not touch (no git: the bytes themselves are pinned)
 PINNED = {
     "evaluation": "c267079fdf0cd9fefa3501b7c4552e91ea72893df06e5641eedec112a6cb90ce",
-    "loop": "c5d1226655690821978aa0b63dd073e63ca932082d3dea2daf91ee4f5f6a77f1",
+    # ticket 27: updated deliberately for ONE line in loop/machine.py (CycleMachine.run re-resolves the
+    # limits every turn so a limit extension reaches a running cycle); nothing else in loop/ changed
+    "loop": "83835939181e704198356b794c2e9c4e2254ce583b12ef87ae381bc9c6ef851d",
     "pipeline": "612f737d5af5dd10e3ddd0c4071928abc4d2ebc77e5a9bc3b876ff941ee9543c",
     "writer": "2a40997bd9258bccd7d41da8ca0091ab39a404978867e9e021cf3fd5281286e4",
     "llm": "acbe904742217e7fc6062554462a0f9fb1b43a2a33a92d1a7adf9b741c25464a",
@@ -110,11 +112,13 @@ def test_the_lead_file_knows_only_the_plan_guidance_and_review_tables():
 def test_exit_codes_are_distinct_and_documented():
     values = [getattr(codes, name) for name in ("FINISHED", "ERROR", "USAGE", "WAITING", "SUSPENDED",
                                                 "LEAD_INVALID", "CRASHED", "NOT_ACCEPTED", "INVALID_FILE",
-                                                "DAILY_LIMIT", "SCORE_PENDING", "MARKER")]
+                                                "DAILY_LIMIT", "SCORE_PENDING", "MARKER", "PAUSED",
+                                                "INTERRUPTED")]
     assert len(set(values)) == len(values) == len(codes.ALL)
     assert [codes.NOT_ACCEPTED, codes.INVALID_FILE, codes.DAILY_LIMIT, codes.SCORE_PENDING, codes.MARKER] == [
         20, 21, 22, 23, 24]
     assert (codes.WAITING, codes.SUSPENDED, codes.LEAD_INVALID, codes.CRASHED) == (10, 11, 12, 13)
+    assert (codes.PAUSED, codes.INTERRUPTED) == (14, 15)
 
 
 def test_the_tests_of_this_ticket_use_no_hard_coded_tmp_or_proc():
