@@ -271,7 +271,7 @@ class LiveProject:
     def cleanup(self):
         try:
             info = self.controller._run_info()
-            if info and self.controller.is_alive(info["pid"]):
+            if info and info["pgid"] != os.getpgid(0) and self.controller.is_alive(info["pid"]):  # never our own group
                 try:
                     os.killpg(info["pgid"], signal.SIGKILL)
                 except OSError:
@@ -295,7 +295,7 @@ def live_factory(tmp_path):
     made = []
 
     def make(**kwargs):
-        project = LiveProject(tmp_path, **kwargs)
+        project = LiveProject(Path(tmp_path) / f"project{len(made)}", **kwargs)  # one folder per project
         made.append(project)
         return project
 
@@ -329,3 +329,40 @@ def read_events(project_dir):
     from kaggle_agent.orchestrator.cockpit import read_jsonl
 
     return read_jsonl(Path(project_dir) / "cockpit" / "events.jsonl")[0]
+
+
+# -- shared steps of the controller, decision and flow tests ----------------------------------------
+
+def registry_summary(path):
+    """What the registry holds, without ids and times: the state, attempts, rounds, guidance and calls."""
+    registry = SqliteRegistry(Path(path), read_only=True)
+    try:
+        cycle = registry.list_cycles()[0]
+        return {
+            "state": cycle.state,
+            "attempts": [(a.iteration, a.phase, a.outcome, a.failure_kind)
+                         for a in registry.list_attempts(cycle.id)],
+            "rounds": len(registry.list_rounds_with_candidates(cycle.id)),
+            "guidance": [g.text for g in registry.list_guidance(cycle.id)],
+            "calls": sorted(str(c.role) for c in registry.list_llm_calls(cycle.id)),
+        }
+    finally:
+        registry.close()
+
+
+def wait_for_stage(project, after_id=0, timeout=TIMEOUT):
+    """Wait until the orchestrator is inside a stage (a stage_start newer than ``after_id``)."""
+    return project.wait_for(
+        lambda: next((e for e in project.events(after_id) if e["type"] == "stage_start"), None), timeout,
+        "a stage to start")
+
+
+def finish_cycle(project, first_round=1, rounds=2):
+    """From the question of ``first_round`` to the end: continue after each round, accept the review."""
+    for n in range(first_round, rounds + 1):
+        project.ok("/api/decisions/guidance", {"action": "continue", "address": n})
+        project.ok("/api/run/resume")
+        project.wait_exit(10)
+    project.ok("/api/decisions/review", {"confirm": True})
+    project.ok("/api/run/resume")
+    project.wait_exit(0)

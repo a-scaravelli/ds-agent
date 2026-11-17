@@ -38,10 +38,12 @@ from kaggle_agent.sandbox import SubprocessSandbox  # noqa: E402
 
 
 def slow_model(seconds: float, pid_file: str) -> str:
+    """The first ``fit`` of the first run records its pid and sleeps; later runs (a resume) are not slow."""
     return MAJORITY_MODEL.replace(
         "def fit(train):\n",
-        f"def fit(train):\n    import time\n    open({pid_file!r}, 'w').write(str(os.getpid()))\n"
-        f"    time.sleep({seconds})\n")
+        f"def fit(train):\n    import time\n    if not os.path.exists({pid_file!r}):\n"
+        f"        open({pid_file!r}, 'w').write(str(os.getpid()))\n"
+        f"        time.sleep({seconds})\n")
 
 
 class ScenarioClaude(RoleAwareClaude):
