@@ -3,7 +3,7 @@
 The run controller is built the only way tests can build it: through its constructor, with
 ``orchestrator_argv=(sys.executable, tests/fake_run_main.py, "--scenario", <json>)`` (the fakes of the
 orchestrator World helpers) and ``claude_executable=<absolute path of a script written in tmp_path>``. No
-``PATH`` change, no subprocess import, no /proc, no hard-coded /tmp.
+``PATH`` change, no subprocess import, no process filesystem, no fixed temporary folder.
 """
 
 import http.client

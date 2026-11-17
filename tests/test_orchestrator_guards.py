@@ -122,7 +122,11 @@ def test_exit_codes_are_distinct_and_documented():
 
 
 def test_the_tests_of_this_ticket_use_no_hard_coded_tmp_or_proc():
-    for path in TESTS.glob("*orchestrator*.py"):
+    # ticket 27: also the cockpit tests and their helpers (the existing ticket 26 files included)
+    paths = set(TESTS.glob("*orchestrator*.py")) | set(TESTS.glob("test_cockpit*.py")) | {
+        TESTS / "cockpit_live_helpers.py", TESTS / "cockpit_helpers.py", TESTS / "fake_run_main.py"}
+    assert len(paths) > 10
+    for path in sorted(paths):
         if path.name == Path(__file__).name:
             continue
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
@@ -130,18 +134,27 @@ def test_the_tests_of_this_ticket_use_no_hard_coded_tmp_or_proc():
                 assert "/proc" not in node.value and not node.value.startswith("/tmp"), (path.name, node.lineno)
 
 
-# 39
+# 39, 51
 def test_only_the_manual_test_names_the_manual_variable():
-    named = []
-    for path in sorted(TESTS.glob("*orchestrator*.py")):
-        if path.name in {Path(__file__).name, "test_orchestrator_docs.py"}:
-            continue  # these two only name the variable to check the others
+    named, cockpit_named, cockpit_uses_real = [], [], []
+    for path in sorted(TESTS.glob("*.py")):
+        if path.name in {Path(__file__).name, "test_orchestrator_docs.py", "test_cockpit_docs.py"}:
+            continue  # these only name the variables to check the others
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        if any(isinstance(n, ast.Constant) and n.value == "KAGGLE_AGENT_RUN_REAL" for n in ast.walk(tree)):
+        values = {n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+        if "KAGGLE_AGENT_RUN_REAL" in values and "orchestrator" in path.name:
             named.append(path.name)
+        if "KAGGLE_AGENT_RUN_REAL" in values and path.name.startswith("test_cockpit"):
+            cockpit_uses_real.append(path.name)
+        if "KAGGLE_AGENT_RUN_COCKPIT_DIR" in values:
+            cockpit_named.append(path.name)
     assert named == ["test_orchestrator_manual_real.py"]
+    assert cockpit_uses_real == []  # no cockpit test names the real-run variable
+    assert cockpit_named == ["test_cockpit_manual.py"]  # ticket 27: the one cockpit manual variable
     manual = (TESTS / "test_orchestrator_manual_real.py").read_text(encoding="utf-8")
     assert manual.count("pytest.mark.skipif") == 2 and "KAGGLE_AGENT_RUN_REAL=1" in manual
+    assert (TESTS / "MANUAL_COCKPIT_RUN.md").exists()
+    assert "skipif" in (TESTS / "test_cockpit_manual.py").read_text(encoding="utf-8")
 
 
 def test_the_test_map_is_valid_json():

@@ -9,7 +9,7 @@ Scenario keys (all optional): ``block_file`` (every Claude call waits while this
 ``delay`` (seconds added to each Claude call), ``ignore_sigterm`` (SIGTERM never stops the process: the
 SIGKILL path), ``real_sandbox`` (bundles run in real child processes), ``slow_bundle`` (seconds the bundle's
 ``fit`` sleeps, with ``bundle_pid_file`` receiving the child's pid), ``heartbeat`` (interval seconds),
-``errors`` (call number -> "quota" | "login"), ``slug``.
+``errors`` (call number -> "quota" | "login"), ``slug``, ``train`` (the text of train.csv), ``evaluation`` (the evaluation page text).
 """
 
 import json
@@ -65,7 +65,7 @@ class ScenarioClaude(RoleAwareClaude):
 
 def build(scenario: dict) -> Dependencies:
     clock = TickClock()
-    kaggle = FakeKaggleClient({scenario.get("slug", SLUG): competition()}, clock=clock.now, sleep=clock.sleep)
+    kaggle = FakeKaggleClient({scenario.get("slug", SLUG): competition(train=scenario.get("train"), **({"evaluation": scenario["evaluation"]} if "evaluation" in scenario else {}))}, clock=clock.now, sleep=clock.sleep)
     errors = {}
     for number, kind in (scenario.get("errors") or {}).items():
         errors[int(number)] = AuthenticationError() if kind == "login" else QuotaExhaustedError("usage limit reached")
