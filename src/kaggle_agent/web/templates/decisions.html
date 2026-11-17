@@ -8,6 +8,8 @@
 {% if conflicts %}<div class="warnings" id="conflict-banner" role="alert">{% for c in conflicts %}<p>{{ c }}</p>{% endfor %}</div>{% endif %}
 {% if lead and lead.invalid %}<div class="warnings" role="alert">{{ lead.invalid }}. The program will report it as an invalid lead file when it needs it.</div>{% endif %}
 <p id="decision-message" class="note" role="status"></p>
+{% if resume_offer %}<section class="panel" id="resume-offer"><p>Your decision is saved. The run applies it when it resumes.</p>
+<button type="button" data-post="{{ url_for('writes.run_resume') }}" data-after="reload">Resume the run</button></section>{% endif %}
 
 {% if not question %}
 {{ empty("Nothing is waiting for you", "When the run needs the plan approved, guidance after a round or the review of the report, it appears here.") }}

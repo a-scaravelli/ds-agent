@@ -15,6 +15,7 @@ import time
 
 from flask import Response, abort, current_app, jsonify, request
 from kaggle_agent.proposals import ALLOWED_LIBRARIES, ValidationError
+from kaggle_agent.registry import RegistryError
 
 from . import audit, data, decisions, store
 from .controller import RunController
@@ -151,9 +152,12 @@ def register(get, source) -> None:
     def run_state():
         project, controller = _project(), current_app.config.get("CONTROLLER")
         state = controller.state() if controller is not None else {"state": "idle", "label": "idle"}
-        src = source()
         limits = None
-        if project is not None:
+        try:
+            src = source()
+        except RegistryError:  # the orchestrator is still creating the registry file: the state is still shown
+            src = None
+        if project is not None and src is not None:
             cycle_id = decisions.cycle_id_of(src)
             if cycle_id:
                 try:

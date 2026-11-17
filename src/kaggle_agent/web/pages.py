@@ -165,8 +165,12 @@ def register(app) -> None:
                 limits = None
             if question and question["kind"] == "review":
                 report = data.final_report(src, cycle_id)
+        statuses = decisions.decision_statuses(project()) if project() else []
+        ctl = controller()
+        # a saved decision is applied when the run resumes: offer the button unless a run is going
+        offer = any(s["status"] == "pending" for s in statuses) and ctl is not None and not ctl.active()
         return _page("decisions.html", src, question=question, limits=limits, cycle_id=cycle_id,
-                     statuses=decisions.decision_statuses(project()) if project() else [],
+                     statuses=statuses, resume_offer=offer,
                      conflicts=decisions.conflicts(project(), question) if project() else [],
                      lead=store.lead_toml_summary(project()) if project() else None,
                      notices=store.read_notices(project()) if project() else [], report=report)
