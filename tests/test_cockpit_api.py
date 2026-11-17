@@ -65,6 +65,11 @@ def concrete(endpoint: str) -> str:
             .replace("<n>", "3"))
 
 
+# ticket 27: the live endpoints are documented in docs/api.md and exercised by the live tests; the shape test
+# below covers the read endpoints of ticket 26 and the new GET endpoints that answer without a running project
+LIVE_ONLY = {"/api/jobs/<id>"}  # needs a job id; checked by the setup tests
+
+
 def endpoint_url(endpoint: str) -> str:
     if endpoint.startswith("/api/attempts/"):
         return endpoint.replace("<id>", "a1")
@@ -94,15 +99,19 @@ def test_every_endpoint_has_the_documented_shape(cockpit_client):
     shapes = documented_shapes()
     rules = {
         re.sub(r"<(?:path:|int:)?(\w+)>", lambda m: "<id>" if m.group(1) in
-               ("run_id", "attempt_id") else f"<{m.group(1)}>", r.rule)
-        for r in cockpit_client.application.url_map.iter_rules() if r.rule.startswith("/api/")
+               ("run_id", "attempt_id", "job_id") else f"<{m.group(1)}>", r.rule)
+        for r in cockpit_client.application.url_map.iter_rules()
+        if r.rule.startswith("/api/") and "GET" in (r.methods or ())
     }
-    assert rules == set(shapes), rules ^ set(shapes)
+    # the server-sent stream is not JSON: it is documented as "SSE", not "GET"
+    assert rules - {"/api/events/stream"} == set(shapes), (rules - {"/api/events/stream"}) ^ set(shapes)
     nonempty = 0
     for endpoint in shapes:
+        if endpoint in LIVE_ONLY:
+            continue
         body = api(cockpit_client, endpoint_url(endpoint))
         nonempty += bool(check_shape(endpoint, body))
-    assert nonempty == len(shapes)  # the fixture has data for every endpoint
+    assert nonempty == len(shapes) - len(LIVE_ONLY)  # the fixture has data for every endpoint
     # the other run (running, nothing read) and the attempt without scores have the same shapes
     check_shape("/api/runs/<id>", api(cockpit_client, f"/api/runs/{RUN_B}"))
     check_shape("/api/runs/<id>/holdout", api(cockpit_client, f"/api/runs/{RUN_B}/holdout"))

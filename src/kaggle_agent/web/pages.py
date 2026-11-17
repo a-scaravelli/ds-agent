@@ -2,7 +2,8 @@
 
 from flask import current_app, redirect, render_template, request, url_for
 
-from . import audit, data, decisions, live, store
+from . import data
+from . import audit, decisions, live, store
 from kaggle_agent.proposals import ALLOWED_LIBRARIES
 
 

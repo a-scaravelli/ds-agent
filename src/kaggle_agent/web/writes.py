@@ -213,7 +213,7 @@ def config_save():
     candidate = path.with_name("config.candidate.toml")
     if store.exists(path):
         store.copy_file(path, store.history_path(project, store.utc_text()))
-    store.write_atomic(path, candidate.read_text(encoding="utf-8"))
+    store.copy_file(candidate, path)
     store.remove(candidate)
     return _ok({**outcome, "saved": True})
 

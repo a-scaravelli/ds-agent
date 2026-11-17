@@ -9,9 +9,9 @@ never read. ``preview`` freezes nothing: it only computes what ``start`` would f
 """
 
 import json
+import math
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 from kaggle_agent.evaluation import EvaluationEngine, FrozenSplit, Protocol
@@ -96,7 +96,7 @@ def preview(config_path: str, deps: Dependencies) -> dict:
 
 
 def _number(value) -> float | None:
-    return None if value is None or not np.isfinite(value) else round(float(value), 6)
+    return None if value is None or not math.isfinite(value) else round(float(value), 6)
 
 
 def profile(config_path: str, deps: Dependencies) -> dict:

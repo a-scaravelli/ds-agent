@@ -26,10 +26,15 @@ from .cockpit import CockpitFiles, PauseRequested
 from .codes import CommandResult
 from .config import Config
 from .errors import ConfigError, LeadFileError, OrchestratorError, ProjectError
-from .events import NULL, Emitter
+from .events import NULL, Emitter, EventLog
 from .lead_file import Ledger, describe_pending
 from .project import EXAMPLE_FILE, LEDGER_FILE, NOTICES_FILE, read_project, write_atomic
 from .submission import marker_path, read_marker
+
+def make_emitter(cockpit: CockpitFiles) -> Emitter:
+    """The emitter of a supervised run (only ``service``, ``build`` and ``wrappers`` touch the event log)."""
+    return Emitter(EventLog(cockpit.events))
+
 
 LAST_RUN = "last-run.json"
 EXAMPLE_TEXT = """\

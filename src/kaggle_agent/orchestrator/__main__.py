@@ -26,12 +26,11 @@ import sys
 
 from . import codes, jobs
 from .cockpit import CockpitFiles, Heartbeat, Interrupted, RunLock, utc_text
-from .events import Emitter, EventLog
 from .build import Dependencies, real_dependencies
 from .codes import CommandResult
 from .config import load_config
 from .errors import ConfigError, OrchestratorError
-from .service import resume, start, status
+from .service import make_emitter, resume, start, status
 from .submission import run_submit
 
 
@@ -78,7 +77,7 @@ def _run_locked(args, config, deps) -> CommandResult:
         if args.supervised:
             heartbeat = Heartbeat(files)
             heartbeat.start()
-            emitter = Emitter(EventLog(files.events))
+            emitter = make_emitter(files)
             previous = signal.signal(signal.SIGTERM, _raise_interrupted)
         command = start if args.command == "start" else resume
         try:

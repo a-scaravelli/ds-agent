@@ -18,7 +18,7 @@ is a CLOSED ALLOWLIST, checked on this source by a test:
 Processes: the child gets ``start_new_session=True`` (its own session and process group, so a restart of
 the web server does not kill the run), stdout and stderr go to ``cockpit/console.log``. Liveness is
 ``os.kill(pid, 0)`` plus the ``ps -o lstart=`` start-time string recorded in ``run.json`` (so a reused pid
-is detected and never signalled); nothing reads ``/proc`` (macOS and Linux behave the same). The real
+is detected and never signalled); nothing reads the proc filesystem (macOS and Linux behave the same). The real
 guarantee of "one run at a time" is the ``flock`` the orchestrator holds on ``run.lock``: a crash needs no
 cleanup.
 """

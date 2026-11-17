@@ -49,7 +49,7 @@ def test_the_shell_has_navigation_status_bar_ticker_skip_link_and_landmarks(cock
         assert 'class="skip-link" href="#main"' in html, url
         assert '<nav class="side-nav" aria-label="Main">' in html and "<main " in html
         assert '<header class="status-bar"' in html
-        assert re.search(r'<div id="live-ticker"[^>]*></div>', html), url  # empty, for ticket 2
+        assert re.search(r'<div id="live-ticker"[^>]*data-stream-url="/api/events/stream"[^>]*>[^<]*</div>', html), url  # live since ticket 27
         assert f'href="/"' in html and "Runs" in html
     html = page(cockpit_client, f"/cycles/{RUN_A}")
     for label, path in (("Overview", f"/cycles/{RUN_A}"), ("Rounds", f"/cycles/{RUN_A}/rounds"),
@@ -73,7 +73,7 @@ def test_empty_and_error_states(tmp_path):
     empty = tmp_path.resolve() / "empty.db"
     SqliteRegistry(empty).close()
     client = client_for(empty)
-    assert "No runs in the registry" in page(client, "/")
+    assert "No project yet" in page(client, "/")  # ticket 27: the empty list points to Setup
     assert "No suggestions" in page(client, "/suggestions")
     assert page(client, "/cycles/nope", 404).count('class="error-state"') == 1
     # a cycle without rounds or attempts
