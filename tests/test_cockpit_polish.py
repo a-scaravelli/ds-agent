@@ -31,7 +31,7 @@ def test_the_plan_column_has_a_minimum_width_and_normal_word_breaking_at_narrow_
     narrow = re.search(r"@media \(max-width: (\d+)px\)\s*\{[^@]*?\.plan-col", css.split("/* the Plan column")[1])
     assert narrow and int(narrow.group(1)) >= 800  # covers about 800 px
     html = page(client_for(cockpit_db, cockpit_db.parent), "/")
-    assert 'class="plan-col"' in html and 'class="plan-cell' in html
+    assert 'class="plan-col"' in html and 'plan-cell"' in html
 
 
 # 46
