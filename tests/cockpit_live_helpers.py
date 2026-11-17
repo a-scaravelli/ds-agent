@@ -343,6 +343,7 @@ def registry_summary(path):
             "attempts": [(a.iteration, a.phase, a.outcome, a.failure_kind)
                          for a in registry.list_attempts(cycle.id)],
             "rounds": len(registry.list_rounds_with_candidates(cycle.id)),
+            "candidates": [len(r.candidates) for r in registry.list_rounds_with_candidates(cycle.id)],
             "guidance": [g.text for g in registry.list_guidance(cycle.id)],
             "calls": sorted(str(c.role) for c in registry.list_llm_calls(cycle.id)),
         }
