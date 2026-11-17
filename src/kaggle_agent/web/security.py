@@ -2,9 +2,8 @@
 
 - ``install`` registers the Host check (DNS rebinding) and the security headers on every
   response, static files included.
-- ``check_write_request`` and ``write_guard`` are the CSRF and Origin guard that the write
-  endpoints of ticket 2 will use. They are NOT applied to any route here: the app has GET
-  routes only.
+- ``check_write_request`` and ``write_guard`` are the CSRF and Origin guard of the write endpoints
+  (``writes.WRITE_ENDPOINTS``, all POST). Every other route is GET only.
 """
 
 import functools
@@ -81,11 +80,12 @@ def check_write_request(req=None) -> None:
 
 
 def write_guard(view):
-    """Decorator for a write endpoint (ticket 2): runs ``check_write_request`` first."""
+    """Decorator for a write endpoint: runs ``check_write_request`` first (marked for the tests)."""
 
     @functools.wraps(view)
     def wrapper(*args, **kwargs):
         check_write_request()
         return view(*args, **kwargs)
 
+    wrapper.write_guarded = True
     return wrapper

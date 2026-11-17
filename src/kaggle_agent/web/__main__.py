@@ -1,6 +1,8 @@
-"""Start command: ``python -m kaggle_agent.web --db PATH [--project DIR] [--host HOST] [--port PORT]``.
+"""Start command: ``python -m kaggle_agent.web [--db PATH] [--project DIR] [--config FILE] [--host H] [--port P]``.
 
-Opens the registry read-only and serves the cockpit. This is the only module of the web package
+Opens the registry read-only (``--db`` defaults to ``<project>/registry.db``; a missing registry is the
+setup mode of a project that is not started yet) and serves the cockpit. It builds the ``RunController``
+with its default commands: there is no option for the commands it spawns. This is the only module of the web package
 that imports the SQLite registry.
 
 Decision reversal of ticket 24: that ticket made the server single-threaded (``threaded=False``)
@@ -25,7 +27,10 @@ from pathlib import Path
 from kaggle_agent.registry import RegistryError
 from kaggle_agent.registry.sqlite import SqliteRegistry
 
+from kaggle_agent.registry import NotFoundError
+
 from .app import create_app
+from .controller import RunController
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8000
@@ -37,14 +42,33 @@ def _parser() -> argparse.ArgumentParser:
         prog="python -m kaggle_agent.web",
         description="Read-only cockpit over the experiment registry (local only).",
     )
-    parser.add_argument("--db", required=True, help="path of the SQLite registry file")
+    parser.add_argument("--db", help="path of the SQLite registry file (default: <project>/registry.db)")
     parser.add_argument(
         "--project",
         help="project folder, only to read project.json (default: the folder of the registry)",
     )
+    parser.add_argument("--config", help="the configuration file (default: <project>/config.toml)")
     parser.add_argument("--host", default=DEFAULT_HOST, help="address to bind (default 127.0.0.1)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="port (default 8000)")
     return parser
+
+
+class NoRegistry:
+    """Stands in for the registry while the project has none yet (setup mode): no cycles, nothing to find."""
+
+    def list_cycles(self):
+        return []
+
+    def list_suggestions(self):
+        return []
+
+    def close(self) -> None:
+        pass
+
+    def __getattr__(self, name):
+        def missing(*args, **kwargs):
+            raise NotFoundError("there is no registry yet: the project has not been started")
+        return missing
 
 
 class BindError(Exception):
@@ -54,14 +78,30 @@ class BindError(Exception):
 def make_web_server(app, host: str, port: int, threaded: bool = True):
     """A werkzeug server for ``app``; port 0 picks a free port (read ``server_port``).
 
-    Threaded by default: every request runs in its own thread with its own registry connection.
+    Threaded by default: every request runs in its own thread with its own registry connection. The
+    request threads are daemons, and ``shutdown`` / ``server_close`` first set the app's shutdown event so
+    that held server-sent streams end at once instead of blocking the stop.
     """
     from werkzeug.serving import make_server
 
     try:
-        return make_server(host, port, app, threaded=threaded)
+        server = make_server(host, port, app, threaded=threaded)
     except SystemExit:  # werkzeug prints the OS error and exits when the bind fails
         raise BindError(f"cannot listen on {host}:{port}") from None
+    event = app.config.get("SHUTDOWN")
+    if event is not None:
+        real_shutdown, real_close = server.shutdown, server.server_close
+
+        def shutdown():
+            event.set()
+            real_shutdown()
+
+        def server_close():
+            event.set()
+            real_close()
+
+        server.shutdown, server.server_close = shutdown, server_close
+    return server
 
 
 def journal_mode_of(db_path) -> str | None:
@@ -84,27 +124,35 @@ def main(argv: list[str] | None = None, run=None) -> int:
     Returns 2 with a message on stderr when the registry cannot be opened.
     """
     args = _parser().parse_args(argv)
-    db_path = Path(args.db)
-    try:
-        SqliteRegistry(db_path, read_only=True).close()  # the same check a request makes
-    except RegistryError as exc:
-        print(
-            f"error: {exc}\nThe registry file must exist and have been created by this version "
-            "(open it once in write mode to migrate an older file).",
-            file=sys.stderr,
-        )
-        return 2
+    project = Path(args.project) if args.project else (
+        Path(args.db).resolve().parent if args.db else Path.cwd())
+    db_path = Path(args.db) if args.db else project / "registry.db"
+    setup_mode = not db_path.exists()  # no project yet: the pages show the setup; the run creates the registry
+    if not setup_mode:
+        try:
+            SqliteRegistry(db_path, read_only=True).close()  # the same check a request makes
+        except RegistryError as exc:
+            print(
+                f"error: {exc}\nThe registry file must exist and have been created by this version "
+                "(open it once in write mode to migrate an older file).",
+                file=sys.stderr,
+            )
+            return 2
     if args.host not in LOOPBACK:
         print(
             f"warning: {args.host} is not a loopback address; the page has no login. "
             "Only localhost and 127.0.0.1 Host headers are accepted anyway.",
             file=sys.stderr,
         )
-    project = Path(args.project) if args.project else db_path.resolve().parent
+
+    def open_registry():
+        return SqliteRegistry(db_path, read_only=True) if db_path.exists() else NoRegistry()
+
     app = create_app(
-        lambda: SqliteRegistry(db_path, read_only=True),
+        open_registry,
         project_dir=project,
         journal_mode=lambda: journal_mode_of(db_path),
+        controller=RunController(project, config_path=args.config),
     )
     if run is None:
         def run(app, host, port, debug):
