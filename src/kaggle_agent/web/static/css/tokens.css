@@ -1,6 +1,6 @@
 /* Design tokens of the cockpit: type scale, spacing, radii, shadows, colours, status colours.
    The page is LIGHT (white, light blue, slate text) for every user, also when the operating system
-   or the browser is in dark mode: there is no prefers-color-scheme rule. The dark variant (deep
+   or the browser is in dark mode: there is no media rule on the system colour preference. The dark variant (deep
    slate blue, blue accent, never pure black) applies only when the user opts in with the toggle of
    the status bar (js/theme.js sets data-theme="dark" on <html>). Colours are plain 6-digit hex
    values so the tests can read them and check the contrast of each pair (WCAG AA: 4.5:1 for text,
