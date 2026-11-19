@@ -22,6 +22,7 @@ PIPELINE = SRC / "pipeline"
 WRITER = SRC / "writer"
 ORCHESTRATOR = SRC / "orchestrator"
 SANDBOX_RUNNER = SANDBOX / "subprocess_sandbox.py"
+WEB_CONTROLLER = WEB / "controller.py"
 TESTS = Path(__file__).resolve().parent
 REAL_ADAPTER = KAGGLE / "real.py"
 KAGGLE_LIBRARY = {"kaggle"}
@@ -215,8 +216,10 @@ def test_only_llm_real_imports_subprocess_and_llm_uses_no_network_or_third_party
             assert top in stdlib | {"kaggle_agent", "<relative>"}, f"{path}: {full}"
             if top == "subprocess":
                 assert path == LLM_REAL, f"{path}: {full}"
+    # ticket 27: the rule is "llm/real.py, the sandbox runner and web/controller.py" (the controller is held to a
+    # closed command allowlist by test_the_web_controller_spawns_only_the_closed_list_of_commands)
     for path in _modules():
-        if LLM not in path.parents and path != SANDBOX_RUNNER:
+        if LLM not in path.parents and path not in (SANDBOX_RUNNER, WEB_CONTROLLER):
             assert "subprocess" not in {top for top, _ in _imports(path)}, path
     for path in sorted(TESTS.glob("*.py")):
         if path.name != Path(__file__).name:
@@ -342,7 +345,8 @@ def test_only_the_web_start_module_imports_the_sqlite_registry():
 # string about the workspace or the bundles folder. Written on the code, not on the words.
 
 FILE_CALLS = {"open", "read_text", "read_bytes", "iterdir", "glob", "rglob", "listdir", "scandir",
-              "walk", "write_text", "write_bytes", "unlink"}
+              "walk", "write_text", "write_bytes", "unlink", "mkdir", "fdopen", "mkstemp", "rmtree", "touch",
+              "rename", "pread", "write", "fsync"}
 PATH_CALLS = {"open", "Path", "PurePath", "PosixPath", "joinpath", "with_name", "relative_to"}
 
 
@@ -360,11 +364,13 @@ def _root_name(node: ast.AST) -> str | None:
     return node.id if isinstance(node, ast.Name) else None
 
 
-def _mentions_bundle_folder(node: ast.AST) -> bool:
+def _mentions_bundle_folder(node: ast.AST, allow_registry: bool = False) -> bool:
     for sub in ast.walk(node):
         if isinstance(sub, ast.Constant) and isinstance(sub.value, str):
             text = sub.value.lower()
             if "workspace" in text or "bundles/" in text or "/bundles" in text or text == "bundles":
+                return True
+            if "registry.db" in text and not allow_registry:  # ticket 27: the registry is never a web path
                 return True
     return False
 
@@ -383,8 +389,9 @@ def _enclosing_functions(tree: ast.AST):
     return owner
 
 
-def test_web_opens_files_only_in_read_project_file():
-    assert (WEB / "data.py").is_file()
+def test_web_opens_files_only_in_store_and_read_project_file():
+    """Ticket 27: files are opened, written or unlinked only inside store.py (and data.read_project_file)."""
+    assert (WEB / "data.py").is_file() and (WEB / "store.py").is_file()
     found = []
     for path in _web_modules():
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -392,8 +399,38 @@ def test_web_opens_files_only_in_read_project_file():
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and _call_name(node) in FILE_CALLS:
                 found.append((path.name, owner.get(node)))
-    assert found, "the guard must see the one file read of the web package"
-    assert set(found) == {("data.py", "read_project_file")}, found
+    assert found, "the guard must see the file operations of the web package"
+    assert {name for name, _ in found} == {"data.py", "store.py"}, found
+    assert {fn for name, fn in found if name == "data.py"} == {"read_project_file"}, found
+
+
+def test_every_path_of_the_web_package_comes_from_the_fixed_names_of_store():
+    from kaggle_agent.web import store
+
+    seen = 0
+    for path in _web_modules():
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Call) and _call_name(node) in ("cockpit_path", "project_path"):
+                names = store.NAMES if _call_name(node) == "cockpit_path" else store.PROJECT_NAMES
+                if path.name == "store.py" and not (len(node.args) > 1 and isinstance(node.args[1], ast.Constant)):
+                    continue  # the helpers themselves take the name as a parameter
+                assert len(node.args) == 2 and isinstance(node.args[1], ast.Constant), (path.name, node.lineno)
+                assert node.args[1].value in names, (path.name, node.lineno, node.args[1].value)
+                seen += 1
+    assert seen >= 20
+
+
+def test_web_never_opens_credential_files_and_environment_uses_stat_only():
+    for path in _web_modules():
+        text = path.read_text(encoding="utf-8")
+        tree = ast.parse(text)
+        mentions = any(isinstance(n, ast.Constant) and isinstance(n.value, str) and (
+            "access_token" in n.value or "kaggle.json" in n.value) for n in ast.walk(tree))
+        if mentions:
+            assert path.name == "environment.py", path.name
+            calls = {_call_name(n) for n in ast.walk(tree) if isinstance(n, ast.Call)}
+            assert not calls & FILE_CALLS, calls & FILE_CALLS
+            assert "stat" in calls
 
 
 def test_web_passes_no_workspace_or_bundles_string_to_a_file_or_path_call():
@@ -404,9 +441,10 @@ def test_web_passes_no_workspace_or_bundles_string_to_a_file_or_path_call():
                 root = _root_name(node.func.value) if isinstance(node.func, ast.Attribute) else None
                 if name in PATH_CALLS | FILE_CALLS or root == "os":
                     for arg in [*node.args, *(k.value for k in node.keywords)]:
-                        assert not _mentions_bundle_folder(arg), (path.name, node.lineno)
+                        assert not _mentions_bundle_folder(arg, path.name == "__main__.py"), (path.name, node.lineno)
             if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):  # Path / "workspace"
-                assert not _mentions_bundle_folder(node), (path.name, node.lineno)
+                # only the start module names the registry file (to open it READ-ONLY)
+                assert not _mentions_bundle_folder(node, path.name == "__main__.py"), (path.name, node.lineno)
 
 
 def test_web_start_command_has_no_workspace_option():
@@ -416,7 +454,9 @@ def test_web_start_command_has_no_workspace_option():
         if isinstance(node, ast.Call) and _call_name(node) == "add_argument"
         for arg in node.args if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
     ]
-    assert "--db" in options and "--project" in options
+    assert "--db" in options and "--project" in options and "--config" in options
+    # ticket 27: the commands the controller spawns are not options of the start command
+    assert not [o for o in options if "orchestrator" in o or "claude" in o or "argv" in o]
     assert not [o for o in options if "workspace" in o]
 
 
@@ -470,3 +510,125 @@ def test_bundle_imports_only_stdlib_pandas_numpy_and_allowed_packages():
                 assert parts[0] not in forbidden, f"{path}: {full}"
             if path.name == "child.py":
                 assert top in stdlib | {"pandas", "numpy"}, f"{path}: {full}"
+
+
+# --- ticket 27: the run controller (the one web module that imports subprocess) and the event log ---
+
+ORCHESTRATOR_LITERALS = {"start", "resume", "validate-config", "profile", "preview", "--config", "--supervised", "--out"}
+
+
+def _spawn_violations(source: str) -> list[str]:
+    """The closed-allowlist rule of web/controller.py, checked on its source; returns what breaks it."""
+    tree = ast.parse(source)
+    owner = _enclosing_functions(tree)
+    problems = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "subprocess" \
+                    and func.attr in ("Popen", "run", "call", "check_call", "check_output"):
+                if owner.get(node) != "_spawn":
+                    problems.append(f"subprocess.{func.attr} outside _spawn (line {node.lineno})")
+                if any(k.arg in ("shell", "executable") for k in node.keywords):
+                    problems.append(f"shell argument (line {node.lineno})")
+            if isinstance(func, ast.Attribute) and func.attr == "_spawn":
+                problems += _check_argv(node.args[0], node.lineno)
+            if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "os" \
+                    and func.attr in ("system", "popen", "getenv", "putenv", "execv", "execvp", "spawnv"):
+                problems.append(f"os.{func.attr} (line {node.lineno})")
+        if isinstance(node, ast.Attribute) and node.attr == "environ":
+            problems.append(f"environ access (line {node.lineno})")
+        if isinstance(node, ast.Name) and node.id == "request":
+            problems.append(f"request object (line {node.lineno})")
+    return problems
+
+
+def _is_attr(node, name: str) -> bool:
+    return isinstance(node, ast.Attribute) and node.attr == name and isinstance(node.value, ast.Name) \
+        and node.value.id == "self"
+
+
+def _check_argv(arg: ast.AST, line: int) -> list[str]:
+    if not isinstance(arg, ast.Tuple):
+        return [f"the argv of _spawn is not a literal tuple (line {line})"]
+    items = arg.elts
+    # shape 2: ("ps", "-o", "lstart=", "-p", str(int(pid)))
+    if [getattr(e, "value", None) for e in items[:4]] == ["ps", "-o", "lstart=", "-p"] and len(items) == 5:
+        last = items[4]
+        ok = isinstance(last, ast.Call) and getattr(last.func, "id", "") == "str" and isinstance(last.args[0], ast.Call) \
+            and getattr(last.args[0].func, "id", "") == "int"
+        return [] if ok else [f"the pid of the ps command is not str(int(pid)) (line {line})"]
+    # shape 3: (self.claude_executable, "auth", "status")
+    if len(items) == 3 and _is_attr(items[0], "claude_executable") and \
+            [getattr(e, "value", None) for e in items[1:]] == ["auth", "status"]:
+        return []
+    # shape 1: (*self.orchestrator_argv, <command>, <literals and str(path)>...)
+    if items and isinstance(items[0], ast.Starred) and _is_attr(items[0].value, "orchestrator_argv"):
+        problems = []
+        for element in items[1:]:
+            if isinstance(element, ast.Constant) and element.value in ORCHESTRATOR_LITERALS:
+                continue
+            if isinstance(element, ast.Name) and element.id in ("command", "kind"):
+                continue  # validated against the closed tuples RUN_COMMANDS / JOB_COMMANDS at the top of the function
+            if isinstance(element, ast.Call) and getattr(element.func, "id", "") == "str" and \
+                    len(element.args) == 1 and isinstance(element.args[0], (ast.Name, ast.Attribute)):
+                continue  # a path
+            problems.append(f"an element of the orchestrator argv is not allowed (line {line})")
+        return problems
+    return [f"the argv of _spawn has none of the three allowed shapes (line {line})"]
+
+
+def test_the_web_controller_spawns_only_the_closed_list_of_commands():
+    source = WEB_CONTROLLER.read_text(encoding="utf-8")
+    assert _spawn_violations(source) == []
+    tree = ast.parse(source)
+    spawns = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+              and n.func.attr == "_spawn"]
+    assert len(spawns) == 4  # ps, the run, the jobs and the claude check: nothing else
+    # (c) the default command is exactly (sys.executable, -m, kaggle_agent.orchestrator)
+    default = next(n for n in tree.body if isinstance(n, ast.Assign) and n.targets[0].id == "DEFAULT_ORCHESTRATOR_ARGV")
+    assert ast.unparse(default.value) == "(sys.executable, '-m', 'kaggle_agent.orchestrator')"
+    # the commands are the closed tuples
+    values = {n.targets[0].id: ast.literal_eval(n.value) for n in tree.body
+              if isinstance(n, ast.Assign) and n.targets[0].id in ("RUN_COMMANDS", "JOB_COMMANDS")}
+    assert values == {"RUN_COMMANDS": ("start", "resume"), "JOB_COMMANDS": ("validate-config", "profile", "preview")}
+    # (d) the two seams are constructor parameters, and nothing else passes them
+    init = next(n for c in tree.body if isinstance(c, ast.ClassDef) and c.name == "RunController"
+                for n in c.body if isinstance(n, ast.FunctionDef) and n.name == "__init__")
+    assert {"orchestrator_argv", "claude_executable"} <= {a.arg for a in init.args.kwonlyargs}
+    for path in _web_modules():
+        if path == WEB_CONTROLLER:
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Call):
+                assert not {k.arg for k in node.keywords} & {"orchestrator_argv", "claude_executable"}, \
+                    (path.name, node.lineno)
+    assert "orchestrator_argv" not in (WEB / "__main__.py").read_text(encoding="utf-8")
+
+
+def test_the_allowlist_guard_detects_a_violation():
+    bad = (
+        "import subprocess\nimport os\nclass C:\n"
+        "    def go(self, x):\n        subprocess.run(['ls'], shell=True)\n"
+        "        self._spawn(['rm', x])\n        return os.environ['A']\n"
+        "    def _spawn(self, a):\n        return subprocess.Popen(a)\n")
+    found = _spawn_violations(bad)
+    assert any("outside _spawn" in p for p in found) and any("shell" in p for p in found)
+    assert any("literal tuple" in p for p in found) and any("environ" in p for p in found)
+    good = "class C:\n    def f(self, pid):\n        self._spawn(('ps', '-o', 'lstart=', '-p', str(int(pid))))\n"
+    assert _spawn_violations(good) == []
+
+
+def test_only_wrappers_build_and_service_touch_the_event_log():
+    allowed = {"events.py", "wrappers.py", "build.py", "service.py", "cockpit.py"}
+    for path in _modules():
+        if ORCHESTRATOR not in path.parents or path.name in allowed:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[-1] == "events":
+                raise AssertionError(f"{path.name} imports the event log")
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                assert "events.jsonl" not in node.value, path.name
+            if isinstance(node, ast.Attribute):
+                assert node.attr != "events", (path.name, node.lineno)

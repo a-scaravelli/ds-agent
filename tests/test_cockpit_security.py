@@ -117,11 +117,20 @@ def test_the_shell_carries_the_csrf_meta_tag_and_no_route_uses_the_guard(cockpit
     html = page(cockpit_client, "/")
     assert f'<meta name="csrf-token" content="{app.config["CSRF_TOKEN"]}">' in html
     assert html.count(app.config["CSRF_TOKEN"]) == 1  # only in the meta tag
+    # ticket 27: exactly the routes of WRITE_ENDPOINTS allow POST, each wrapped in write_guard; the rest is GET only
+    from kaggle_agent.web.writes import WRITE_ENDPOINTS
+    posted = set()
     for rule in app.url_map.iter_rules():
         view = app.view_functions[rule.endpoint]
-        assert "check_write_request" not in view.__code__.co_names
-        assert "write_guard" not in view.__code__.co_names and not hasattr(view, "__wrapped__")
-        assert (rule.methods or set()) - {"HEAD", "OPTIONS"} == {"GET"}
+        methods = (rule.methods or set()) - {"HEAD", "OPTIONS"}
+        if "POST" in methods:  # a path may also have a GET rule (/api/notes lists, POST writes)
+            assert rule.rule in WRITE_ENDPOINTS and methods == {"POST"}, rule.rule
+            assert getattr(view, "write_guarded", False), rule.rule
+            posted.add(rule.rule)
+        else:
+            assert "check_write_request" not in view.__code__.co_names
+            assert not getattr(view, "write_guarded", False) and methods == {"GET"}, rule.rule
+    assert posted == set(WRITE_ENDPOINTS) and len(posted) >= 15
 
 
 def test_a_new_app_gets_a_new_random_token(cockpit_db):

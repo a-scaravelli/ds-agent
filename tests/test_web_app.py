@@ -42,7 +42,7 @@ def test_runs_list_shows_every_cycle_with_its_data(web_client):
 def test_empty_registry_shows_a_message():
     with SqliteRegistry() as reg:
         html = page(create_app(reg).test_client(), "/")
-    assert "No runs in the registry" in html
+    assert "No project yet" in html and "Open Setup" in html  # ticket 27: setup mode
 
 
 def test_overview_lists_the_rounds_in_the_chart_table_and_the_bundles(web_client):
@@ -169,8 +169,10 @@ def test_every_page_route_responds_and_none_is_left_out(web_client):
     app = web_client.application
     endpoints = {
         r.endpoint for r in app.url_map.iter_rules()
-        if r.endpoint != "static" and not r.endpoint.startswith("api.")
+        if r.endpoint != "static" and not r.endpoint.startswith(("api.", "writes."))
     }
+    # ticket 27: the cockpit pages are covered by the cockpit tests, not by the registry fixture ids
+    endpoints -= {"live_page", "audit_page", "setup", "run_control", "decisions_page", "environment_page"}
     urls = all_urls()
     assert endpoints == set(urls)
     for name, url in urls.items():

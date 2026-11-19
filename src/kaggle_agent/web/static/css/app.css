@@ -266,3 +266,34 @@ summary { cursor: pointer; }
   .side-nav, .status-bar, .toolbar { display: none; }
   body { display: block; }
 }
+
+/* -- cockpit (ticket 27) ------------------------------------------------------------------------ */
+
+#live-ticker { margin-left: auto; color: var(--text-muted); max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.big { font-size: var(--fs-md); }
+.timeline { list-style: none; margin: 0; padding: 0; max-height: 22rem; overflow-y: auto; }
+.timeline li { padding: var(--sp-1) 0; border-bottom: 1px solid var(--border); }
+.timeline time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.bar-row { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; padding: var(--sp-1) 0; }
+.console { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--sp-3); max-height: 18rem; overflow: auto; white-space: pre-wrap; font-family: var(--font-mono); font-size: var(--fs-sm); }
+.stack { display: grid; gap: var(--sp-3); max-width: 44rem; }
+.stack label { display: grid; gap: var(--sp-1); }
+fieldset { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--sp-3); }
+fieldset label { display: grid; gap: var(--sp-1); margin-bottom: var(--sp-3); }
+.hint { color: var(--text-muted); font-size: var(--fs-sm); }
+.error { color: var(--danger, #b42318); }
+button.danger { border-color: var(--danger, #b42318); }
+.tag { display: inline-block; padding: 0 var(--sp-2); border: 1px solid var(--border); border-radius: 999px; font-size: var(--fs-sm); }
+dialog { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); max-width: 32rem; }
+.job-result { margin-top: var(--sp-3); }
+.card-state { font-weight: 600; }
+details.more > summary { cursor: pointer; }
+details.more .full { margin-top: var(--sp-2); color: var(--text-muted); }
+
+/* the Plan column of the runs list: a minimum width and normal word breaking (no one word per line) */
+.plan-col, .plan-cell { min-width: 14rem; }
+.plan-cell { overflow-wrap: normal; word-break: normal; hyphens: manual; }
+@media (max-width: 900px) {
+  .plan-col, .plan-cell { min-width: 12rem; }
+  .table-wrap { overflow-x: auto; }
+}

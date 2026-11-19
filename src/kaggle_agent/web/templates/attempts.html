@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import badge, score, empty %}
+{% from "macros.html" import badge, score, empty, expandable %}
 {% block title %}Attempts {{ run.id }}{% endblock %}
 {% block body %}
 <h1>Attempts of {{ run.id }}</h1>
@@ -35,14 +35,14 @@
 </tr></thead>
 <tbody>
 {% for a in attempts %}
-<tr data-outcome="{{ a.outcome or 'open' }}" data-round="{{ a.round_id or '' }}" data-score="{{ a.mean if a.mean is not none else '' }}" data-text="{{ (a.id ~ ' ' ~ a.hypothesis ~ ' ' ~ a.what_changed ~ ' ' ~ (a.reason or '') ~ ' ' ~ (a.failure_kind or '')) | lower }}">
+<tr data-outcome="{{ a.outcome or 'open' }}" data-round="{{ a.round_id or '' }}" data-score="{{ a.mean if a.mean is not none else '' }}" data-text="{{ (a.id ~ ' ' ~ a.hypothesis ~ ' ' ~ a.what_changed ~ ' ' ~ (a.reason or '') ~ ' ' ~ (a.failure_kind or '') ~ ' ' ~ (a.notes | map(attribute='text') | join(' ')) ~ ' ' ~ (a.tags | join(' '))) | lower }}">
 <td class="num">{{ a.iteration }}</td>
 <td><a href="{{ url_for('attempt', attempt_id=a.id) }}">{{ a.id }}</a>{% if a.chosen %} <span class="chosen-mark" title="chosen attempt">&#10003;</span>{% endif %}</td>
 <td>{% if a.round_id %}<a href="{{ url_for('round_view', cycle_id=run.id, round_id=a.round_id) }}">{{ a.round_id }}</a>{% else %}-{% endif %}</td>
 <td>{{ badge(a.outcome or 'open') }}{% if a.failure_kind %} <span class="muted">{{ a.failure_kind }}</span>{% endif %}</td>
 <td class="num" data-value="{{ a.mean if a.mean is not none else '' }}">{{ score(a.mean, a.dispersion) }}</td>
 <td class="num">{{ a.runs }}</td>
-<td class="wrap">{{ a.hypothesis }}</td>
+<td class="wrap">{{ expandable(a.hypothesis) }}{% for t in a.tags %} <span class="tag">{{ t }}</span>{% endfor %}</td>
 </tr>
 {% endfor %}
 </tbody></table></div>

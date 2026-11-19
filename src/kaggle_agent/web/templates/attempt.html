@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import badge, score, hash, empty, value %}
+{% from "macros.html" import annotations, badge, score, hash, empty, value %}
 {% block title %}Attempt {{ a.id }}{% endblock %}
 {% block body %}
 <h1>Attempt {{ a.id }}{% if a.chosen %} <span class="chosen-mark">chosen</span>{% endif %}</h1>
@@ -52,6 +52,8 @@ iteration {{ a.iteration }}; phase {{ a.phase }}; {% if a.closed %}closed{% else
 <p class="note">The code of the bundle is not shown here: this page never reads a bundle folder.</p>
 </section>
 </div>
+
+{{ annotations('attempt', a.id, a.notes, a.tags) }}
 
 <h2>Runs and retries</h2>
 {% if a.executions %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "macros.html" import empty %}
+{% block title %}Live{% endblock %}
+{% block body %}
+<h1>Live</h1>
+<p class="subtitle">What the run is doing now. The page follows the event stream of the run; if the stream cannot be kept open it asks every few seconds instead.</p>
+
+<section class="panel" aria-labelledby="now-h">
+<h2 id="now-h">Now</h2>
+<p id="live-now" class="big">Waiting for the first event...</p>
+<div class="toolbar">
+<button type="button" id="enable-notifications">Turn on browser notifications</button>
+<label><input type="checkbox" id="notify-sound"> short sound</label>
+<span id="notify-state" class="muted">Notifications are off. They are asked for only when you press the button.</span>
+</div>
+</section>
+
+<section class="panel" aria-labelledby="timeline-h">
+<h2 id="timeline-h">Timeline</h2>
+<ol id="timeline" class="timeline" data-limit="80"></ol>
+</section>
+
+<section class="panel" aria-labelledby="progress-h">
+<h2 id="progress-h">Evaluation progress</h2>
+<p class="note">One bar per attempt: fold k of N, with the partial score of each fold (validation folds only).</p>
+<div id="progress-list"></div>
+</section>
+
+<section class="panel" aria-labelledby="calls-h">
+<h2 id="calls-h">Claude calls</h2>
+<div class="table-wrap"><table id="call-log">
+<thead><tr><th>Time</th><th>Role</th><th>Outcome</th><th class="num">Tokens in</th><th class="num">Tokens out</th><th class="num">Seconds</th></tr></thead>
+<tbody></tbody></table></div>
+</section>
+
+<section class="panel" aria-labelledby="console-h">
+<h2 id="console-h">Console of the run</h2>
+<p class="note">The captured output of the orchestrator process (token-like text is hidden).</p>
+<pre id="console" class="console" tabindex="0">(empty)</pre>
+</section>
+
+<noscript><section class="panel"><h2>Recent events (without JavaScript)</h2>
+<ul>{% for e in recent %}<li>#{{ e.id }} {{ e.at }} {{ e.type }}</li>{% endfor %}</ul></section></noscript>
+{% endblock %}

@@ -9,13 +9,15 @@ WAITING = 10          # the cycle waits for the lead
 SUSPENDED = 11        # quota, rate limit or expired Claude login: run resume later
 LEAD_INVALID = 12     # the lead file is not valid
 CRASHED = 13          # unexpected crash, the registry is intact: run resume
+PAUSED = 14           # the DS paused the run at a safe checkpoint: run resume
+INTERRUPTED = 15      # the run was stopped (SIGTERM): run resume continues it
 NOT_ACCEPTED = 20     # submit: the review was not accepted yet
 INVALID_FILE = 21     # submit: the submission file is not valid
 DAILY_LIMIT = 22      # submit: no submissions left today
 SCORE_PENDING = 23    # submit: sent, the score is still pending
 MARKER = 24           # submit: a previous send may have reached Kaggle
 
-ALL = (FINISHED, ERROR, USAGE, WAITING, SUSPENDED, LEAD_INVALID, CRASHED, NOT_ACCEPTED, INVALID_FILE,
+ALL = (FINISHED, ERROR, USAGE, WAITING, SUSPENDED, LEAD_INVALID, CRASHED, PAUSED, INTERRUPTED, NOT_ACCEPTED, INVALID_FILE,
        DAILY_LIMIT, SCORE_PENDING, MARKER)
 
 

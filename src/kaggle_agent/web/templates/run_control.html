@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "macros.html" import empty %}
+{% block title %}Run control{% endblock %}
+{% block body %}
+<h1>Run control</h1>
+<p class="subtitle">Start, pause, stop and resume the run. One run at a time; it keeps going if you close this page.</p>
+
+<section class="panel" aria-labelledby="state-h">
+<h2 id="state-h">State</h2>
+<p><span id="state-badge" class="badge status-{{ state.state }}" data-state="{{ state.state }}">{{ state.label }}</span></p>
+<p id="state-text">{{ state.text }}</p>
+{% if state.exit %}<p class="muted">Exit code {{ state.exit.code }} at {{ state.exit.at }}.</p>{% endif %}
+{% if not state.get('responsive', True) %}<p class="warnings">The run does not answer (its heartbeat is old). Nothing was killed.</p>{% endif %}
+</section>
+
+<section class="panel" aria-labelledby="buttons-h">
+<h2 id="buttons-h">Actions</h2>
+<div class="toolbar" id="run-buttons">
+<button type="button" data-post="{{ url_for('writes.run_start') }}" data-after="reload"{% if started %} disabled{% endif %}>Start</button>
+<button type="button" data-post="{{ url_for('writes.run_resume') }}" data-after="reload"{% if not started %} disabled{% endif %}>Resume</button>
+<button type="button" data-post="{{ url_for('writes.run_pause') }}" data-after="reload">Pause</button>
+<button type="button" class="danger" data-dialog="stop-dialog">Stop...</button>
+</div>
+<p id="run-message" class="note" role="status"></p>
+<p class="note">Pause finishes the current call or candidate, then stops at a safe point. Stop sends the run a stop signal, waits, then forces it; the cycle can be resumed afterwards.</p>
+<label><input type="checkbox" id="auto-resume" data-post="{{ url_for('writes.settings') }}"{% if auto_resume %} checked{% endif %}> After I save a decision, resume the run by itself</label>
+</section>
+
+<dialog id="stop-dialog" aria-labelledby="stop-h">
+<form method="dialog">
+<h2 id="stop-h">Stop the run?</h2>
+<p>The run is stopped now and can be resumed. Say why (it goes in the audit log).</p>
+<label>Reason<textarea id="stop-reason" rows="3" required></textarea></label>
+<label><input type="checkbox" id="stop-confirm"> Yes, stop the run</label>
+<div class="toolbar"><button value="cancel">Cancel</button>
+<button type="button" class="danger" id="stop-go" data-post="{{ url_for('writes.run_stop') }}" data-reason="stop-reason" data-confirm="stop-confirm" data-after="reload">Stop</button></div>
+</form>
+</dialog>
+
+<section class="panel" aria-labelledby="history-h">
+<h2 id="history-h">History</h2>
+{% if history %}
+<div class="table-wrap"><table><thead><tr><th>When (UTC)</th><th>Who</th><th>What</th><th>Why</th></tr></thead><tbody>
+{% for h in history %}<tr><td>{{ h.at }}</td><td>{{ h.who }}</td><td>{{ h.what }}</td><td>{{ h.why or '-' }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ empty("No run yet", "Start the run when the settings are saved.") }}{% endif %}
+</section>
+{% endblock %}

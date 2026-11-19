@@ -23,7 +23,7 @@ from pathlib import Path
 from kaggle_agent.proposals import ValidationError, validate_role
 from kaggle_agent.registry import OUTCOMES, NotFoundError, RegistryError
 
-from . import views
+from . import store, views
 from .serialize import jsonable
 
 PROJECT_FILE = "project.json"
@@ -69,6 +69,10 @@ class Source:
                     {"section": name, "reason": f"not available in this registry file ({exc})"}
                 )
             return default
+
+    def notes(self) -> dict:
+        """Notes and tags of the project, latest record wins (read from ``notes.jsonl``)."""
+        return self.cached("notes", lambda: notes_index(self.project_dir))
 
     def cached(self, key, build):
         if key not in self._cache:
@@ -256,6 +260,73 @@ def _protocol(src: Source, cycle, comparisons, mean_of, best_param) -> dict:
     return out
 
 
+def notes_index(project_dir) -> dict:
+    """``{(type, id): {"notes": [...], "tags": [...]}}``: add, edit and delete (a tombstone) by note id."""
+    if project_dir is None:
+        return {}
+    records, _ = store.read_jsonl(store.cockpit_path(project_dir, "notes.jsonl"))
+    notes: dict[str, dict] = {}
+    tags: dict[tuple, list] = {}
+    for r in records:
+        op, nid = r.get("op"), r.get("note_id") or r.get("id")
+        target = (r.get("target_type"), r.get("target_id"))
+        if op == "add" and isinstance(r.get("text"), str):
+            notes[nid] = {"id": nid, "target": target, "text": r["text"], "who": r.get("who"), "at": r.get("at")}
+        elif op == "edit" and nid in notes and isinstance(r.get("text"), str):
+            notes[nid].update(text=r["text"], edited_at=r.get("at"))
+        elif op == "delete":
+            notes.pop(nid, None)
+        elif op == "tags" and isinstance(r.get("tags"), list):
+            tags[target] = [str(t) for t in r["tags"]]
+    index: dict = {}
+    for note in notes.values():
+        index.setdefault(note["target"], {"notes": [], "tags": []})["notes"].append(
+            {k: v for k, v in note.items() if k != "target"})
+    for target, values in tags.items():
+        index.setdefault(target, {"notes": [], "tags": []})["tags"] = values
+    return index
+
+
+def _annotations(src: Source, kind: str, target_id: str) -> dict:
+    return src.notes().get((kind, target_id), {"notes": [], "tags": []})
+
+
+def _note_text(annotations: dict) -> str:
+    return " ".join([n["text"] for n in annotations["notes"]] + annotations["tags"])
+
+
+def overlay_limits(base: dict, records: list[dict]) -> dict:
+    """Effective limits: the base overlaid by the change records in file order, last value wins.
+
+    The orchestrator has its own copy of this rule (``orchestrator.cockpit.overlay_cycle``); a test checks
+    that both give the same values.
+    """
+    out = dict(base)
+    for record in records:
+        values = record.get("values")
+        if not isinstance(values, dict):
+            continue
+        for key, value in values.items():
+            if key in LIMIT_KEYS and isinstance(value, int) and not isinstance(value, bool) and value >= 1:
+                out[key] = value
+    return out
+
+
+LIMIT_KEYS = ("rounds", "candidates", "stagnation")
+
+
+def limits_view(src: Source, cycle) -> dict:
+    """The base limits of the cycle, each change record and the effective values."""
+    params = cycle.parameters or {}
+    base = {"rounds": cycle.iterations, "candidates": params.get("candidates"),
+            "stagnation": cycle.stagnation_k}
+    records, _ = (store.read_jsonl(store.cockpit_path(src.project_dir, "limit-changes.jsonl"))
+                  if src.project_dir is not None else ([], 0))
+    effective = overlay_limits(base, records) if cycle.parameters is not None else dict(base)
+    return {"base": base, "changes": records, "effective": effective,
+            "applies": cycle.parameters is not None}
+
+
 def _limits(cycle) -> dict:
     params = cycle.parameters or {}
     return {
@@ -323,20 +394,45 @@ def _point_view(p) -> dict | None:
                                    "dispersion": p.dispersion}
 
 
+def _rule_view(core: dict, chosen: dict | None) -> dict:
+    """The improvement rule with the numbers: a change is real above threshold_k x the baseline noise."""
+    k = core["protocol"]["threshold_k"]
+    baseline = core["baseline"]
+    noise = baseline.dispersion if baseline else None
+    comparison = None
+    if chosen is not None:
+        comparison = next((c for c in reversed(core["comparisons"])
+                           if c.candidate_attempt_id == chosen["attempt_id"]), None)
+    return {
+        "threshold_k": k, "baseline_noise": noise, "bar": (k * noise) if (k is not None and noise is not None) else None,
+        "difference": comparison.difference if comparison else None,
+        "threshold": comparison.threshold if comparison else None,
+        "is_real": comparison.is_real if comparison else None,
+        "text": ("The program picks a model only when it beats the best one so far by more than "
+                 "threshold_k x the baseline noise (mean paired difference over the validation partitions). "
+                 "'Best seen' is just the highest score observed, even if it did not clear that bar."),
+    }
+
+
 def run_row(src: Source, run_id: str, best_param=None) -> dict:
     core = _core(src, run_id, best_param)
     cycle = core["cycle"]
     submissions = core["submissions"]
     stop_reason = (core["report"].content.get("stop_reason") if core["report"] else None)
     chosen = _chosen_view(core)
+    limits = limits_view(src, cycle)
+    notes = _annotations(src, "run", cycle.id)
     return {
+        "notes": notes["notes"], "tags": notes["tags"],
+        "best_seen": _point_view(core["best"]), "improvement_rule": _rule_view(core, chosen),
+        "limits_effective": limits["effective"],
         "id": cycle.id,
         "project_id": cycle.project_id,
         "state": cycle.state,
         "status": _status(cycle.state, stop_reason, chosen is not None),
         "plan": jsonable(cycle.plan),
         "rounds_done": _rounds_done(run_id, core["rounds"]),
-        "rounds_planned": cycle.iterations,
+        "rounds_planned": limits["effective"]["rounds"],
         "attempts_total": len(core["attempts"]),
         "best": _point_view(core["best"]),
         "chosen": chosen,
@@ -353,10 +449,15 @@ def run_row(src: Source, run_id: str, best_param=None) -> dict:
 # -- runs ---------------------------------------------------------------------------------------
 
 
-def runs(src: Source) -> list[dict]:
-    """Every cycle (a project may have several) with its summary row."""
+def runs(src: Source, q: str | None = None) -> list[dict]:
+    """Every cycle (a project may have several) with its summary row; ``q`` searches id, plan, notes, tags."""
     cycles = src.section("runs", lambda: views.list_cycles(src.registry), [])
-    return [run_row(src, c.id) for c in cycles]
+    rows = [run_row(src, c.id) for c in cycles]
+    q = (q or "").strip().lower()
+    if not q:
+        return rows
+    return [r for r in rows if q in " ".join([
+        r["id"], json.dumps(r["plan"]), _note_text({"notes": r["notes"], "tags": r["tags"]})]).lower()]
 
 
 def run_summary(src: Source, run_id: str, best_param: str | None = None) -> dict:
@@ -392,6 +493,7 @@ def run_summary(src: Source, run_id: str, best_param: str | None = None) -> dict
         "counts": counts,
         "protocol": core["protocol"],
         "limits": _limits(cycle),
+        "limits_view": limits_view(src, cycle),
         "has_report": core["report"] is not None,
     })
     return row
@@ -529,9 +631,11 @@ def _execution_view(sequence: int, e) -> dict:
     }
 
 
-def _attempt_row(detail, summary, round_of, point, chosen_id) -> dict:
+def _attempt_row(detail, summary, round_of, point, chosen_id, annotations=None) -> dict:
     a = detail.attempt
+    annotations = annotations or {"notes": [], "tags": []}
     return {
+        "notes": annotations["notes"], "tags": annotations["tags"],
         "id": a.id, "run_id": detail.cycle_id, "iteration": detail.iteration,
         "round_id": round_of.get(a.id), "parent_id": a.parent_id, "phase": a.phase,
         "outcome": detail.outcome, "failure_kind": detail.failure_kind, "reason": detail.reason,
@@ -547,7 +651,8 @@ def _matches(row: dict, detail, q: str) -> bool:
     a = detail.attempt
     hay = " ".join(str(x) for x in (
         a.id, a.hypothesis, a.rationale, a.what_changed, detail.reason, detail.failure_kind,
-        a.expected_effect, " ".join(a.evidence)) if x).lower()
+        a.expected_effect, " ".join(a.evidence),
+        _note_text({"notes": row.get("notes", []), "tags": row.get("tags", [])})) if x).lower()
     return q.lower() in hay
 
 
@@ -575,7 +680,8 @@ def attempts(src: Source, run_id: str, filters: dict | None = None) -> list[dict
         if high is not None and (point is None or point.mean > high):
             continue
         detail = src.registry.get_attempt(summary.attempt_id)
-        row = _attempt_row(detail, summary, round_of, point, core["chosen_id"])
+        row = _attempt_row(detail, summary, round_of, point, core["chosen_id"],
+                           _annotations(src, "attempt", summary.attempt_id))
         if q and not _matches(row, detail, q):
             continue
         out.append(row)
@@ -620,7 +726,9 @@ def attempt_detail(src: Source, attempt_id: str) -> dict:
     last = execs[-1] if execs else None
     versions = next((e["library_versions"] for e in reversed(execs) if e["library_versions"]), {})
     comparison = next((c for c in core["comparisons"] if c.candidate_attempt_id == attempt_id), None)
+    annotations = _annotations(src, "attempt", attempt_id)
     return {
+        "notes": annotations["notes"], "tags": annotations["tags"],
         "id": a.id, "run_id": run_id, "round_id": round_id, "iteration": detail.iteration,
         "phase": a.phase, "parent_id": a.parent_id, "closed": detail.closed,
         "conclusion": detail.conclusion, "fingerprint": detail.fingerprint,

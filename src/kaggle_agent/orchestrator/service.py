@@ -22,12 +22,19 @@ from kaggle_agent.registry import Registry, RegistryError, SqliteRegistry
 
 from . import codes
 from .build import Built, Dependencies, build_context
+from .cockpit import CockpitFiles, PauseRequested
 from .codes import CommandResult
 from .config import Config
 from .errors import ConfigError, LeadFileError, OrchestratorError, ProjectError
+from .events import NULL, Emitter, EventLog
 from .lead_file import Ledger, describe_pending
 from .project import EXAMPLE_FILE, LEDGER_FILE, NOTICES_FILE, read_project, write_atomic
 from .submission import marker_path, read_marker
+
+def make_emitter(cockpit: CockpitFiles) -> Emitter:
+    """The emitter of a supervised run (only ``service``, ``build`` and ``wrappers`` touch the event log)."""
+    return Emitter(EventLog(cockpit.events))
+
 
 LAST_RUN = "last-run.json"
 EXAMPLE_TEXT = """\
@@ -86,16 +93,23 @@ def _waiting_lines(built: Built, state: str) -> list[str]:
                                     Ledger(config.paths.folder / LEDGER_FILE))
 
 
-def run_cycle(config: Config, deps: Dependencies) -> CommandResult:
-    """Build the context and run the cycle until it stops, waits for the lead or is suspended."""
+def run_cycle(config: Config, deps: Dependencies, cockpit: CockpitFiles | None = None,
+              emitter: Emitter = NULL) -> CommandResult:
+    """Build the context and run the cycle until it stops, waits for the lead or is suspended.
+
+    With ``cockpit`` (a supervised run) events are emitted and a pause request ends the run with
+    ``codes.PAUSED`` at the next safe checkpoint.
+    """
     built: Built | None = None
     try:
-        built = build_context(config, deps)
+        built = build_context(config, deps, cockpit, emitter)
+        emitter.emit("run_start", command="run", state=built.registry.get_cycle(built.ctx.cycle_id).state)
         result = run_pipeline(built.ctx, built.pctx)
         outcome = result.outcome
         notices = [f"notice: {text}" for text in built.lead.emitted]
         cycle_id = built.ctx.cycle_id
         if outcome.status == STATUS_STOPPED:
+            emitter.emit("finished", reason=outcome.reason, state=outcome.state)
             _write_last_run(config, deps, "finished", outcome.state, outcome.reason or "")
             return CommandResult(codes.FINISHED, (
                 f"The cycle {cycle_id} is FINISHED (stopped; {outcome.reason}).",
@@ -110,6 +124,8 @@ def run_cycle(config: Config, deps: Dependencies) -> CommandResult:
                 f"When the file is filled, run: {_cmd(config, 'resume')}"))
         assert outcome.status == STATUS_SUSPENDED
         _write_last_run(config, deps, "suspended", outcome.state, outcome.reason or "")
+        emitter.emit("suspended", kind="login" if is_authentication_reason(outcome.reason) else "quota",
+                     state=outcome.state)
         if is_authentication_reason(outcome.reason):
             return CommandResult(codes.SUSPENDED, (
                 f"The cycle {cycle_id} is SUSPENDED in {outcome.state}: Claude CLI is not logged in "
@@ -120,7 +136,15 @@ def run_cycle(config: Config, deps: Dependencies) -> CommandResult:
             f"The cycle {cycle_id} is SUSPENDED in {outcome.state}: {outcome.reason}",
             f"Nothing was lost. When the quota or rate limit allows it, run: {_cmd(config, 'resume')}",
             *notices))
+    except PauseRequested:
+        state = built.registry.get_cycle(built.ctx.cycle_id).state if built is not None else ""
+        _write_last_run(config, deps, "paused", state, "paused by the DS")
+        emitter.emit("paused", state=state)
+        return CommandResult(codes.PAUSED, (
+            f"The run is PAUSED in {state} at a safe checkpoint, as requested. Nothing was lost.",
+            f"To continue, run: {_cmd(config, 'resume')} (or press Resume in the cockpit)."))
     except LeadFileError as error:
+        emitter.emit("error", kind="lead_file_invalid", type="LeadFileError")
         return CommandResult(codes.LEAD_INVALID, (
             f"The lead file is not valid: {error}",
             "The state of the cycle did not change. Fix the file, then run resume."))
@@ -131,6 +155,7 @@ def run_cycle(config: Config, deps: Dependencies) -> CommandResult:
     except KeyboardInterrupt:
         raise
     except Exception as error:  # the registry is written after every step, so nothing is lost
+        emitter.emit("error", kind="crash", type=type(error).__name__)
         return CommandResult(codes.CRASHED, (
             f"The run CRASHED: {type(error).__name__}: {error}",
             "The registry is intact. Run resume to continue from the saved state."))
@@ -152,7 +177,8 @@ def _existing_cycle(config: Config, cycle_id: str) -> bool:
         registry.close()
 
 
-def start(config: Config, deps: Dependencies) -> CommandResult:
+def start(config: Config, deps: Dependencies, cockpit: CockpitFiles | None = None,
+          emitter: Emitter = NULL) -> CommandResult:
     """Create the project and the cycle and run; a second start changes nothing and calls nothing."""
     state = read_project(config.paths) if config.paths.folder.exists() else None
     if state is not None:
@@ -164,7 +190,7 @@ def start(config: Config, deps: Dependencies) -> CommandResult:
     example = config.paths.folder / EXAMPLE_FILE
     if not example.exists():
         example.write_text(EXAMPLE_TEXT, encoding="utf-8")
-    result = run_cycle(config, deps)
+    result = run_cycle(config, deps, cockpit, emitter)
     new = read_project(config.paths)
     if new is None:
         return result
@@ -173,11 +199,12 @@ def start(config: Config, deps: Dependencies) -> CommandResult:
     return CommandResult(result.code, head + result.lines)
 
 
-def resume(config: Config, deps: Dependencies) -> CommandResult:
+def resume(config: Config, deps: Dependencies, cockpit: CockpitFiles | None = None,
+           emitter: Emitter = NULL) -> CommandResult:
     """Continue a suspended, crashed or waiting cycle from the state saved in the registry."""
     if read_project(config.paths) is None:
         return CommandResult(codes.USAGE, (f"error: no project in {config.paths.folder}: run start first",))
-    return run_cycle(config, deps)
+    return run_cycle(config, deps, cockpit, emitter)
 
 
 def status(config: Config) -> CommandResult:

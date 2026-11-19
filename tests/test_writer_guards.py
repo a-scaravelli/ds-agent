@@ -16,7 +16,8 @@ WRITER = SRC / "writer"
 TESTS = ROOT / "tests"
 
 # content hashes of the two packages this ticket must not touch, taken at the start of the ticket
-LOOP_HASH = "c5d1226655690821978aa0b63dd073e63ca932082d3dea2daf91ee4f5f6a77f1"
+# ticket 27: updated deliberately for the one limits-refresh line in loop/machine.py
+LOOP_HASH = "83835939181e704198356b794c2e9c4e2254ce583b12ef87ae381bc9c6ef851d"
 EVALUATION_SOURCES_HASH = "c267079fdf0cd9fefa3501b7c4552e91ea72893df06e5641eedec112a6cb90ce"
 MANUAL_VARIABLE = "KAGGLE_AGENT_RUN_CLAUDE"
 

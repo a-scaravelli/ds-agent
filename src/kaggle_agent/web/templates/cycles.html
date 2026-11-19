@@ -5,7 +5,8 @@
 <h1>Runs</h1>
 <p class="subtitle">One row per cycle; a project may have several.</p>
 {% if not runs %}
-{{ empty("No runs in the registry", "Start the orchestrator on this project folder; its cycles appear here.") }}
+{{ empty("No project yet", "Open Setup to describe the competition, then start the run from Run control; its cycles appear here.") }}
+<p><a href="{{ url_for('setup') }}">Open Setup</a> &middot; <a href="{{ url_for('run_control') }}">Run control</a></p>
 {% else %}
 <div class="toolbar">
 <label>Search<input type="search" id="runs-q" data-filter-input data-filter-for="runs-table" data-filter="text" placeholder="id, project, plan"></label>
@@ -20,22 +21,22 @@
 <thead><tr>
 <th data-sort="text"><button class="sort" type="button">Run</button></th>
 <th data-sort="text"><button class="sort" type="button">Status</button></th>
-<th>Plan</th>
+<th class="plan-col">Plan</th>
 <th data-sort="number"><button class="sort" type="button">Rounds</button></th>
-<th class="num" data-sort="number"><button class="sort" type="button">Best score</button></th>
-<th>Chosen model</th>
+<th class="num" data-sort="number"><button class="sort" type="button">Best seen</button></th>
+<th>Chosen by the program (strict bar)</th>
 <th class="num">Holdout</th>
 <th>Submission</th>
 </tr></thead>
 <tbody>
 {% for r in runs %}
-<tr data-status="{{ r.status }}" data-text="{{ (r.id ~ ' ' ~ (r.project_id or '') ~ ' ' ~ r.plan.metric ~ ' ' ~ r.plan.validation ~ ' ' ~ r.plan.models | join(' ') ~ ' ' ~ r.state) | lower }}">
-<td><a href="{{ url_for('cycle', cycle_id=r.id) }}">{{ r.id }}</a><br><span class="muted">{{ r.project_id or '-' }}</span></td>
+<tr data-status="{{ r.status }}" data-text="{{ (r.id ~ ' ' ~ (r.project_id or '') ~ ' ' ~ r.plan.metric ~ ' ' ~ r.plan.validation ~ ' ' ~ r.plan.models | join(' ') ~ ' ' ~ r.state ~ ' ' ~ (r.notes | map(attribute='text') | join(' ')) ~ ' ' ~ (r.tags | join(' '))) | lower }}">
+<td><a href="{{ url_for('cycle', cycle_id=r.id) }}">{{ r.id }}</a><br><span class="muted">{{ r.project_id or '-' }}</span>{% for t in r.tags %} <span class="tag">{{ t }}</span>{% endfor %}</td>
 <td>{{ badge(r.status, r.status) }}<br><span class="muted">{{ r.state }}</span></td>
-<td class="wrap"><b>{{ r.plan.metric }}</b>, {{ r.plan.validation }}<br><span class="muted">{{ r.plan.models | join(', ') }}</span></td>
+<td class="wrap plan-cell"><b>{{ r.plan.metric }}</b>, {{ r.plan.validation }}<br><span class="muted">{{ r.plan.models | join(', ') }}</span></td>
 <td data-value="{{ r.rounds_done }}"><progress max="{{ r.rounds_planned }}" value="{{ r.rounds_done }}" aria-label="rounds done"></progress> {{ r.rounds_done }} of {{ r.rounds_planned }}</td>
 <td class="num" data-value="{{ r.best.mean if r.best else '' }}">{{ score(r.best.mean, r.best.dispersion) if r.best else '-' }}</td>
-<td>{% if r.chosen %}{{ r.chosen.model or r.chosen.attempt_id }}{% else %}-{% endif %}</td>
+<td>{% if r.chosen %}{{ r.chosen.model or r.chosen.attempt_id }}<br><span class="muted">score {{ r.chosen.mean | num }}</span>{% else %}-{% endif %}</td>
 <td class="num">{% if r.holdout.status != 'sealed' %}{{ (r.holdout.score | num) if r.holdout.score is not none else r.holdout.status }}{% else %}<span class="muted">sealed</span>{% endif %}</td>
 <td>{% if r.submission %}{{ r.submission.status }}{% if r.submission.public_score is not none %}, public {{ r.submission.public_score | num }}{% endif %}{% else %}-{% endif %}</td>
 </tr>
@@ -43,5 +44,8 @@
 </tbody>
 </table>
 </div>
+{% for r in runs %}{% set rule = r.improvement_rule %}
+<p class="note" id="rule-{{ r.id }}"><b>{{ r.id }}</b>: {{ rule.text }}{% if rule.threshold_k is not none and rule.baseline_noise is not none %} Here: threshold_k {{ rule.threshold_k | num }} &times; baseline noise {{ rule.baseline_noise | num(4) }} = bar {{ rule.bar | num(4) }}{% if rule.difference is not none %}; difference of the chosen attempt {{ rule.difference | num(4) }}{% endif %}.{% endif %}</p>
+{% endfor %}
 {% endif %}
 {% endblock %}

@@ -43,12 +43,21 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
-from kaggle_agent.agents import CoordinatorInput, RegistrySummary, TraceContext
+from kaggle_agent.agents import (
+    CoordinatorInput,
+    CoordinatorOutput,
+    PendingTrace,
+    RegistrySummary,
+    TraceContext,
+    record_trace,
+)
+from kaggle_agent.proposals import ShortPlan
 from kaggle_agent.loop import ids, role_limits
 from kaggle_agent.loop.states import AWAITING_GUIDANCE, AWAITING_PLAN_APPROVAL, AWAITING_REVIEW
 from kaggle_agent.registry import Registry
 from kaggle_agent.review import Accept, Approve, LeadContext, LeadInput, LeadResponse, Revise
 
+from .cockpit import append_jsonl, read_jsonl, utc_text
 from .errors import LeadFileError
 from .project import LEDGER_FILE, NOTICES_FILE, write_atomic
 
@@ -77,8 +86,8 @@ def _ordinal(table: dict, where: str, key: str) -> int:
     return value
 
 
-def _check(table: dict, name: str) -> dict | None:
-    """The validated entry of one table, or None while the table is absent or still empty."""
+def normalize_entry(name: str, table: dict) -> dict | None:
+    """The validated entry of one table (lead.toml or a web decision), or None while absent or empty."""
     if table is None or table == {}:
         return None
     if not isinstance(table, dict):
@@ -124,8 +133,12 @@ def read_lead(path: Path) -> dict:
         raise LeadFileError(f"{unknown[0]}: unknown key (the lead file has only the tables "
                             f"{', '.join(_TABLES)})")
     for name in _TABLES:
-        entries[name] = _check(raw.get(name), name)
+        entries[name] = normalize_entry(name, raw.get(name))
     return entries
+
+
+def _check(table: dict, name: str) -> dict | None:
+    return normalize_entry(name, table)
 
 
 # -- the ledger of applied revisions -------------------------------------------------------------
@@ -146,25 +159,73 @@ class Ledger:
             raise LeadFileError(f"{self.path}: unreadable ledger: {error}") from None
 
     def texts(self) -> tuple[str, ...]:
-        return tuple(item["text"] for item in self.revisions())
+        """The revision texts for the coordinator; an own plan of the DS is not a revision text."""
+        return tuple(item["text"] for item in self.revisions() if item.get("kind") != "own")
 
     def plan_number(self) -> int:
         return len(self.revisions()) + 1
 
-    def append(self, plan: int, text: str, when: str) -> None:
+    def append(self, plan: int, text: str, when: str, **extra) -> None:
         items = self.revisions()
-        items.append({"plan": plan, "text": text, "at": when})
+        items.append({"plan": plan, "text": text, "at": when, **extra})
         write_atomic(self.path, json.dumps({"revisions": items}, indent=2))
+
+
+OWN_TEXT = "plan written by the DS"
+WEB_KINDS = ("plan_approve", "plan_revise", "plan_own", "guidance", "review_accept")
+
+
+def read_web_decisions(path) -> list[dict]:
+    """The valid decisions of ``cockpit/decisions.jsonl`` (written only by the web), in file order.
+
+    A record has ``id``, ``kind`` (one of ``WEB_KINDS``), ``address`` (plan number or round number),
+    ``text`` / ``plan`` / ``action`` as the kind needs, ``who`` and ``at``. Invalid records are skipped.
+    """
+    records, _ = read_jsonl(path)
+    valid = []
+    for record in records:
+        if record.get("kind") in WEB_KINDS and isinstance(record.get("id"), str):
+            valid.append(record)
+    return valid
+
+
+def web_entry(record: dict) -> dict | None:
+    """A web decision as the same validated entry a lead.toml table gives (own plans: ``kind`` own)."""
+    kind, address = record["kind"], record.get("address")
+    try:
+        if kind == "plan_approve":
+            return normalize_entry("plan", {"decision": "approve"})
+        if kind == "plan_revise":
+            return normalize_entry("plan", {"decision": "revise", "text": record.get("text"), "plan": address})
+        if kind == "plan_own":
+            ShortPlan.from_dict(record["plan"]["plan"])
+            tasks = record["plan"].get("tasks")
+            if not isinstance(tasks, list) or not tasks:
+                return None
+            return {"decision": "own", "plan": address, "fields": record["plan"],
+                    "reason": record.get("reason", "")}
+        if kind == "guidance":
+            return normalize_entry("guidance", {"round": address, "action": record.get("action"),
+                                                "text": record.get("text")})
+        return normalize_entry("review", {"decision": "accept"})
+    except (LeadFileError, KeyError, TypeError, ValueError, AttributeError):
+        return None
 
 
 def make_plan_hook(ledger: Ledger):
     """``Hooks.plan``: the coordinator call of the default hook, with the revisions from the ledger.
 
     The loop passes the revisions it holds in memory, which a resumed run has lost; the ledger has
-    them all, so a suspension while re-planning does not lose the lead's revision.
+    them all, so a suspension while re-planning does not lose the lead's revision. When the last
+    ledger item is an own plan of the DS, the coordinator is not called: the typed plan becomes the
+    coordinator output and is traced with the same shape as a real one (``plan`` and ``tasks``), with
+    ``author: lead`` in the trace input because the registry has no author field.
     """
 
     def plan(ctx, revisions):
+        items = ledger.revisions()
+        if items and items[-1].get("kind") == "own":
+            return _own_plan(ctx, items)
         role_input = CoordinatorInput(
             data=ctx.data_summary, metric=ctx.engine.protocol.metric, history=RegistrySummary(),
             guidance=ledger.texts(), limits=role_limits(ctx, 0),
@@ -175,20 +236,45 @@ def make_plan_hook(ledger: Ledger):
     return plan
 
 
+def _own_plan(ctx, items: list[dict]) -> CoordinatorOutput:
+    round_id = ids.setup_round_id(ctx.cycle_id)
+    done = [t for t in ctx.registry.list_role_traces(ctx.cycle_id, "coordinator", round_id)
+            if t.output is not None]
+    if len(done) >= len(items) + 1:  # a crash after the trace: do not trace twice
+        return CoordinatorOutput.from_dict(done[-1].output)
+    last = items[-1]
+    fields = last["fields"]
+    output = CoordinatorOutput(plan=ShortPlan.from_dict(fields["plan"]), tasks=tuple(fields["tasks"]))
+    pending = PendingTrace(
+        cycle_id=ctx.cycle_id, role="coordinator", round_id=round_id, input_type="LeadPlan",
+        input={"author": "lead", "plan_number": last["plan"], "reason": last.get("reason", "")},
+        outcome="ok", llm_call_id=None, output_type=type(output).__name__, output=output.to_dict(),
+        created_at=ctx.now().isoformat())
+    record_trace(ctx.registry, pending)
+    return output
+
+
 # -- the LeadInput -------------------------------------------------------------------------------
 
 
 class FileLeadInput(LeadInput):
-    """Reads the decisions from the lead file; returns None until the file holds the asked one."""
+    """Reads the decisions from the lead file and from the web decisions; None until one answers.
+
+    ONE implementation, one set of consumption rules. Precedence: a web decision addressed to the
+    asked question wins; a different lead.toml entry for the same question is shadowed (a notice and a
+    ``decision_stale`` event say so). A decision with an old address is stale and ignored.
+    """
 
     def __init__(self, path: Path, project_dir: Path, registry: Registry, cycle_id: str,
-                 clock: Callable[[], datetime] = _now) -> None:
+                 clock: Callable[[], datetime] = _now, cockpit=None, emitter=None) -> None:
         self.path = Path(path)
         self.notices_path = Path(project_dir) / NOTICES_FILE
         self.ledger = Ledger(Path(project_dir) / LEDGER_FILE)
         self.registry = registry
         self.cycle_id = cycle_id
         self._clock = clock
+        self.cockpit = cockpit
+        self.emitter = emitter
         self.emitted: list[str] = []
 
     # -- notices --------------------------------------------------------------
@@ -211,6 +297,59 @@ class FileLeadInput(LeadInput):
 
     def _waiting(self, what: str) -> None:
         self.notice(f"waiting for {what} in {self.path}")
+        if self.emitter is not None:
+            self.emitter.emit("waiting", question=what)
+
+    # -- the web source ---------------------------------------------------------
+
+    def _web(self) -> list[dict]:
+        return [] if self.cockpit is None else read_web_decisions(self.cockpit.decisions)
+
+    def _applied_ids(self) -> dict[str, str]:
+        if self.cockpit is None:
+            return {}
+        records, _ = read_jsonl(self.cockpit.applied)
+        return {r.get("decision"): r.get("outcome") for r in records}
+
+    def _mark(self, record: dict, outcome: str, reason: str = "") -> None:
+        """Once per decision: ``decisions-applied.jsonl`` and the event."""
+        if self.cockpit is None or record["id"] in self._applied_ids():
+            return
+        append_jsonl(self.cockpit.applied, {"decision": record["id"], "kind": record["kind"],
+                                            "outcome": outcome, "reason": reason, "at": utc_text()})
+        if self.emitter is not None:
+            if outcome == "applied":
+                self.emitter.emit("decision_applied", decision=record["id"], kind=record["kind"], source="web")
+            else:
+                self.emitter.emit("decision_stale", decision=record["id"], kind=record["kind"],
+                                  reason=reason, source="web")
+
+    def _conflict(self, what: str, record: dict, toml_entry: dict | None, web_entry_: dict | None) -> None:
+        if toml_entry is None or web_entry_ is None:
+            return
+        if {k: v for k, v in toml_entry.items() if k != "fields"} == \
+                {k: v for k, v in web_entry_.items() if k not in ("fields", "reason")}:
+            return
+        self.notice(f"conflict: the web decision {record['id']} for {what} wins over lead.toml, "
+                    "which answers the same question differently")
+        if self.emitter is not None:
+            self.emitter.emit("decision_stale", decision=record["id"], kind=record["kind"],
+                              reason="conflict", source="lead.toml")
+
+    def _for(self, kinds: tuple, number: int) -> tuple[dict | None, dict | None]:
+        """The latest web decision addressed to this question (and its entry); stale ones are marked."""
+        found = None
+        for record in self._web():
+            if record["kind"] not in kinds:
+                continue
+            address = record.get("address")
+            if kinds == ("review_accept",) or address == number:
+                entry = web_entry(record)
+                if entry is not None:
+                    found = (record, entry)
+            elif isinstance(address, int) and address < number:
+                self._mark(record, "stale", f"addressed to {address}, the question is {number}")
+        return found if found else (None, None)
 
     # -- the plan ---------------------------------------------------------------
 
@@ -221,11 +360,31 @@ class FileLeadInput(LeadInput):
         return len(done) < len(self.ledger.revisions()) + 1
 
     def plan_decision(self, context: LeadContext) -> Approve | Revise | None:
-        entries = read_lead(self.path)
         number = self.ledger.plan_number()
+        items = self.ledger.revisions()
         if number > 1 and self._replan_pending():  # a crash after the ledger write: re-plan again
-            return Revise(self.ledger.texts()[-1])
-        entry = entries["plan"]
+            return Revise(items[-1]["text"])
+        if items and items[-1].get("kind") == "own":  # the typed plan counts as the DS's approval
+            return Approve()
+        entries = read_lead(self.path)
+        record, wentry = self._for(("plan_approve", "plan_revise", "plan_own"), number)
+        toml_entry = entries["plan"]
+        if toml_entry is not None and toml_entry["decision"] == "revise" and toml_entry["plan"] != number:
+            toml_entry_same = None
+        else:
+            toml_entry_same = toml_entry
+        if record is not None:
+            self._conflict(f"plan {number}", record, toml_entry_same, wentry)
+            self._mark(record, "applied")
+            if wentry["decision"] == "approve":
+                return Approve()
+            if wentry["decision"] == "own":
+                self.ledger.append(number, OWN_TEXT, self._clock().isoformat(), kind="own",
+                                   fields=wentry["fields"], reason=wentry["reason"])
+                return Revise(OWN_TEXT)
+            self.ledger.append(number, wentry["text"], self._clock().isoformat())
+            return Revise(wentry["text"])
+        entry = toml_entry
         if entry is not None and entry["decision"] == "approve":
             return Approve()
         if entry is not None:
@@ -242,6 +401,12 @@ class FileLeadInput(LeadInput):
     def guidance(self, context: LeadContext) -> LeadResponse | None:
         entry = read_lead(self.path)["guidance"]
         asked = context.round_position
+        record, wentry = self._for(("guidance",), asked or 0)
+        if record is not None:
+            if entry is not None and entry["round"] == asked:
+                self._conflict(f"the guidance of round {asked}", record, entry, wentry)
+            self._mark(record, "applied")
+            return LeadResponse(wentry["action"], wentry["text"])
         if entry is not None:
             if entry["round"] == asked:
                 return LeadResponse(entry["action"], entry["text"])
@@ -253,6 +418,10 @@ class FileLeadInput(LeadInput):
     # -- review -----------------------------------------------------------------
 
     def review_decision(self, context: LeadContext) -> Accept | None:
+        record, wentry = self._for(("review_accept",), 0)
+        if record is not None:
+            self._mark(record, "applied")
+            return Accept()
         if read_lead(self.path)["review"] is not None:
             return Accept()
         self._waiting("review of the final report")

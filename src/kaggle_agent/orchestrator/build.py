@@ -33,8 +33,10 @@ from kaggle_agent.registry import SqliteRegistry
 from kaggle_agent.sandbox import Sandbox, SandboxPolicy
 from kaggle_agent.writer import ClaudeBundleWriter, WriterTask
 
+from .cockpit import CockpitFiles
 from .config import FROM_INFO, FROM_METRIC, FROM_SPEC, Config
 from .errors import ConfigError, ProjectError
+from .events import NULL, Emitter
 from .lead_file import FileLeadInput, Ledger, make_plan_hook
 from .metric import infer_metric
 from .project import (
@@ -48,6 +50,7 @@ from .project import (
     write_project,
 )
 from .summary import build_summary
+from .wrappers import EventingCandidate, EventingRegistry, EventingWriter, eventing_roles
 
 ROLES = ("coordinator", "data", "feature_engineering", "modeling", "reviewer")
 
@@ -119,6 +122,13 @@ def _resolve_metric(config: Config, evaluation_text: str) -> tuple[str, str]:
 
 def create_project(config: Config, deps: Dependencies) -> ProjectState:
     """Download the data, read info and spec, freeze the choices in ``project.json``."""
+    state = resolve_project(config, deps)
+    write_project(config.paths, state)
+    return state
+
+
+def resolve_project(config: Config, deps: Dependencies) -> ProjectState:
+    """What ``create_project`` would freeze (downloads the data, writes no ``project.json``)."""
     paths, comp = config.paths, config.competition
     for folder in (paths.folder, paths.data, paths.workspace, paths.out):
         folder.mkdir(parents=True, exist_ok=True)
@@ -147,12 +157,17 @@ def create_project(config: Config, deps: Dependencies) -> ProjectState:
         protocol_config=config.protocol.to_dict(), train_file=comp.train_file, test_file=comp.test_file,
         files={file.name: file.sha256 for file in download.files},
     )
-    write_project(paths, state)
     return state
 
 
-def build_context(config: Config, deps: Dependencies) -> Built:
-    """Create the project on the first call, then build the context; creates the cycle if missing."""
+def build_context(config: Config, deps: Dependencies, cockpit: CockpitFiles | None = None,
+                  emitter: Emitter = NULL) -> Built:
+    """Create the project on the first call, then build the context; creates the cycle if missing.
+
+    With ``cockpit`` (a supervised run) the registry given to everything except ``start_cycle`` is an
+    ``EventingRegistry`` (events, pause, effective limits), the roles, the writer and the runner
+    factory emit events, and the lead input also reads the web decisions. Without it nothing changes.
+    """
     paths = config.paths
     state = read_project(paths)
     if state is None:
@@ -170,10 +185,16 @@ def build_context(config: Config, deps: Dependencies) -> Built:
     frame = pd.read_csv(paths.data / state.train_file)
     summary: DataSummary = build_summary(frame, protocol)
     registry = SqliteRegistry(str(paths.registry))
+    raw_registry = registry
     try:
         if state.cycle_id not in {c.id for c in registry.list_cycles()}:
             start_cycle(registry, state.cycle_id, config.seed_plan(state.metric, state.target),
                         config.limits, project_id=state.competition)
+        eventing = None
+        if cockpit is not None:
+            emitter.cycle_id = state.cycle_id
+            eventing = EventingRegistry(raw_registry, emitter, cockpit)
+            registry = eventing
         engine = EvaluationEngine(registry, state.cycle_id, protocol)
         client = deps.llm()
         if client.on_call is not None:
@@ -183,20 +204,28 @@ def build_context(config: Config, deps: Dependencies) -> Built:
         sets = {role: client_roles(client, registry, permissions, config.model_for(role), deps.clock)
                 for role in ROLES}
         roles = RoleSet(**{role: getattr(sets[role], role) for role in ROLES})
+        if eventing is not None:
+            roles = eventing_roles(roles, emitter, eventing)
         task = WriterTask(state.target, state.metric, state.direction, state.input_kind, summary)
         writer = ClaudeBundleWriter(
             client, registry, state.cycle_id, paths.workspace / "staging", task,
             max_repairs=config.runtime.writer_max_repairs,
             allowed_dependencies=config.runtime.allowed_dependencies, model=config.model_for("writer"),
         )
+        if eventing is not None:
+            writer = EventingWriter(writer, emitter, eventing)
         policy = SandboxPolicy(timeout_seconds=config.runtime.bundle_timeout,
                                hidden_paths=(paths.registry,))
         kind = state.input_kind
 
         def runner_factory(loaded):
-            return BundleRunner(deps.sandbox, policy, loaded, target_column=state.target, input_kind=kind)
+            runner = BundleRunner(deps.sandbox, policy, loaded, target_column=state.target, input_kind=kind)
+            if eventing is None:
+                return runner
+            return EventingCandidate(runner, emitter, frame, protocol, loaded.bundle_id)
 
-        lead = FileLeadInput(config.lead_path, paths.folder, registry, state.cycle_id, deps.clock)
+        lead = FileLeadInput(config.lead_path, paths.folder, registry, state.cycle_id, deps.clock,
+                             cockpit=cockpit, emitter=emitter if cockpit is not None else None)
         ledger = Ledger(paths.folder / LEDGER_FILE)
         ctx = CycleContext(
             registry=registry, cycle_id=state.cycle_id, engine=engine, frame=frame,
@@ -211,6 +240,6 @@ def build_context(config: Config, deps: Dependencies) -> Built:
             clock=deps.clock, db_path=str(paths.registry), data_path=str(paths.data / state.train_file),
         )
     except BaseException:
-        registry.close()
+        raw_registry.close()
         raise
-    return Built(ctx, pctx, lead, state, registry, client, config)
+    return Built(ctx, pctx, lead, state, raw_registry, client, config)

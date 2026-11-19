@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% from "macros.html" import candidate_table, empty, md %}
+{% block title %}Decisions{% endblock %}
+{% block body %}
+<h1>Decisions</h1>
+<p class="subtitle">What the run waits for, and what you decided. Nothing is approved or accepted for you.</p>
+
+{% if conflicts %}<div class="warnings" id="conflict-banner" role="alert">{% for c in conflicts %}<p>{{ c }}</p>{% endfor %}</div>{% endif %}
+{% if lead and lead.invalid %}<div class="warnings" role="alert">{{ lead.invalid }}. The program will report it as an invalid lead file when it needs it.</div>{% endif %}
+<p id="decision-message" class="note" role="status"></p>
+{% if resume_offer %}<section class="panel" id="resume-offer"><p>Your decision is saved. The run applies it when it resumes.</p>
+<button type="button" data-post="{{ url_for('writes.run_resume') }}" data-after="reload">Resume the run</button></section>{% endif %}
+
+{% if not question %}
+{{ empty("Nothing is waiting for you", "When the run needs the plan approved, guidance after a round or the review of the report, it appears here.") }}
+{% elif question.kind == 'plan' %}
+<section class="panel" id="plan-question" aria-labelledby="plan-h">
+<h2 id="plan-h">Approve the plan (plan {{ question.address }})</h2>
+{% set plan = question.plan %}
+{% if plan %}
+<p class="muted">Written by {{ plan.author }}.</p>
+<dl class="facts">
+<dt>Validation</dt><dd>{{ plan.validation }}</dd>
+<dt>Metric</dt><dd>{{ plan.metric }}</dd>
+<dt>Feature engineering</dt><dd><ul>{% for x in plan.feature_engineering %}<li>{{ x }}</li>{% endfor %}</ul></dd>
+<dt>Models</dt><dd><ul>{% for x in plan.models %}<li>{{ x }}</li>{% endfor %}</ul></dd>
+<dt>Baseline</dt><dd>{{ plan.baseline }}</dd>
+<dt>Tasks of the first round</dt><dd><ul>{% for x in plan.tasks %}<li>{{ x }}</li>{% endfor %}</ul></dd>
+</dl>
+{% endif %}
+<p class="note">Approving freezes the protocol (metric, validation, seed, threshold, holdout). It is never edited in place: a change means a new plan version or a new run.</p>
+<div class="toolbar"><button type="button" data-post="{{ url_for('writes.decide_plan') }}" data-body='{"action": "approve", "address": {{ question.address }}}' data-after="reload">Approve</button></div>
+<h3>Revise with text</h3>
+<label>What should change<textarea id="revise-text" rows="3"></textarea></label>
+<div class="toolbar"><button type="button" data-post="{{ url_for('writes.decide_plan') }}" data-fields="revise-text:text" data-body='{"action": "revise", "address": {{ question.address }}}' data-after="reload">Ask for a new plan</button></div>
+<details><summary>Write my own plan</summary>
+<form id="own-plan" class="stack" data-post="{{ url_for('writes.decide_plan') }}" data-address="{{ question.address }}">
+<label>Metric<input name="metric" required value="{{ plan.metric if plan else '' }}"></label>
+<label>Validation<input name="validation" required value="{{ plan.validation if plan else '' }}"></label>
+<label>Feature engineering (one per line)<textarea name="feature_engineering" rows="3" required>{{ plan.feature_engineering | join('\n') if plan else '' }}</textarea></label>
+<label>Models (one per line)<textarea name="models" rows="3" required>{{ plan.models | join('\n') if plan else '' }}</textarea></label>
+<label>Baseline<input name="baseline" required value="{{ plan.baseline if plan else '' }}"></label>
+<label>Tasks of the first round (one per line)<textarea name="tasks" rows="3" required>{{ plan.tasks | join('\n') if plan else '' }}</textarea></label>
+<label>Reason<textarea name="reason" rows="2" required></textarea></label>
+<label><input type="checkbox" name="confirm"> I approve this plan myself (recorded as plan version {{ question.address }} approved by the DS)</label>
+<button type="submit">Use my plan</button>
+</form></details>
+</section>
+{% elif question.kind == 'guidance' %}
+<section class="panel" id="guidance-question" aria-labelledby="guidance-h">
+<h2 id="guidance-h">Guidance after round {{ question.address }}</h2>
+<div class="grid">
+<div>
+{% set r = question.round %}
+{% if r %}
+<h3>Round {{ question.address }} results</h3>
+{{ candidate_table(r.candidates) }}
+{% for rep in r.reviewer_reports %}{{ md(rep.text) }}{% endfor %}
+<p><a href="{{ url_for('round_view', cycle_id=question.cycle, round_id=r.id) }}">Round details</a></p>
+{% endif %}
+</div>
+<div>
+<label>Guidance for the next round<textarea id="guidance-text" rows="4"></textarea></label>
+<div class="toolbar">
+<button type="button" data-post="{{ url_for('writes.decide_guidance') }}" data-fields="guidance-text:text" data-body='{"action": "guidance", "address": {{ question.address }}}' data-after="reload">Send guidance</button>
+<button type="button" data-post="{{ url_for('writes.decide_guidance') }}" data-body='{"action": "continue", "address": {{ question.address }}}' data-after="reload">Continue without guidance</button>
+</div>
+</div></div>
+</section>
+{% else %}
+<section class="panel" id="review-question" aria-labelledby="review-h">
+<h2 id="review-h">Review the final report</h2>
+{% if report and report.available %}
+<p class="muted">Report of {{ report.created_at }}.</p>
+{% if report.content.get('summary') %}{{ md(report.content.summary) }}{% endif %}
+{% endif %}
+<p><a href="{{ url_for('report', cycle_id=question.cycle) }}">Open the full report</a></p>
+<button type="button" data-dialog="accept-dialog">Accept...</button>
+<dialog id="accept-dialog" aria-labelledby="accept-h"><form method="dialog">
+<h2 id="accept-h">Accept the report?</h2><p>The cycle stops and is finished.</p>
+<label><input type="checkbox" id="accept-confirm"> Yes, accept</label>
+<div class="toolbar"><button value="cancel">Cancel</button>
+<button type="button" id="accept-go" data-post="{{ url_for('writes.decide_review') }}" data-confirm="accept-confirm" data-after="reload">Accept</button></div>
+</form></dialog>
+</section>
+{% endif %}
+
+<section class="panel" id="limits-panel" aria-labelledby="limits-h">
+<h2 id="limits-h">Limits of the cycle</h2>
+{% if limits %}
+<table><thead><tr><th>Limit</th><th class="num">Base</th><th class="num">Effective now</th></tr></thead><tbody>
+{% for k in ('rounds', 'candidates', 'stagnation') %}<tr><td>{{ k }}</td><td class="num">{{ limits.base[k] if limits.base[k] is not none else '-' }}</td><td class="num">{{ limits.effective[k] if limits.effective[k] is not none else '-' }}</td></tr>{% endfor %}
+</tbody></table>
+{% if limits.changes %}
+<h3>Changes</h3>
+<ul>{% for c in limits.changes %}<li>{{ c.at }} {{ c.who }}: {{ c['values'] | tojson }} - {{ c.reason }}</li>{% endfor %}</ul>
+{% endif %}
+<p class="note">A change is read by the orchestrator, also after a resume; the stored limits of the cycle are never rewritten.</p>
+<form id="limits-form" class="stack" data-post="{{ url_for('writes.limits') }}">
+<label>Rounds<input type="number" min="1" name="rounds"></label>
+<label>Candidates per round<input type="number" min="1" name="candidates"></label>
+<label>Stagnation (rounds without improvement)<input type="number" min="1" name="stagnation"></label>
+<label>Reason<textarea name="reason" rows="2" required></textarea></label>
+<label><input type="checkbox" name="confirm"> Yes, change the limits</label>
+<button type="submit">Change the limits</button>
+</form>
+{% else %}{{ empty("No cycle yet", "The limits appear when the project is started.") }}{% endif %}
+</section>
+
+<section class="panel" aria-labelledby="saved-h">
+<h2 id="saved-h">Your saved decisions</h2>
+{% if statuses %}
+<table id="decision-table"><thead><tr><th>When</th><th>Kind</th><th>For</th><th>Status</th></tr></thead><tbody>
+{% for d in statuses %}<tr><td>{{ d.at }}</td><td>{{ d.kind }}</td><td>{{ d.address if d.address is not none else '-' }}</td><td>{{ d.status }}{% if d.reason %} <span class="muted">{{ d.reason }}</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table>
+{% else %}<p class="muted">None yet.</p>{% endif %}
+{% if notices %}<details><summary>Notices of the run</summary><pre>{{ notices | join('\n') }}</pre></details>{% endif %}
+</section>
+{% endblock %}

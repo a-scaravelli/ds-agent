@@ -10,7 +10,7 @@ from importlib import metadata
 
 from flask import Blueprint, current_app, jsonify, request
 
-from . import data
+from . import data, live
 
 API_VERSION = 1
 blueprint = Blueprint("api", __name__, url_prefix="/api")
@@ -53,7 +53,7 @@ def meta():
 @get("/runs")
 def runs():
     src = _source()
-    return _ok(data.runs(src), src)
+    return _ok(data.runs(src, request.args.get("q")), src)
 
 
 @get("/runs/<path:run_id>/chart")
@@ -171,3 +171,6 @@ def attempt(attempt_id):
 def suggestions():
     src = _source()
     return _ok(data.suggestions(src), src)
+
+
+live.register(get, _source)  # events, console, run, decisions/pending, audit, notes, environment, jobs, config

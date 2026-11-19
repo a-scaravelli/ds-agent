@@ -164,6 +164,12 @@ class SubprocessSandbox(Sandbox):
             timed_out = True
             _kill_group(proc.pid)
             proc.wait()
+        except BaseException:
+            # ticket 27: a SIGTERM of the orchestrator (the cockpit's stop) raises here; the bundle runs in
+            # a session of its own, so the group is killed before the exception goes on (no orphan)
+            _kill_group(proc.pid)
+            proc.wait()
+            raise
         _kill_group(proc.pid)  # leftover descendants of a normal exit
         stdout, stderr = out.finish(), err.finish()
         duration = time.monotonic() - started

@@ -2,354 +2,56 @@
   "cases": {
     "1": [
       {
-        "file": "tests/test_cockpit_concurrency.py",
-        "name": "test_the_server_handles_requests_from_16_threads_at_once"
+        "file": "tests/test_cockpit_sse.py",
+        "name": "test_many_sse_clients_do_not_exhaust_workers_and_hold_no_registry_connection"
       }
     ],
     "2": [
       {
-        "file": "tests/test_cockpit_concurrency.py",
-        "name": "test_pages_work_while_the_orchestrator_writes_and_the_writer_is_never_blocked"
+        "file": "tests/test_cockpit_sse.py",
+        "name": "test_the_slot_is_released_on_every_exit_path"
       }
     ],
     "3": [
       {
-        "file": "tests/test_registry_sqlite.py",
-        "name": "test_the_writer_enables_wal_and_old_files_still_open_and_keep_their_rows"
-      },
-      {
-        "file": "tests/test_registry_sqlite.py",
-        "name": "test_memory_registries_are_not_switched_to_wal"
-      },
-      {
-        "file": "tests/test_registry_sqlite.py",
-        "name": "test_a_failed_wal_switch_is_ignored"
-      },
-      {
-        "file": "tests/test_registry_sqlite.py",
-        "name": "test_a_read_only_reader_works_during_an_open_write_transaction"
+        "file": "tests/test_cockpit_sse.py",
+        "name": "test_a_closed_peer_is_detected_on_an_idle_stream_without_a_heartbeat_write"
       }
     ],
     "4": [
       {
-        "file": "tests/test_orchestrator_guards.py",
-        "name": "test_the_registry_pin_was_updated_deliberately_and_the_web_pin_is_gone"
+        "file": "tests/test_cockpit_sse.py",
+        "name": "test_the_peer_probe_handles_the_macos_errors_and_runs_in_every_iteration"
       },
       {
-        "file": "tests/test_orchestrator_guards.py",
-        "name": "test_the_frozen_and_untouched_packages_keep_their_pinned_hashes"
+        "file": "tests/test_cockpit_sse.py",
+        "name": "test_a_failing_write_with_errno_41_ends_the_generator_cleanly"
       }
     ],
     "5": [
       {
-        "file": "tests/test_web_readonly.py",
-        "name": "test_all_pages_and_endpoints_call_only_read_methods_and_leave_the_file_unchanged"
-      },
-      {
-        "file": "tests/test_web_readonly.py",
-        "name": "test_every_request_opens_its_own_connection_with_mode_ro_and_query_only"
-      },
-      {
-        "file": "tests/test_web_readonly.py",
-        "name": "test_the_read_only_instance_refuses_writes"
+        "file": "tests/test_cockpit_sse.py",
+        "name": "test_slots_are_per_app_and_an_expired_lease_is_reaped"
       }
     ],
     "6": [
       {
-        "file": "tests/test_web_readonly.py",
-        "name": "test_every_rule_accepts_only_get"
+        "file": "tests/test_cockpit_sse.py",
+        "name": "test_thirty_opens_and_closes_still_deliver_an_event_each_time"
       },
       {
-        "file": "tests/test_web_readonly.py",
-        "name": "test_other_methods_answer_405_on_every_rule_and_leave_the_file_unchanged"
+        "file": "tests/test_cockpit_sse.py",
+        "name": "test_sse_delivers_live_events_and_resumes_with_last_event_id"
+      },
+      {
+        "file": "tests/test_cockpit_sse.py",
+        "name": "test_the_server_stops_cleanly_with_held_sse_connections"
       }
     ],
     "7": [
       {
-        "file": "tests/test_cockpit_api.py",
-        "name": "test_an_old_registry_file_gives_200_with_empty_sections_and_warnings"
-      },
-      {
-        "file": "tests/test_cockpit_api.py",
-        "name": "test_an_old_file_without_the_cycle_columns_gives_a_503_page_not_a_500"
-      }
-    ],
-    "8": [
-      {
-        "file": "tests/test_cockpit_api.py",
-        "name": "test_every_endpoint_has_the_documented_shape"
-      },
-      {
-        "file": "tests/test_cockpit_api.py",
-        "name": "test_the_doc_lists_the_endpoints_bundles_and_no_code_or_diff_endpoint"
-      },
-      {
-        "file": "tests/test_cockpit_api.py",
-        "name": "test_an_unknown_id_gives_404_with_the_json_error_envelope"
-      }
-    ],
-    "9": [
-      {
-        "file": "tests/test_cockpit_api.py",
-        "name": "test_attempt_filters_return_only_matching_attempts_and_intersect"
-      },
-      {
-        "file": "tests/test_cockpit_api.py",
-        "name": "test_llm_and_trace_filters"
-      }
-    ],
-    "10": [
-      {
-        "file": "tests/test_cockpit_api.py",
-        "name": "test_the_overview_html_shows_the_values_of_the_json"
-      }
-    ],
-    "11": [
-      {
-        "file": "tests/test_cockpit_pages.py",
-        "name": "test_the_shell_has_navigation_status_bar_ticker_skip_link_and_landmarks"
-      }
-    ],
-    "12": [
-      {
-        "file": "tests/test_cockpit_assets.py",
-        "name": "test_css_has_sticky_headers_focus_rings_narrow_rule_and_no_fixed_wide_widths"
-      },
-      {
-        "file": "tests/test_cockpit_assets.py",
-        "name": "test_interactive_elements_are_native_and_keyboard_reachable"
-      }
-    ],
-    "13": [
-      {
-        "file": "tests/test_cockpit_assets.py",
-        "name": "test_the_contrast_of_the_documented_token_pairs_is_accessible_in_both_modes"
-      }
-    ],
-    "14": [
-      {
-        "file": "tests/test_cockpit_pages.py",
-        "name": "test_empty_and_error_states"
-      },
-      {
-        "file": "tests/test_cockpit_pages.py",
-        "name": "test_unknown_ids_and_bad_filters_give_styled_errors_never_500"
-      }
-    ],
-    "15": [
-      {
-        "file": "tests/test_cockpit_pages.py",
-        "name": "test_runs_list_shows_one_row_per_cycle_with_its_figures"
-      }
-    ],
-    "16": [
-      {
-        "file": "tests/test_cockpit_pages.py",
-        "name": "test_overview_shows_chart_container_fallback_table_protocol_and_limits"
-      }
-    ],
-    "17": [
-      {
-        "file": "tests/test_cockpit_api.py",
-        "name": "test_direction_and_protocol_come_from_the_project_file_when_there_is_one"
-      },
-      {
-        "file": "tests/test_cockpit_api.py",
-        "name": "test_direction_is_inferred_from_the_comparisons_without_a_project_file"
-      },
-      {
-        "file": "tests/test_cockpit_api.py",
-        "name": "test_direction_falls_back_to_the_best_parameter_and_then_to_max"
-      },
-      {
-        "file": "tests/test_cockpit_api.py",
-        "name": "test_the_project_file_is_read_tolerantly"
-      }
-    ],
-    "18": [
-      {
-        "file": "tests/test_cockpit_pages.py",
-        "name": "test_round_view_shows_tasks_role_outputs_report_verdicts_and_guidance"
-      }
-    ],
-    "19": [
-      {
-        "file": "tests/test_cockpit_pages.py",
-        "name": "test_attempt_page_shows_every_field_and_no_link_to_files"
-      }
-    ],
-    "20": [
-      {
-        "file": "tests/test_cockpit_pages.py",
-        "name": "test_llm_trace_viewer_groups_calls_per_role_and_opens_stored_traces"
-      }
-    ],
-    "21": [
-      {
-        "file": "tests/test_cockpit_pages.py",
-        "name": "test_report_page_with_holdout_submissions_suggestions_and_guidance"
-      },
-      {
-        "file": "tests/test_cockpit_pages.py",
-        "name": "test_no_page_computes_or_fetches_a_score"
-      }
-    ],
-    "22": [
-      {
-        "file": "tests/test_cockpit_pages.py",
-        "name": "test_lists_have_filter_controls_and_rows_carry_data_attributes"
-      }
-    ],
-    "23": [
-      {
-        "file": "tests/test_cockpit_security.py",
-        "name": "test_the_host_header_is_checked_on_pages_api_and_static_files"
-      },
-      {
-        "file": "tests/test_cockpit_security.py",
-        "name": "test_host_allowed_unit"
-      }
-    ],
-    "24": [
-      {
-        "file": "tests/test_cockpit_security.py",
-        "name": "test_security_headers_and_no_inline_script_style_or_handler"
-      }
-    ],
-    "25": [
-      {
-        "file": "tests/test_web_cli.py",
-        "name": "test_the_default_host_is_loopback_and_a_public_host_prints_a_warning"
-      }
-    ],
-    "26": [
-      {
-        "file": "tests/test_cockpit_security.py",
-        "name": "test_the_csrf_guard_rejects_bad_requests_and_accepts_a_valid_pair"
-      },
-      {
-        "file": "tests/test_cockpit_security.py",
-        "name": "test_the_shell_carries_the_csrf_meta_tag_and_no_route_uses_the_guard"
-      }
-    ],
-    "27": [
-      {
-        "file": "tests/test_cockpit_assets.py",
-        "name": "test_every_script_stylesheet_and_image_of_every_page_is_served_locally"
-      },
-      {
-        "file": "tests/test_cockpit_assets.py",
-        "name": "test_no_own_file_mentions_an_external_url_or_inline_code"
-      },
-      {
-        "file": "tests/test_cockpit_assets.py",
-        "name": "test_vended_files_are_recorded_with_name_version_and_licence"
-      },
-      {
-        "file": "tests/test_cockpit_assets.py",
-        "name": "test_package_data_includes_the_static_folder"
-      }
-    ],
-    "28": [
-      {
-        "file": "tests/test_cockpit_pages.py",
-        "name": "test_untrusted_text_is_escaped_and_never_becomes_a_tag_or_a_script_link"
-      },
-      {
-        "file": "tests/test_cockpit_assets.py",
-        "name": "test_markdown_js_escapes_raw_html_and_filters_link_schemes"
-      },
-      {
-        "file": "tests/test_cockpit_assets.py",
-        "name": "test_markdown_js_behaves_as_documented_when_run_by_node"
-      }
-    ],
-    "29": [
-      {
-        "file": "tests/test_cockpit_concurrency.py",
-        "name": "test_a_large_registry_answers_each_page_in_under_two_seconds"
-      }
-    ],
-    "30": [
-      {
-        "file": "tests/test_cockpit_real_run.py",
-        "name": "test_every_page_and_endpoint_answers_over_a_registry_from_a_fake_end_to_end_run"
-      }
-    ],
-    "31": [
-      {
-        "file": "tests/test_cockpit_manual.py",
-        "name": "test_manual_every_page_answers_200_over_a_real_run_folder"
-      },
-      {
-        "file": "tests/test_cockpit_manual.py",
-        "name": "test_the_manual_test_is_skipped_by_default_and_the_readme_has_the_checklist"
-      },
-      {
-        "file": "tests/test_cockpit_manual.py",
-        "name": "test_the_cockpit_tests_use_resolved_paths_and_no_linux_only_tool"
-      }
-    ],
-    "32": [
-      {
-        "file": "tests/test_no_modeling_logic.py",
-        "name": "test_web_imports_only_stdlib_flask_proposals_registry_and_itself"
-      },
-      {
-        "file": "tests/test_no_modeling_logic.py",
-        "name": "test_only_the_web_start_module_imports_the_sqlite_registry"
-      },
-      {
-        "file": "tests/test_no_modeling_logic.py",
-        "name": "test_web_opens_files_only_in_read_project_file"
-      },
-      {
-        "file": "tests/test_no_modeling_logic.py",
-        "name": "test_web_passes_no_workspace_or_bundles_string_to_a_file_or_path_call"
-      },
-      {
-        "file": "tests/test_no_modeling_logic.py",
-        "name": "test_web_start_command_has_no_workspace_option"
-      },
-      {
-        "file": "tests/test_cockpit_security.py",
-        "name": "test_no_page_or_endpoint_opens_or_lists_a_bundle_folder"
-      },
-      {
-        "file": "tests/test_orchestrator_guards.py",
-        "name": "test_dependencies_are_unchanged"
-      }
-    ],
-    "33": [
-      {
-        "file": "tests/test_cockpit_pages.py",
-        "name": "test_old_metrics_and_reports_urls_redirect_with_301"
-      }
-    ],
-    "34": [
-      {
-        "file": "tests/test_cockpit_docs.py",
-        "name": "test_the_readme_has_the_cockpit_section_with_command_pages_redirects_and_every_api_route"
-      },
-      {
-        "file": "tests/test_cockpit_docs.py",
-        "name": "test_the_design_and_the_memory_state_the_reversal_of_ticket_24"
-      },
-      {
         "file": "tests/test_cockpit_docs.py",
         "name": "test_the_test_map_has_exactly_the_cases_of_the_plan_and_each_test_exists"
-      },
-      {
-        "file": "tests/test_orchestrator_docs.py",
-        "name": "test_the_readme_explains_the_web_choice_the_busy_port_and_the_login_error"
-      },
-      {
-        "file": "tests/test_design_doc.py",
-        "name": "test_web_list_and_chart"
-      },
-      {
-        "file": "tests/test_design_doc.py",
-        "name": "test_graphic_design_deferred"
       }
     ]
   }

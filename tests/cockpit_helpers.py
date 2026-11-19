@@ -289,6 +289,8 @@ def all_page_urls(run=RUN_A):
         "/", f"/cycles/{run}", f"/cycles/{run}/rounds", f"/cycles/{run}/rounds/run-a-R1",
         f"/cycles/{run}/attempts", f"/cycles/{run}/traces", f"/cycles/{run}/traces/3",
         f"/cycles/{run}/report", f"/cycles/{run}/guidance", "/attempts/a1", "/suggestions",
+        # ticket 27: the cockpit pages
+        "/live", "/run", "/decisions", "/setup", "/environment", "/audit",
     ]
 
 

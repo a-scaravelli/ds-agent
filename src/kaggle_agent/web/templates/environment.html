@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Environment{% endblock %}
+{% block body %}
+<h1>Environment</h1>
+<p class="subtitle">Is this Mac ready to run? The checks run in the background and never slow the page down.</p>
+<p><button type="button" id="env-refresh" data-url="{{ url_for('api.environment_cards', refresh=1) }}">Check again</button>
+<span id="env-checked" class="muted"></span></p>
+<div id="env-cards" class="grid" data-url="{{ url_for('api.environment_cards') }}">
+{% for key, title in (('kaggle', 'Kaggle credentials'), ('claude', 'Claude login'), ('libraries', 'Libraries'), ('openmp', 'OpenMP'), ('python', 'Python'), ('disk', 'Disk space')) %}
+<section class="panel" id="card-{{ key }}" aria-labelledby="card-{{ key }}-h">
+<h2 id="card-{{ key }}-h">{{ title }}</h2>
+<p class="card-state" data-state="checking">checking</p>
+<div class="card-body"></div>
+</section>
+{% endfor %}
+</div>
+<p class="note">The page never asks for a token, never shows one and never stores one. If Kaggle credentials are missing it tells you the steps in words.</p>
+{% endblock %}

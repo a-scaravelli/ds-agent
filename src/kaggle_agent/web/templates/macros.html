@@ -52,3 +52,20 @@
 {% endfor %}
 </tbody></table></div>
 {% endmacro %}
+
+{# long text shortened at a word boundary with an expand control; the full text stays in the page and is searchable #}
+{% macro expandable(text, limit=120) %}{% set t = text or '' %}{% if t | length <= limit %}{{ t }}{% else %}<details class="more"><summary>{{ t | short(limit) }}</summary><div class="full">{{ t }}</div></details>{% endif %}{% endmacro %}
+
+{# notes and tags of a run or an attempt, with the forms to edit them (the page is JavaScript only for the posts) #}
+{% macro annotations(kind, ident, notes, tags) %}
+<section class="panel annotations" aria-labelledby="notes-h-{{ kind }}">
+<h2 id="notes-h-{{ kind }}">Notes and tags</h2>
+<p>{% for t in tags %}<span class="tag">{{ t }}</span> {% else %}<span class="muted">no tags</span>{% endfor %}</p>
+<ul>{% for n in notes %}<li>{{ n.text }} <span class="muted">{{ n.who }}, {{ n.at }}</span></li>{% endfor %}</ul>
+<form class="note-form stack" data-kind="{{ kind }}" data-id="{{ ident }}" data-notes-url="{{ url_for('writes.notes') }}" data-tags-url="{{ url_for('writes.tags') }}">
+<label>New note<textarea name="text" rows="2"></textarea></label>
+<label>Tags (comma separated)<input name="tags" value="{{ tags | join(', ') }}"></label>
+<div class="toolbar"><button type="submit" name="save-note">Add note</button><button type="button" name="save-tags">Save tags</button></div>
+</form>
+</section>
+{% endmacro %}
