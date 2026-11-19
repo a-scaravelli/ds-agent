@@ -116,7 +116,14 @@ class RunController:
         """The recorded process is alive AND is the same process (start time matches)."""
         if info is None or not self.is_alive(info["pid"]):
             return False
-        return self.process_start_time(info["pid"]) == info.get("start_time")
+        for attempt in range(3):  # `ps` can fail or come back empty under load: ask again before giving up
+            found = self.process_start_time(info["pid"])
+            if found is not None:
+                return found == info.get("start_time")
+            if not self.is_alive(info["pid"]):
+                return False
+            time.sleep(0.1)
+        return False
 
     def lock_held(self) -> bool:
         return store.lock_is_held(store.cockpit_path(self.project_dir, "run.lock"))
