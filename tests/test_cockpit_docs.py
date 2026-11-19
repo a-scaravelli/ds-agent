@@ -9,7 +9,7 @@ from cockpit_helpers import cockpit_client, cockpit_db, loopback_only  # noqa: F
 
 ROOT = Path(__file__).resolve().parent.parent
 README = (ROOT / "README.md").read_text(encoding="utf-8")
-PLAN_CASES = 55
+PLAN_CASES = 7
 
 
 def normal(rule: str) -> str:

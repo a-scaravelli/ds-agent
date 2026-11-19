@@ -10,7 +10,9 @@ import http.client
 import json
 import os
 import signal
+import socket
 import stat
+import struct
 import sys
 import threading
 import time
@@ -106,6 +108,16 @@ class SSE:
             elif ":" in text:
                 key, _, value = text.partition(":")
                 pending[key] = value.strip()
+
+    def abort(self):
+        """Reset the connection abruptly (SO_LINGER 0), as a crashed browser would."""
+        try:
+            sock = self.conn.sock or self.response.fp.raw._sock  # the response owns the socket once headers are read
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+            self.response.close()
+            self.conn.close()
+        except OSError:
+            pass
 
     def close(self):
         try:

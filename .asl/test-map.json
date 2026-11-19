@@ -2,473 +2,53 @@
   "cases": {
     "1": [
       {
-        "file": "tests/test_cockpit_events.py",
-        "name": "test_the_event_log_is_append_only_with_monotonic_ids_across_processes_and_a_torn_tail"
+        "file": "tests/test_cockpit_sse.py",
+        "name": "test_many_sse_clients_do_not_exhaust_workers_and_hold_no_registry_connection"
       }
     ],
     "2": [
       {
-        "file": "tests/test_cockpit_events.py",
-        "name": "test_event_types_and_payloads_cover_the_whole_cycle"
+        "file": "tests/test_cockpit_sse.py",
+        "name": "test_the_slot_is_released_on_every_exit_path"
       }
     ],
     "3": [
       {
-        "file": "tests/test_cockpit_events.py",
-        "name": "test_fold_progress_by_wrapping_the_candidate_leaves_the_results_unchanged"
+        "file": "tests/test_cockpit_sse.py",
+        "name": "test_a_closed_peer_is_detected_on_an_idle_stream_without_a_heartbeat_write"
       }
     ],
     "4": [
       {
-        "file": "tests/test_cockpit_events.py",
-        "name": "test_events_never_contain_prompts_or_secrets_and_the_console_tail_is_redacted"
+        "file": "tests/test_cockpit_sse.py",
+        "name": "test_the_peer_probe_handles_the_macos_errors_and_runs_in_every_iteration"
+      },
+      {
+        "file": "tests/test_cockpit_sse.py",
+        "name": "test_a_failing_write_with_errno_41_ends_the_generator_cleanly"
       }
     ],
     "5": [
       {
         "file": "tests/test_cockpit_sse.py",
-        "name": "test_sse_delivers_live_events_and_resumes_with_last_event_id"
+        "name": "test_slots_are_per_app_and_an_expired_lease_is_reaped"
       }
     ],
     "6": [
       {
         "file": "tests/test_cockpit_sse.py",
-        "name": "test_sse_heartbeat_and_bounded_lifetime"
-      }
-    ],
-    "7": [
+        "name": "test_thirty_opens_and_closes_still_deliver_an_event_each_time"
+      },
       {
         "file": "tests/test_cockpit_sse.py",
-        "name": "test_many_sse_clients_do_not_exhaust_workers_and_hold_no_registry_connection"
-      }
-    ],
-    "8": [
+        "name": "test_sse_delivers_live_events_and_resumes_with_last_event_id"
+      },
       {
         "file": "tests/test_cockpit_sse.py",
         "name": "test_the_server_stops_cleanly_with_held_sse_connections"
       }
     ],
-    "9": [
-      {
-        "file": "tests/test_cockpit_sse.py",
-        "name": "test_the_polling_endpoint_returns_events_in_order_and_is_not_cached"
-      }
-    ],
-    "10": [
-      {
-        "file": "tests/test_cockpit_sse.py",
-        "name": "test_the_console_returns_the_bounded_redacted_tail"
-      }
-    ],
-    "11": [
-      {
-        "file": "tests/test_cockpit_sse.py",
-        "name": "test_the_live_ui_has_ticker_timeline_progress_calls_console_and_opt_in_notifications"
-      }
-    ],
-    "12": [
-      {
-        "file": "tests/test_cockpit_environment.py",
-        "name": "test_environment_cards_degrade_to_unknown_and_never_block_rendering"
-      },
-      {
-        "file": "tests/test_cockpit_environment.py",
-        "name": "test_a_missing_claude_executable_is_unknown"
-      }
-    ],
-    "13": [
-      {
-        "file": "tests/test_cockpit_environment.py",
-        "name": "test_kaggle_card_reports_presence_only_in_lookup_order_and_never_opens_a_secret"
-      },
-      {
-        "file": "tests/test_cockpit_environment.py",
-        "name": "test_the_environment_page_has_no_token_input_and_never_returns_a_secret"
-      }
-    ],
-    "14": [
-      {
-        "file": "tests/test_cockpit_environment.py",
-        "name": "test_library_openmp_python_and_disk_cards"
-      },
-      {
-        "file": "tests/test_cockpit_environment.py",
-        "name": "test_a_failing_card_is_unknown"
-      }
-    ],
-    "15": [
-      {
-        "file": "tests/test_cockpit_setup.py",
-        "name": "test_the_form_shows_every_ticket_field"
-      },
-      {
-        "file": "tests/test_cockpit_setup.py",
-        "name": "test_a_valid_form_is_saved_atomically_and_keeps_the_old_copy"
-      },
-      {
-        "file": "tests/test_cockpit_setup.py",
-        "name": "test_invalid_input_shows_the_key_path_and_leaves_the_file_unchanged"
-      },
-      {
-        "file": "tests/test_cockpit_setup.py",
-        "name": "test_secret_like_values_are_refused"
-      },
-      {
-        "file": "tests/test_cockpit_setup.py",
-        "name": "test_the_ambiguous_metric_refusal_is_shown"
-      }
-    ],
-    "16": [
-      {
-        "file": "tests/test_cockpit_setup.py",
-        "name": "test_frozen_fields_are_read_only_and_refused_after_the_project_started"
-      }
-    ],
-    "17": [
-      {
-        "file": "tests/test_cockpit_setup.py",
-        "name": "test_the_protocol_preview_job_matches_the_hash_the_start_freezes"
-      }
-    ],
-    "18": [
-      {
-        "file": "tests/test_cockpit_setup.py",
-        "name": "test_the_profile_uses_the_development_rows_only"
-      },
-      {
-        "file": "tests/test_cockpit_setup.py",
-        "name": "test_the_profile_finds_id_like_columns"
-      },
-      {
-        "file": "tests/test_cockpit_setup.py",
-        "name": "test_a_failing_job_shows_failed_and_the_page_still_renders"
-      }
-    ],
-    "19": [
-      {
-        "file": "tests/test_no_modeling_logic.py",
-        "name": "test_the_web_controller_spawns_only_the_closed_list_of_commands"
-      },
-      {
-        "file": "tests/test_no_modeling_logic.py",
-        "name": "test_the_allowlist_guard_detects_a_violation"
-      },
-      {
-        "file": "tests/test_no_modeling_logic.py",
-        "name": "test_only_llm_real_imports_subprocess_and_llm_uses_no_network_or_third_party"
-      },
-      {
-        "file": "tests/test_no_modeling_logic.py",
-        "name": "test_web_opens_files_only_in_store_and_read_project_file"
-      },
-      {
-        "file": "tests/test_no_modeling_logic.py",
-        "name": "test_the_structural_guard_detects_what_it_guards"
-      },
-      {
-        "file": "tests/test_no_modeling_logic.py",
-        "name": "test_only_wrappers_build_and_service_touch_the_event_log"
-      }
-    ],
-    "20": [
-      {
-        "file": "tests/test_cockpit_controller.py",
-        "name": "test_a_detached_run_writes_the_console_and_a_new_server_reattaches"
-      }
-    ],
-    "21": [
-      {
-        "file": "tests/test_cockpit_controller.py",
-        "name": "test_only_one_run_is_active_at_a_time"
-      }
-    ],
-    "22": [
-      {
-        "file": "tests/test_cockpit_controller.py",
-        "name": "test_stale_pid_and_lock_recovery"
-      }
-    ],
-    "23": [
-      {
-        "file": "tests/test_cockpit_controller.py",
-        "name": "test_every_state_is_shown_in_plain_words_and_every_exit_code_has_text"
-      },
-      {
-        "file": "tests/test_cockpit_controller.py",
-        "name": "test_suspended_for_quota_and_for_login_and_the_lead_file_error"
-      }
-    ],
-    "24": [
-      {
-        "file": "tests/test_cockpit_controller.py",
-        "name": "test_pause_finishes_the_call_exits_with_14_and_the_resumed_registry_equals_the_uninterrupted_one"
-      },
-      {
-        "file": "tests/test_cockpit_controller.py",
-        "name": "test_a_pause_pending_when_the_cycle_waits_ends_as_waiting_and_the_request_is_removed"
-      },
-      {
-        "file": "tests/test_cockpit_controller.py",
-        "name": "test_a_pause_pending_when_the_cycle_stops_ends_as_finished"
-      }
-    ],
-    "25": [
-      {
-        "file": "tests/test_cockpit_controller.py",
-        "name": "test_stop_is_sigterm_the_sandbox_child_dies_and_the_cycle_resumes"
-      },
-      {
-        "file": "tests/test_cockpit_controller.py",
-        "name": "test_a_run_that_ignores_sigterm_is_killed_after_the_grace_period_and_resumes"
-      }
-    ],
-    "26": [
-      {
-        "file": "tests/test_cockpit_decisions.py",
-        "name": "test_auto_resume_on_starts_exactly_one_resume_and_off_only_offers_the_button"
-      }
-    ],
-    "27": [
-      {
-        "file": "tests/test_cockpit_decisions.py",
-        "name": "test_revise_adds_a_ledger_entry_and_the_coordinator_replans"
-      },
-      {
-        "file": "tests/test_cockpit_decisions.py",
-        "name": "test_an_own_plan_skips_the_coordinator_and_is_recorded_as_the_ds_plan"
-      }
-    ],
-    "28": [
-      {
-        "file": "tests/test_cockpit_decisions.py",
-        "name": "test_guidance_is_recorded_exactly_like_lead_toml"
-      }
-    ],
-    "29": [
-      {
-        "file": "tests/test_cockpit_decisions.py",
-        "name": "test_review_accept_needs_the_confirmation_and_stops_the_cycle"
-      }
-    ],
-    "30": [
-      {
-        "file": "tests/test_cockpit_decisions.py",
-        "name": "test_a_decision_is_applied_exactly_once"
-      },
-      {
-        "file": "tests/test_cockpit_decisions.py",
-        "name": "test_a_guidance_decision_makes_one_guidance_row_after_two_resumes"
-      }
-    ],
-    "31": [
-      {
-        "file": "tests/test_cockpit_decisions.py",
-        "name": "test_stale_decisions_are_ignored_by_the_orchestrator_and_refused_by_the_page"
-      }
-    ],
-    "32": [
-      {
-        "file": "tests/test_cockpit_decisions.py",
-        "name": "test_the_web_decision_wins_over_lead_toml_and_the_conflict_is_shown"
-      }
-    ],
-    "33": [
-      {
-        "file": "tests/test_cockpit_limits.py",
-        "name": "test_a_limit_extension_is_honoured_by_the_running_cycle"
-      },
-      {
-        "file": "tests/test_cockpit_limits.py",
-        "name": "test_a_limit_extension_is_used_after_a_stop_and_resume"
-      },
-      {
-        "file": "tests/test_cockpit_limits.py",
-        "name": "test_the_effective_limits_of_the_page_and_the_orchestrator_agree_and_the_last_record_wins"
-      }
-    ],
-    "34": [
-      {
-        "file": "tests/test_cockpit_limits.py",
-        "name": "test_an_old_cycle_without_a_change_file_is_unchanged_and_the_overlay_touches_only_the_limits"
-      },
-      {
-        "file": "tests/test_cockpit_limits.py",
-        "name": "test_a_cycle_that_has_not_stored_its_limits_yet_is_never_overlaid"
-      }
-    ],
-    "35": [
-      {
-        "file": "tests/test_cockpit_limits.py",
-        "name": "test_limit_validation_and_confirmation"
-      }
-    ],
-    "36": [
-      {
-        "file": "tests/test_cockpit_writes_security.py",
-        "name": "test_every_write_endpoint_refuses_missing_wrong_foreign_and_bad_host_requests"
-      },
-      {
-        "file": "tests/test_cockpit_writes_security.py",
-        "name": "test_a_form_token_is_accepted_like_the_header_and_a_get_never_writes"
-      }
-    ],
-    "37": [
-      {
-        "file": "tests/test_cockpit_writes_security.py",
-        "name": "test_everything_else_is_get_only_and_every_write_rule_is_guarded"
-      }
-    ],
-    "38": [
-      {
-        "file": "tests/test_cockpit_writes_security.py",
-        "name": "test_stop_limits_and_accept_need_the_confirmation_and_leave_no_trace_without_it"
-      }
-    ],
-    "39": [
-      {
-        "file": "tests/test_cockpit_audit_notes.py",
-        "name": "test_every_ds_action_is_audited_before_it_takes_effect_and_merged_with_system_events"
-      },
-      {
-        "file": "tests/test_cockpit_audit_notes.py",
-        "name": "test_an_action_is_refused_when_its_audit_entry_cannot_be_written"
-      }
-    ],
-    "40": [
-      {
-        "file": "tests/test_cockpit_audit_notes.py",
-        "name": "test_notes_and_tags_on_a_run_and_an_attempt_are_shown_and_searchable"
-      }
-    ],
-    "41": [
-      {
-        "file": "tests/test_cockpit_isolation.py",
-        "name": "test_the_registry_file_is_written_only_by_the_orchestrator"
-      },
-      {
-        "file": "tests/test_no_modeling_logic.py",
-        "name": "test_web_opens_files_only_in_store_and_read_project_file"
-      }
-    ],
-    "42": [
-      {
-        "file": "tests/test_cockpit_isolation.py",
-        "name": "test_a_project_without_the_new_files_opens_and_nothing_is_created"
-      }
-    ],
-    "43": [
-      {
-        "file": "tests/test_cockpit_isolation.py",
-        "name": "test_evaluation_and_the_other_frozen_packages_keep_their_hashes"
-      },
-      {
-        "file": "tests/test_orchestrator_guards.py",
-        "name": "test_the_frozen_and_untouched_packages_keep_their_pinned_hashes"
-      },
-      {
-        "file": "tests/test_writer_guards.py",
-        "name": "test_the_loop_and_evaluation_packages_are_unchanged_and_dependencies_are_the_pinned_ones"
-      }
-    ],
-    "44": [
-      {
-        "file": "tests/test_cockpit_audit_notes.py",
-        "name": "test_concurrent_appends_from_threads_and_processes_lose_nothing"
-      }
-    ],
-    "45": [
-      {
-        "file": "tests/test_cockpit_polish.py",
-        "name": "test_the_plan_column_has_a_minimum_width_and_normal_word_breaking_at_narrow_widths"
-      }
-    ],
-    "46": [
-      {
-        "file": "tests/test_cockpit_polish.py",
-        "name": "test_long_hypotheses_are_shortened_with_an_expand_control_and_stay_searchable"
-      }
-    ],
-    "47": [
-      {
-        "file": "tests/test_cockpit_polish.py",
-        "name": "test_best_seen_and_the_chosen_model_are_shown_apart_with_the_rule_and_the_numbers"
-      }
-    ],
-    "48": [
-      {
-        "file": "tests/test_cockpit_flow.py",
-        "name": "test_the_full_flow_from_the_page_ends_finished_with_every_step_audited"
-      }
-    ],
-    "49": [
-      {
-        "file": "tests/test_orchestrator_guards.py",
-        "name": "test_exit_codes_are_distinct_and_documented"
-      },
-      {
-        "file": "tests/test_orchestrator_docs.py",
-        "name": "test_the_documentation_the_design_note_and_the_test_map_are_complete"
-      }
-    ],
-    "50": [
-      {
-        "file": "tests/test_cockpit_docs.py",
-        "name": "test_the_readme_has_the_cockpit_section_with_command_pages_redirects_and_every_api_route"
-      },
-      {
-        "file": "tests/test_cockpit_docs.py",
-        "name": "test_the_api_document_lists_every_route_and_the_design_and_memory_are_complete"
-      },
-      {
-        "file": "tests/test_cockpit_docs.py",
-        "name": "test_the_design_and_the_memory_state_the_reversal_of_ticket_24"
-      }
-    ],
-    "51": [
-      {
-        "file": "tests/test_orchestrator_guards.py",
-        "name": "test_only_the_manual_test_names_the_manual_variable"
-      },
-      {
-        "file": "tests/test_cockpit_manual.py",
-        "name": "test_the_manual_test_is_skipped_by_default_and_the_readme_has_the_checklist"
-      },
-      {
-        "file": "tests/test_cockpit_manual.py",
-        "name": "test_manual_start_watch_decide_pause_stop_and_resume_through_the_page"
-      }
-    ],
-    "52": [
-      {
-        "file": "tests/test_cockpit_controller.py",
-        "name": "test_a_fresh_heartbeat_shows_running_and_a_stale_one_shows_not_responding"
-      }
-    ],
-    "53": [
-      {
-        "file": "tests/test_cockpit_setup.py",
-        "name": "test_a_failing_job_shows_failed_and_the_page_still_renders"
-      },
-      {
-        "file": "tests/test_cockpit_setup.py",
-        "name": "test_a_job_that_times_out_degrades_without_breaking_the_page"
-      }
-    ],
-    "54": [
-      {
-        "file": "tests/test_cockpit_controller.py",
-        "name": "test_liveness_uses_kill_zero_and_ps_never_the_proc_filesystem"
-      },
-      {
-        "file": "tests/test_orchestrator_guards.py",
-        "name": "test_the_tests_of_this_ticket_use_no_hard_coded_tmp_or_proc"
-      },
-      {
-        "file": "tests/test_cockpit_manual.py",
-        "name": "test_the_cockpit_tests_use_resolved_paths_and_no_linux_only_tool"
-      }
-    ],
-    "55": [
+    "7": [
       {
         "file": "tests/test_cockpit_docs.py",
         "name": "test_the_test_map_has_exactly_the_cases_of_the_plan_and_each_test_exists"

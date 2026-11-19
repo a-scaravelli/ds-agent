@@ -23,7 +23,7 @@ from werkzeug.exceptions import HTTPException
 from kaggle_agent.proposals import ValidationError
 from kaggle_agent.registry import NotFoundError, Registry, RegistryError
 
-from . import api, data, pages, security, writes
+from . import api, data, live, pages, security, writes
 from .audit import AuditError
 from .controller import Conflict, RunController
 from .environment import Environment
@@ -79,6 +79,7 @@ def create_app(source, project_dir=None, journal_mode=None, controller=None, sse
     app.config["SHUTDOWN"] = threading.Event()
     app.config.update({"SSE_HEARTBEAT": 15.0, "SSE_MAX_SECONDS": 60.0, "SSE_POLL": 0.25, "SSE_MAX_STREAMS": 8})
     app.config.update(sse or {})
+    app.extensions["sse_slots"] = live.StreamSlots()
     app.config["REGISTRY_IS_FACTORY"] = callable(source) and not isinstance(source, Registry)
     security.install(app)
 

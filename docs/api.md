@@ -476,7 +476,9 @@ Server-sent events from the same log. Same origin only. It honours the `Last-Eve
 sends an `id:` per event, a heartbeat comment (`: heartbeat`) every 15 s and closes after at most 60 s, so
 the browser reconnects and resumes with no loss and no duplicate. It closes at once when the server stops. At
 most 8 streams are open at once: the next answers 429 with `Retry-After` and the page polls instead. A
-stream holds no registry connection.
+slot is held only while the connection is open: it is freed when the client closes (detected by a socket probe
+at every poll, without needing a heartbeat write), when the stream ends, or at the latest when its lease
+expires; 429 is returned only while 8 live connections exist. A stream holds no registry connection.
 
 ### GET /api/console
 

@@ -6,10 +6,16 @@ held stream never holds a registry connection. A server-sent stream is bounded: 
 15 s, at most 60 s of life (the browser reconnects with ``Last-Event-ID``), an immediate close when the
 app's shutdown event is set, and at most 8 streams at once (the next gets 429 with ``Retry-After`` and
 the page falls back to polling).
+
+A stream slot is a lease held only while the connection is open. It is freed in a ``finally`` when the
+stream ends, when the client closes (the generator probes its socket at every poll, so no heartbeat write
+is needed to notice a closed peer: on macOS a write to a closed peer does not always fail), or at the
+latest when the lease expires.
 """
 
 import json
 import re
+import select
 import threading
 import time
 
@@ -30,8 +36,52 @@ _REDACT = [
     re.compile(r"\bsk-[A-Za-z0-9_\-]{8,}\b"),
 ]
 
-_streams = 0
-_streams_lock = threading.Lock()
+LEASE_GRACE = 10.0
+MSG_PEEK = 0x2  # same value on Linux and macOS; the web package may not import socket
+
+
+class StreamSlots:
+    """Per-app stream slots: token -> lease deadline. A lease past its deadline is reaped at the next acquire."""
+
+    def __init__(self, clock=time.monotonic):
+        self._lock = threading.Lock()
+        self._leases: dict[int, float] = {}
+        self._next = 0
+        self._clock = clock
+
+    def acquire(self, maximum: int, ttl: float):
+        with self._lock:
+            now = self._clock()
+            for token in [t for t, deadline in self._leases.items() if deadline <= now]:
+                del self._leases[token]
+            if len(self._leases) >= maximum:
+                return None
+            self._next += 1
+            self._leases[self._next] = now + ttl + LEASE_GRACE
+            return self._next
+
+    def release(self, token) -> None:
+        with self._lock:
+            self._leases.pop(token, None)
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._leases)
+
+
+def _peer_closed(sock) -> bool:
+    """Non-blocking probe: True when the client has closed the connection. Data is peeked, never consumed."""
+    if sock is None:
+        return False
+    try:
+        readable, _, _ = select.select([sock], [], [], 0)
+        if not readable:
+            return False
+        return sock.recv(1, MSG_PEEK) == b""
+    except BlockingIOError:
+        return False
+    except (OSError, ValueError):  # BrokenPipe, ConnectionReset, EPROTOTYPE, EBADF, closed fd
+        return True
 
 
 def redact(text: str) -> str:
@@ -80,59 +130,63 @@ def _sse_frame(event: dict) -> str:
 def register(get, source) -> None:
     @get("/events/stream")
     def event_stream():
-        global _streams
         _same_origin()
         project = _project()
         cfg = current_app.config
         shutdown = cfg["SHUTDOWN"]
-        with _streams_lock:
-            if _streams >= cfg["SSE_MAX_STREAMS"]:
-                response = jsonify({"api_version": API_VERSION, "error": {
-                    "status": 429, "title": "Too many streams",
-                    "message": "Too many live streams are open; the page falls back to polling."}})
-                response.status_code = 429
-                response.headers["Retry-After"] = "2"
-                return response
-            _streams += 1
-        released = []
-
-        def release():
-            global _streams
-            with _streams_lock:
-                if not released:
-                    released.append(1)
-                    _streams -= 1
-
-        last_header = request.headers.get("Last-Event-ID") or request.args.get("after")
+        slots = current_app.extensions["sse_slots"]
         poll, beat, lifetime = cfg["SSE_POLL"], cfg["SSE_HEARTBEAT"], cfg["SSE_MAX_SECONDS"]
+        token = slots.acquire(cfg["SSE_MAX_STREAMS"], lifetime)
+        if token is None:
+            response = jsonify({"api_version": API_VERSION, "error": {
+                "status": 429, "title": "Too many streams",
+                "message": "Too many live streams are open; the page falls back to polling."}})
+            response.status_code = 429
+            response.headers["Retry-After"] = "2"
+            return response
         try:
-            after = int(last_header) if last_header not in (None, "") else None
-        except ValueError:
-            after = None
-        if after is None:
-            tail = events_after(project, 0, 10 ** 9)[-HISTORY_ON_CONNECT:]
-            after = tail[0]["id"] - 1 if tail else 0
+            sock = request.environ.get("werkzeug.socket")
+            last_header = request.headers.get("Last-Event-ID") or request.args.get("after")
+            try:
+                after = int(last_header) if last_header not in (None, "") else None
+            except ValueError:
+                after = None
+            if after is None:
+                tail = events_after(project, 0, 10 ** 9)[-HISTORY_ON_CONNECT:]
+                after = tail[0]["id"] - 1 if tail else 0
 
-        def generate():
-            cursor, started, last_send = after, time.monotonic(), time.monotonic()
-            yield "retry: 2000\n\n"
-            while not shutdown.is_set() and time.monotonic() - started < lifetime:
-                batch = events_after(project, cursor, 500)
-                for event in batch:
-                    cursor = event["id"]
-                    last_send = time.monotonic()
-                    yield _sse_frame(event)
-                if not batch:
-                    if time.monotonic() - last_send >= beat:
-                        last_send = time.monotonic()
-                        yield ": heartbeat\n\n"
-                    shutdown.wait(poll)
+            def generate():
+                cursor, started, last_send = after, time.monotonic(), time.monotonic()
+                try:
+                    yield "retry: 2000\n\n"
+                    while not shutdown.is_set() and time.monotonic() - started < lifetime:
+                        if _peer_closed(sock):
+                            return
+                        batch = events_after(project, cursor, 500)
+                        for event in batch:
+                            cursor = event["id"]
+                            last_send = time.monotonic()
+                            yield _sse_frame(event)
+                        if not batch:
+                            if time.monotonic() - last_send >= beat:
+                                last_send = time.monotonic()
+                                yield ": heartbeat\n\n"
+                            shutdown.wait(poll)
+                            if _peer_closed(sock):
+                                return
+                except OSError:
+                    return
+                finally:
+                    slots.release(token)
 
-        response = Response(generate(), mimetype="text/event-stream")
-        response.headers["Cache-Control"] = "no-store"
-        response.headers["X-Accel-Buffering"] = "no"
-        response.call_on_close(release)
-        return response
+            response = Response(generate(), mimetype="text/event-stream")
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["X-Accel-Buffering"] = "no"
+            response.call_on_close(lambda: slots.release(token))
+            return response
+        except BaseException:
+            slots.release(token)
+            raise
 
     @get("/events")
     def events():

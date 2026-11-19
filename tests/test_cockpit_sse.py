@@ -154,3 +154,182 @@ def test_the_live_ui_has_ticker_timeline_progress_calls_console_and_opt_in_notif
     assert "setInterval(poll" in script  # the polling fallback
     for name in ("live.js", "notify.js", "cockpit.js"):
         assert f"js/{name}" in page
+
+
+def _accepts_stream(project, seconds=10):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        again = project.sse()
+        status = again.status
+        again.close()
+        if status == 200:
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def _wait_free(project, seconds=5):
+    slots = project.app.extensions["sse_slots"]
+    deadline = time.monotonic() + seconds
+    while len(slots) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    return len(slots) == 0
+
+
+# 2
+def test_the_slot_is_released_on_every_exit_path(live_factory, monkeypatch):
+    from kaggle_agent.web import live as live_module
+
+    project = live_factory(sse={"SSE_POLL": 0.05, "SSE_HEARTBEAT": 5, "SSE_MAX_SECONDS": 30, "SSE_MAX_STREAMS": 2})
+    for _ in range(5):  # closed without reading the body
+        assert _accepts_stream(project)
+    real = live_module.events_after
+    calls = []
+
+    def flaky(*args, **kwargs):
+        if not calls:
+            calls.append(1)
+            raise RuntimeError("forced")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(live_module, "events_after", flaky)
+    assert _wait_free(project)
+    assert project.sse().status == 500  # the forced error between acquire and the response
+    monkeypatch.setattr(live_module, "events_after", real)
+    assert _wait_free(project)
+    first, second = project.sse(), project.sse()
+    try:
+        assert (first.status, second.status) == (200, 200)
+    finally:
+        first.close()
+        second.close()
+
+
+# 3
+def test_a_closed_peer_is_detected_on_an_idle_stream_without_a_heartbeat_write(live_factory):
+    project = live_factory(sse={"SSE_POLL": 0.05, "SSE_HEARTBEAT": 60, "SSE_MAX_SECONDS": 60, "SSE_MAX_STREAMS": 8})
+    streams = [project.sse() for _ in range(8)]
+    assert [s.status for s in streams] == [200] * 8
+    assert project.sse().status == 429
+    for s in streams:
+        s.abort()
+    assert _accepts_stream(project, 2)
+
+
+class FakeSock:
+    def __init__(self, recv=b"", error=None):
+        self._recv, self._error = recv, error
+        self.peeked = []
+
+    def fileno(self):
+        return 99
+
+    def recv(self, n, flags=0):
+        self.peeked.append(flags)
+        if self._error:
+            raise self._error
+        return self._recv
+
+
+# 4
+def test_the_peer_probe_handles_the_macos_errors_and_runs_in_every_iteration(monkeypatch, live_factory):
+    import select as select_module
+
+    from kaggle_agent.web import live as live_module
+
+    def readable(socks, *_):
+        return (socks, [], [])
+
+    monkeypatch.setattr(live_module.select, "select", readable)
+    probe = live_module._peer_closed
+    assert probe(FakeSock(b"")) is True
+    assert probe(FakeSock(error=OSError(41, "EPROTOTYPE"))) is True
+    assert probe(FakeSock(error=OSError(9, "EBADF"))) is True
+    assert probe(FakeSock(error=ValueError("closed fd"))) is True
+    assert probe(FakeSock(error=BlockingIOError())) is False
+    data = FakeSock(b"G")
+    assert probe(data) is False and data.peeked == [0x2]  # peeked, never consumed
+    monkeypatch.setattr(live_module.select, "select", lambda *a: ([], [], []))
+    assert probe(FakeSock(b"")) is False
+    assert probe(None) is False
+    monkeypatch.setattr(live_module.select, "select", select_module.select)
+
+    # the probe runs in an iteration with no batch and no heartbeat due
+    calls = []
+    monkeypatch.setattr(live_module, "_peer_closed", lambda sock: calls.append(1) or len(calls) >= 3)
+    project = live_factory(sse={"SSE_POLL": 0.05, "SSE_HEARTBEAT": 60, "SSE_MAX_SECONDS": 30})
+    stream = project.sse()
+    try:
+        assert list(stream.frames()) == []  # the fake says closed at the third probe: the stream ends
+    finally:
+        stream.close()
+    assert len(calls) >= 3
+
+
+# 4 (write failure)
+def test_a_failing_write_with_errno_41_ends_the_generator_cleanly(live_factory, monkeypatch):
+    from kaggle_agent.web import live as live_module
+
+    project = live_factory(sse={"SSE_POLL": 0.05, "SSE_HEARTBEAT": 0.05, "SSE_MAX_SECONDS": 30, "SSE_MAX_STREAMS": 1})
+    slots = project.app.extensions["sse_slots"]
+    calls = []
+
+    def frame(event):
+        calls.append(1)
+        raise OSError(41, "EPROTOTYPE")
+
+    monkeypatch.setattr(live_module, "_sse_frame", frame)
+    emitter(project).emit("stage_start", stage="x")
+    stream = project.sse()
+    try:
+        for _ in range(100):
+            if calls and len(slots) == 0:
+                break
+            time.sleep(0.05)
+        assert calls and len(slots) == 0
+    finally:
+        stream.close()
+
+
+# 5
+def test_slots_are_per_app_and_an_expired_lease_is_reaped(live_factory):
+    from kaggle_agent.web import live as live_module
+
+    now = [0.0]
+    slots = live_module.StreamSlots(clock=lambda: now[0])
+    assert slots.acquire(2, 60) == 1 and slots.acquire(2, 5) == 2
+    assert slots.acquire(2, 60) is None
+    now[0] = 14.0  # lease 2 (5 s + 10 s grace) is not expired yet at 14.0
+    assert slots.acquire(2, 60) is None
+    now[0] = 15.5
+    third = slots.acquire(2, 60)
+    assert third is not None and len(slots) == 2  # the expired one was reaped, the live one kept
+    slots.release(third)
+    slots.release(third)  # idempotent
+    assert len(slots) == 1
+
+    one = live_factory(sse={"SSE_MAX_STREAMS": 1})
+    other = live_factory(sse={"SSE_MAX_STREAMS": 1})
+    held = one.sse()
+    try:
+        assert held.status == 200
+        again = other.sse()
+        assert again.status == 200
+        again.close()
+        assert one.app.extensions["sse_slots"] is not other.app.extensions["sse_slots"]
+    finally:
+        held.close()
+
+
+# 6
+def test_thirty_opens_and_closes_still_deliver_an_event_each_time(live_factory):
+    project = live_factory(sse={"SSE_POLL": 0.05, "SSE_HEARTBEAT": 5, "SSE_MAX_SECONDS": 30, "SSE_MAX_STREAMS": 8})
+    emitter(project).emit("stage_start", stage="s")
+    for _ in range(30):
+        assert _wait_free(project)
+        stream = project.sse()
+        try:
+            assert stream.status == 200
+            assert ids(stream.frames(count=1))
+        finally:
+            stream.close()
