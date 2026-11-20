@@ -20,7 +20,7 @@ WEB = ROOT / "src" / "kaggle_agent" / "web"
 STATIC = WEB / "static"
 TEMPLATES = WEB / "templates"
 OWN_CSS = [STATIC / "css" / "tokens.css", STATIC / "css" / "app.css"]
-OWN_JS = [STATIC / "js" / name for name in ("app.js", "charts.js", "markdown.js")]
+OWN_JS = [STATIC / "js" / name for name in ("app.js", "charts.js", "markdown.js", "theme.js")]
 MAX_MIN_WIDTH_PX = 1280
 MIN_WIDTH_ALLOWLIST: set[str] = set()  # documented exceptions to the min-width rule: none
 
@@ -56,7 +56,7 @@ def test_interactive_elements_are_native_and_keyboard_reachable():
 # 13
 def _colours() -> tuple[dict, dict]:
     text = (STATIC / "css" / "tokens.css").read_text(encoding="utf-8")
-    dark_start = text.index("@media (prefers-color-scheme: dark)")
+    dark_start = text.index(':root[data-theme="dark"]')
     light_block, dark_block = text[:dark_start], text[dark_start:]
     pattern = re.compile(r"(--[\w-]+):\s*(#[0-9a-fA-F]{6})\s*;")
     light = dict(pattern.findall(light_block))
@@ -79,10 +79,17 @@ TEXT_PAIRS = [
     ("--text", "--bg"), ("--text", "--surface"), ("--text", "--surface-alt"),
     ("--text-muted", "--bg"), ("--text-muted", "--surface"), ("--text-muted", "--surface-alt"),
     ("--link", "--surface"), ("--link", "--bg"), ("--accent-fg", "--accent"),
+    ("--text", "--accent-soft"), ("--link", "--accent-soft"), ("--nav-active-fg", "--nav-active-bg"),
+    ("--text-muted", "--table-head-bg"), ("--text", "--table-head-bg"), ("--danger", "--danger-bg"),
+    ("--danger", "--surface"),
     *[(f"--st-{s}-fg", f"--st-{s}-bg") for s in
       ("succeeded", "failed", "running", "waiting", "suspended", "unknown")],
 ]
-LARGE_PAIRS = [("--border-strong", "--surface"), ("--border-strong", "--bg"), ("--focus", "--surface")]
+LARGE_PAIRS = [
+    ("--border-strong", "--surface"), ("--border-strong", "--bg"), ("--focus", "--surface"), ("--focus", "--bg"),
+    ("--progress-fill", "--surface"), ("--progress-fill", "--bg"), ("--chart-line", "--surface"),
+    ("--chart-line", "--chart-bg"),
+]
 
 
 def test_the_contrast_of_the_documented_token_pairs_is_accessible_in_both_modes():
@@ -96,6 +103,7 @@ def test_the_contrast_of_the_documented_token_pairs_is_accessible_in_both_modes(
             ratio = contrast(colours[foreground], colours[background])
             assert ratio >= 3.0, (mode, foreground, background, round(ratio, 2))
     assert light["--bg"] != dark["--bg"]
+    assert light["--bg"] == "#ffffff" and dark["--bg"] != "#000000"  # white page by default, dark is not black
 
 
 # 27
@@ -128,7 +136,7 @@ def test_every_script_stylesheet_and_image_of_every_page_is_served_locally(cockp
     assert {"/static/css/tokens.css", "/static/css/app.css", "/static/vendor/htmx.min.js",
             "/static/vendor/marked.min.js", "/static/js/markdown.js", "/static/js/app.js",
             "/static/vendor/uplot.iife.min.js", "/static/vendor/uplot.min.css",
-            "/static/js/charts.js"} <= checked
+            "/static/js/charts.js", "/static/js/theme.js"} <= checked
 
 
 def test_no_own_file_mentions_an_external_url_or_inline_code():

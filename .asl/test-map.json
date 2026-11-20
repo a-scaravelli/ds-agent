@@ -2,53 +2,105 @@
   "cases": {
     "1": [
       {
-        "file": "tests/test_cockpit_sse.py",
-        "name": "test_many_sse_clients_do_not_exhaust_workers_and_hold_no_registry_connection"
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_light_tokens_are_white_and_the_dark_variant_is_an_optional_blue_block"
       }
     ],
     "2": [
       {
-        "file": "tests/test_cockpit_sse.py",
-        "name": "test_the_slot_is_released_on_every_exit_path"
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_light_is_the_default_even_on_a_dark_os_and_dark_is_an_explicit_opt_in"
+      },
+      {
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_theme_js_sets_dark_only_for_the_exact_stored_value_when_run_by_node"
       }
     ],
     "3": [
       {
-        "file": "tests/test_cockpit_sse.py",
-        "name": "test_a_closed_peer_is_detected_on_an_idle_stream_without_a_heartbeat_write"
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_every_border_radius_uses_a_token_and_the_main_components_are_rounded"
       }
     ],
     "4": [
       {
-        "file": "tests/test_cockpit_sse.py",
-        "name": "test_the_peer_probe_handles_the_macos_errors_and_runs_in_every_iteration"
-      },
-      {
-        "file": "tests/test_cockpit_sse.py",
-        "name": "test_a_failing_write_with_errno_41_ends_the_generator_cleanly"
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_text_and_accent_pairs_meet_wcag_aa_in_light_and_dark"
       }
     ],
     "5": [
       {
-        "file": "tests/test_cockpit_sse.py",
-        "name": "test_slots_are_per_app_and_an_expired_lease_is_reaped"
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_status_colours_are_readable_and_every_status_has_a_glyph_and_a_label"
       }
     ],
     "6": [
       {
-        "file": "tests/test_cockpit_sse.py",
-        "name": "test_thirty_opens_and_closes_still_deliver_an_event_each_time"
-      },
-      {
-        "file": "tests/test_cockpit_sse.py",
-        "name": "test_sse_delivers_live_events_and_resumes_with_last_event_id"
-      },
-      {
-        "file": "tests/test_cockpit_sse.py",
-        "name": "test_the_server_stops_cleanly_with_held_sse_connections"
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_focus_ring_borders_progress_and_chart_series_keep_3_to_1"
       }
     ],
     "7": [
+      {
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_no_hard_coded_colour_outside_the_tokens_file"
+      }
+    ],
+    "8": [
+      {
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_the_chart_reads_tokens_keeps_its_markers_rebuilds_on_theme_change_and_has_rounded_overlays"
+      }
+    ],
+    "9": [
+      {
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_every_page_the_error_page_and_the_empty_registry_answer"
+      },
+      {
+        "file": "tests/test_cockpit_pages.py",
+        "name": "test_empty_and_error_states"
+      },
+      {
+        "file": "tests/test_cockpit_pages.py",
+        "name": "test_unknown_ids_and_bad_filters_give_styled_errors_never_500"
+      }
+    ],
+    "10": [
+      {
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_no_functional_markup_was_removed_by_the_restyle"
+      }
+    ],
+    "11": [
+      {
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_csp_dependencies_and_vendored_files_are_unchanged"
+      }
+    ],
+    "12": [
+      {
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_the_narrow_width_fixes_are_kept_and_no_own_width_is_wider_than_1280px"
+      }
+    ],
+    "13": [
+      {
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_the_readme_has_the_design_section_with_the_manual_checklist"
+      }
+    ],
+    "14": [
+      {
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_the_theme_toggle_is_one_accessible_native_button_on_every_page"
+      }
+    ],
+    "15": [
+      {
+        "file": "tests/test_cockpit_design.py",
+        "name": "test_the_test_map_holds_exactly_the_cases_of_this_ticket"
+      },
       {
         "file": "tests/test_cockpit_docs.py",
         "name": "test_the_test_map_has_exactly_the_cases_of_the_plan_and_each_test_exists"

@@ -16,8 +16,9 @@
     var colors = {
       line: css("--chart-line"), error: css("--chart-error"), baseline: css("--chart-baseline"),
       bar: css("--chart-bar"), chosen: css("--chart-chosen"), grid: css("--chart-grid"),
-      text: css("--text-muted")
+      text: css("--chart-axis"), background: css("--chart-bg"), failed: css("--chart-failed")
     };
+    var font = "12px " + css("--font-sans");
     var xs = points.map(function (p) { return p.iteration; });
     var means = points.map(function (p) { return p.mean; });
     var baseline = payload.baseline ? xs.map(function () { return payload.baseline.mean; }) : null;
@@ -36,8 +37,8 @@
     var pad = (hi - lo) * 0.08 || Math.abs(hi) * 0.05 || 1;
 
     var series = [{}, {
-      label: "score (mean)", stroke: colors.line, width: 1.5,
-      points: { show: true, size: 7, stroke: colors.line, fill: colors.line }
+      label: "score (mean)", stroke: colors.line, width: 2.5,
+      points: { show: true, size: 8, stroke: colors.background, fill: colors.line, width: 2 }
     }];
     var data = [xs, means];
     if (baseline) {
@@ -70,7 +71,7 @@
         ctx.stroke();
       });
       ctx.strokeStyle = colors.chosen;
-      ctx.lineWidth = 2.5 * scale;
+      ctx.lineWidth = 3 * scale;
       points.forEach(function (p) {
         if (!p.chosen) { return; }
         var x = u.valToPos(p.iteration, "x", true);
@@ -90,11 +91,11 @@
         y: { range: function () { return [lo - pad, hi + pad]; } }
       },
       axes: [
-        { label: "iteration", stroke: colors.text, grid: { stroke: colors.grid, width: 1 },
+        { label: "iteration", stroke: colors.text, font: font, labelFont: font, grid: { stroke: colors.grid, width: 1 },
           ticks: { stroke: colors.grid }, values: function (u, ticks) {
             return ticks.map(function (t) { return Number.isInteger(t) ? String(t) : ""; });
           } },
-        { label: payload.metric || "score", stroke: colors.text, grid: { stroke: colors.grid, width: 1 },
+        { label: payload.metric || "score", stroke: colors.text, font: font, labelFont: font, grid: { stroke: colors.grid, width: 1 },
           ticks: { stroke: colors.grid } }
       ],
       series: series,
@@ -102,22 +103,43 @@
     };
     el.textContent = "";
     var plot = new uPlot(options, data, el);
+    var observer = null;
     if (typeof ResizeObserver !== "undefined") {
-      new ResizeObserver(function () {
+      observer = new ResizeObserver(function () {
         plot.setSize({ width: Math.max(el.clientWidth, 320), height: 320 });
-      }).observe(el);
+      });
+      observer.observe(el);
     }
-    return plot;
+    return { plot: plot, observer: observer };
+  }
+
+  var charts = [];
+
+  function render(entry) {
+    if (entry.handle) {
+      if (entry.handle.observer) { entry.handle.observer.disconnect(); }
+      entry.handle.plot.destroy();
+    }
+    entry.handle = build(entry.el, entry.payload);
   }
 
   function init() {
     document.querySelectorAll("[data-chart-url]").forEach(function (el) {
       fetch(el.getAttribute("data-chart-url"), { headers: { Accept: "application/json" } })
         .then(function (response) { return response.json(); })
-        .then(function (body) { build(el, body.data); })
+        .then(function (body) {
+          var entry = { el: el, payload: body.data, handle: null };
+          charts.push(entry);
+          render(entry);
+        })
         .catch(function () { el.textContent = "The chart data could not be loaded; see the table below."; });
     });
   }
+
+  // the colours come from the CSS variables: when the theme changes the chart is rebuilt
+  document.addEventListener("themechange", function () {
+    charts.forEach(function (entry) { if (entry.handle) { render(entry); } });
+  });
 
   document.addEventListener("DOMContentLoaded", init);
 })();

@@ -310,6 +310,26 @@ The page now also starts and controls the run and answers its questions. Princip
 
 **Write endpoints.** All POST, JSON, CSRF token and Origin required (403 otherwise): `/api/run/start`, `/api/run/resume`, `/api/run/pause`, `/api/run/stop`, `/api/config/validate`, `/api/config/save`, `/api/jobs/preview`, `/api/jobs/profile`, `/api/decisions/plan`, `/api/decisions/guidance`, `/api/decisions/review`, `/api/limits`, `/api/notes`, `/api/tags` and `/api/settings`. Read routes added: `/api/events`, `/api/events/stream`, `/api/console`, `/api/run`, `/api/config`, `/api/decisions/pending`, `/api/audit`, `/api/notes`, `/api/environment` and `/api/jobs/<id>`. Pages: `/live`, `/run`, `/decisions`, `/setup`, `/environment` and `/audit`. Shapes and bodies are in `docs/api.md`. Stop, limit extension and accept need `confirm: true`.
 
+### Cockpit design
+
+**Style note.** The cockpit is white with light-blue accents, slate text and rounded corners (radius tokens 6, 10 and 14 px, plus a pill radius), calm spacing and soft shadows. Every colour, radius and shadow lives in `web/static/css/tokens.css`; `app.css`, the templates and the own JavaScript use only those tokens (a test fails on a hard-coded colour). Status is never shown by colour alone: each badge has a glyph and its text label. Charts (uPlot) read the `--chart-*` tokens and are rebuilt when the theme changes. The look is design only: no route, API, data or wording changed.
+
+**Light is the default, also on a dark OS.** The page does not follow `prefers-color-scheme`. Dark is an opt-in: use the *Dark theme* toggle in the status bar, or run `localStorage.setItem('cockpit-theme','dark')` in the browser console and reload. `localStorage.removeItem('cockpit-theme')` (or the toggle again) returns to light. The choice is kept per browser; if storage is blocked the page stays light. The dark variant is slate blue with a blue accent, not black, and keeps the same rounded shapes.
+
+**Adding or changing a colour.** Add the token to `:root` in `web/static/css/tokens.css` (6-digit hex, so the tests can read it) and, if the dark variant needs a different value, to the `:root[data-theme="dark"]` block with the same name. Then use `var(--name)` in `app.css`, a template or the JavaScript (charts read tokens with `getComputedStyle`). A hex, `rgb()`, `hsl()` or a named colour written anywhere else fails `tests/test_cockpit_design.py`; every `border-radius` must be a radius token. If the new token is a text or control colour, add its pair to `TEXT_PAIRS` or `LARGE_PAIRS` in `tests/test_cockpit_assets.py` (contrast is computed there, WCAG AA).
+
+**Manual visual checklist.** The automatic tests cannot judge the look, so this pass is done by a person in a browser (it was not done in the development container, which has no browser). Start the cockpit on a seeded registry, set the operating system to dark mode for the light pass (light must stay), and take a screenshot of every page in each cell below. Attach the screenshots to the pull request, or save them as `docs/screenshots/cockpit-<page>-<width>-<light|dark>.png`.
+
+| Pages | 800 px light | 800 px dark | 1280 px light | 1280 px dark | 1440 px light | 1440 px dark |
+| --- | --- | --- | --- | --- | --- | --- |
+| runs list, run overview, rounds and round, attempts and attempt, trace, report, suggestions, guidance | | | | | | |
+| live, run control, decisions, setup, environment, audit log | | | | | | |
+| error page (unknown id), empty registry, forms, the stop and accept dialogs | | | | | | |
+
+Check in every cell: no clipped content and no horizontal page scroll (wide tables scroll inside their rounded box); rounded containers, inputs, buttons, badges, tags and navigation items, with no square box; a visible focus ring when tabbing; every status badge shows its glyph and its text; the chart shows the baseline (dashed), the bar (dotted), the chosen ring and the error bars, with a readable legend; the dialogs are rounded with a dimmed backdrop; at 800 px the navigation is on top and the facts lists are one column; no flash of the wrong theme on reload.
+
+To switch dark on, click the *Dark theme* toggle in the status bar (or `localStorage.setItem('cockpit-theme','dark')` in the console, then reload); to switch it off, click it again (or `localStorage.removeItem('cockpit-theme')`). The theme is chosen per browser and never follows the operating system.
+
 **Manual test.** `tests/MANUAL_COCKPIT_RUN.md` is the checklist for a real run through the page; `KAGGLE_AGENT_RUN_COCKPIT_DIR=<folder> .venv/bin/pytest tests/test_cockpit_manual.py` runs the marked manual tests. Notifications and sound in a real browser are covered only by the checklist.
 
 ## Light sandbox (`kaggle_agent.sandbox`)

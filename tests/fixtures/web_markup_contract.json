@@ -1,0 +1,746 @@
+{
+ "attempt.html": {
+  "attributes": [
+   "aria-labelledby=prop-h",
+   "aria-labelledby=res-h",
+   "href={{ a.pipeline.url }}",
+   "href={{ url_for('attempt', attempt_id=a.parent_id) }}",
+   "href={{ url_for('cycle', cycle_id=a.run_id) }}",
+   "href={{ url_for('round_view', cycle_id=a.run_id, round_id=a.round_id) }}",
+   "href={{ url_for('traces', cycle_id=a.run_id) }}",
+   "href={{ url_for('traces', cycle_id=a.run_id) }}?q={{ a.id | urlencode }}",
+   "id=prop-h",
+   "id=res-h"
+  ],
+  "classes": [
+   "chosen-mark",
+   "facts",
+   "grid",
+   "kpi",
+   "kpis",
+   "label",
+   "muted",
+   "note",
+   "num",
+   "panel",
+   "subtitle",
+   "table-wrap",
+   "value",
+   "wrap"
+  ],
+  "controls": [
+   "details",
+   "table"
+  ]
+ },
+ "attempts.html": {
+  "attributes": [
+   "action={{ url_for('attempts', cycle_id=run.id) }}",
+   "data-filter-count=attempts-table",
+   "data-filter-for=attempts-table",
+   "data-filter=max",
+   "data-filter=min",
+   "data-filter=outcome",
+   "data-filter=round",
+   "data-filter=text",
+   "data-outcome={{ a.outcome or 'open' }}",
+   "data-round={{ a.round_id or '' }}",
+   "data-score={{ a.mean if a.mean is not none else '' }}",
+   "data-sort=number",
+   "data-sort=text",
+   "data-text={{ (a.id ~ ' ' ~ a.hypothesis ~ ' ' ~ a.what_changed ~ ' ' ~ (a.reason or '') ~ ' ' ~ (a.failure_kind or '') ~ ' ' ~ (a.notes | map(attribute='text') | join(' ')) ~ ' ' ~ (a.tags | join(' '))) | lower }}",
+   "data-value={{ a.mean if a.mean is not none else '' }}",
+   "href={{ url_for('attempt', attempt_id=a.id) }}",
+   "href={{ url_for('round_view', cycle_id=run.id, round_id=a.round_id) }}",
+   "id=attempts-table",
+   "method=get",
+   "name=max_score",
+   "name=min_score",
+   "name=outcome",
+   "name=q",
+   "name=round",
+   "type=button",
+   "type=number",
+   "type=search",
+   "type=submit"
+  ],
+  "classes": [
+   "chosen-mark",
+   "count",
+   "muted",
+   "num",
+   "sort",
+   "subtitle",
+   "table-wrap",
+   "tag",
+   "toolbar",
+   "wrap"
+  ],
+  "controls": [
+   "button",
+   "form",
+   "input",
+   "select",
+   "table"
+  ]
+ },
+ "audit.html": {
+  "attributes": [
+   "data-source={{ e.source }}",
+   "id=audit-table"
+  ],
+  "classes": [
+   "subtitle",
+   "table-wrap",
+   "wrap"
+  ],
+  "controls": [
+   "table"
+  ]
+ },
+ "base.html": {
+  "attributes": [
+   "aria-current=page",
+   "aria-label=Main",
+   "aria-live=polite",
+   "data-console-url={{ url_for('api.console') }}",
+   "data-events-url={{ url_for('api.events') }}",
+   "data-key=a",
+   "data-key=c",
+   "data-key=d",
+   "data-key=e",
+   "data-key=i",
+   "data-key=l",
+   "data-key=n",
+   "data-key=o",
+   "data-key=p",
+   "data-key=r",
+   "data-key=s",
+   "data-key=t",
+   "data-key=u",
+   "data-key=v",
+   "data-run-url={{ url_for('api.run_state') }}",
+   "data-stream-url={{ url_for('api.event_stream') }}",
+   "href=#main",
+   "href={{ url_for('attempts', cycle_id=run.id) }}",
+   "href={{ url_for('audit_page') }}",
+   "href={{ url_for('cycle', cycle_id=run.id) }}",
+   "href={{ url_for('cycles') }}",
+   "href={{ url_for('decisions_page') }}",
+   "href={{ url_for('environment_page') }}",
+   "href={{ url_for('guidance', cycle_id=run.id) }}",
+   "href={{ url_for('live_page') }}",
+   "href={{ url_for('report', cycle_id=run.id) }}",
+   "href={{ url_for('rounds', cycle_id=run.id) }}",
+   "href={{ url_for('run_control') }}",
+   "href={{ url_for('setup') }}",
+   "href={{ url_for('static', filename='css/app.css') }}",
+   "href={{ url_for('static', filename='css/tokens.css') }}",
+   "href={{ url_for('suggestions') }}",
+   "href={{ url_for('traces', cycle_id=run.id) }}",
+   "id=live-ticker",
+   "id=main",
+   "id=run-chip",
+   "name=csrf-token",
+   "name=htmx-config",
+   "name=viewport"
+  ],
+  "classes": [
+   "badge",
+   "brand",
+   "field",
+   "side-nav",
+   "skip-link",
+   "status-",
+   "status-bar",
+   "status-unknown"
+  ],
+  "controls": []
+ },
+ "cycle.html": {
+  "attributes": [
+   "aria-labelledby=chart-h",
+   "aria-labelledby=failed-h",
+   "aria-labelledby=limits-h",
+   "aria-labelledby=plan-h",
+   "aria-labelledby=proto-h",
+   "aria-labelledby=worked-h",
+   "data-chart-url={{ url_for('api.chart', run_id=summary.id, best=request.args.get('best')) }}",
+   "href={{ url_for('attempt', attempt_id=f.attempt_id) }}",
+   "href={{ url_for('attempt', attempt_id=pt.attempt_id) }}",
+   "href={{ url_for('attempt', attempt_id=summary.chosen.attempt_id) }}",
+   "href={{ url_for('attempt', attempt_id=w.attempt_id) }}",
+   "href={{ url_for('decisions_page') }}",
+   "href={{ url_for('round_view', cycle_id=summary.id, round_id=pt.round_id) }}",
+   "href={{ url_for('static', filename='vendor/uplot.min.css') }}",
+   "id=chart-h",
+   "id=failed-h",
+   "id=improvement-rule",
+   "id=limits-h",
+   "id=plan-h",
+   "id=proto-h",
+   "id=score-chart",
+   "id=worked-h"
+  ],
+  "classes": [
+   "chart",
+   "chosen-mark",
+   "facts",
+   "grid",
+   "kpi",
+   "kpis",
+   "label",
+   "muted",
+   "note",
+   "num",
+   "panel",
+   "subtitle",
+   "table-wrap",
+   "value",
+   "wrap"
+  ],
+  "controls": [
+   "details",
+   "table"
+  ]
+ },
+ "cycles.html": {
+  "attributes": [
+   "aria-label=rounds done",
+   "data-filter-count=runs-table",
+   "data-filter-for=runs-table",
+   "data-filter=status",
+   "data-filter=text",
+   "data-sort=number",
+   "data-sort=text",
+   "data-status={{ r.status }}",
+   "data-text={{ (r.id ~ ' ' ~ (r.project_id or '') ~ ' ' ~ r.plan.metric ~ ' ' ~ r.plan.validation ~ ' ' ~ r.plan.models | join(' ') ~ ' ' ~ r.state ~ ' ' ~ (r.notes | map(attribute='text') | join(' ')) ~ ' ' ~ (r.tags | join(' '))) | lower }}",
+   "data-value={{ r.best.mean if r.best else '' }}",
+   "data-value={{ r.rounds_done }}",
+   "href={{ url_for('cycle', cycle_id=r.id) }}",
+   "href={{ url_for('run_control') }}",
+   "href={{ url_for('setup') }}",
+   "id=rule-{{ r.id }}",
+   "id=runs-q",
+   "id=runs-table",
+   "type=button",
+   "type=search"
+  ],
+  "classes": [
+   "count",
+   "muted",
+   "note",
+   "num",
+   "plan-cell",
+   "plan-col",
+   "sort",
+   "subtitle",
+   "table-wrap",
+   "tag",
+   "toolbar",
+   "wrap"
+  ],
+  "controls": [
+   "button",
+   "input",
+   "select",
+   "table"
+  ]
+ },
+ "decisions.html": {
+  "attributes": [
+   "aria-labelledby=accept-h",
+   "aria-labelledby=guidance-h",
+   "aria-labelledby=limits-h",
+   "aria-labelledby=plan-h",
+   "aria-labelledby=review-h",
+   "aria-labelledby=saved-h",
+   "data-address={{ question.address }}",
+   "data-after=reload",
+   "data-confirm=accept-confirm",
+   "data-dialog=accept-dialog",
+   "data-fields=guidance-text:text",
+   "data-fields=revise-text:text",
+   "data-post={{ url_for('writes.decide_guidance') }}",
+   "data-post={{ url_for('writes.decide_plan') }}",
+   "data-post={{ url_for('writes.decide_review') }}",
+   "data-post={{ url_for('writes.limits') }}",
+   "data-post={{ url_for('writes.run_resume') }}",
+   "href={{ url_for('report', cycle_id=question.cycle) }}",
+   "href={{ url_for('round_view', cycle_id=question.cycle, round_id=r.id) }}",
+   "id=accept-confirm",
+   "id=accept-dialog",
+   "id=accept-go",
+   "id=accept-h",
+   "id=conflict-banner",
+   "id=decision-message",
+   "id=decision-table",
+   "id=guidance-h",
+   "id=guidance-question",
+   "id=guidance-text",
+   "id=limits-form",
+   "id=limits-h",
+   "id=limits-panel",
+   "id=own-plan",
+   "id=plan-h",
+   "id=plan-question",
+   "id=resume-offer",
+   "id=review-h",
+   "id=review-question",
+   "id=revise-text",
+   "id=saved-h",
+   "method=dialog",
+   "name=baseline",
+   "name=candidates",
+   "name=confirm",
+   "name=feature_engineering",
+   "name=metric",
+   "name=models",
+   "name=reason",
+   "name=rounds",
+   "name=stagnation",
+   "name=tasks",
+   "name=validation",
+   "type=button",
+   "type=checkbox",
+   "type=number",
+   "type=submit"
+  ],
+  "classes": [
+   "facts",
+   "grid",
+   "muted",
+   "note",
+   "num",
+   "panel",
+   "stack",
+   "subtitle",
+   "toolbar",
+   "warnings"
+  ],
+  "controls": [
+   "button",
+   "details",
+   "dialog",
+   "form",
+   "input",
+   "table",
+   "textarea"
+  ]
+ },
+ "environment.html": {
+  "attributes": [
+   "aria-labelledby=card-{{ key }}-h",
+   "data-state=checking",
+   "data-url={{ url_for('api.environment_cards') }}",
+   "data-url={{ url_for('api.environment_cards', refresh=1) }}",
+   "id=card-{{ key }}",
+   "id=card-{{ key }}-h",
+   "id=env-cards",
+   "id=env-checked",
+   "id=env-refresh",
+   "type=button"
+  ],
+  "classes": [
+   "card-body",
+   "card-state",
+   "grid",
+   "muted",
+   "note",
+   "panel",
+   "subtitle"
+  ],
+  "controls": [
+   "button"
+  ]
+ },
+ "error.html": {
+  "attributes": [
+   "href={{ url_for('cycles') }}"
+  ],
+  "classes": [
+   "error-state"
+  ],
+  "controls": []
+ },
+ "guidance.html": {
+  "attributes": [
+   "href={{ url_for('round_view', cycle_id=run.id, round_id=g.round_id) }}",
+   "href={{ url_for('suggestions') }}"
+  ],
+  "classes": [
+   "muted",
+   "note",
+   "panel",
+   "subtitle"
+  ],
+  "controls": []
+ },
+ "live.html": {
+  "attributes": [
+   "aria-labelledby=calls-h",
+   "aria-labelledby=console-h",
+   "aria-labelledby=now-h",
+   "aria-labelledby=progress-h",
+   "aria-labelledby=timeline-h",
+   "data-limit=80",
+   "id=call-log",
+   "id=calls-h",
+   "id=console",
+   "id=console-h",
+   "id=enable-notifications",
+   "id=live-now",
+   "id=notify-sound",
+   "id=notify-state",
+   "id=now-h",
+   "id=progress-h",
+   "id=progress-list",
+   "id=timeline",
+   "id=timeline-h",
+   "type=button",
+   "type=checkbox"
+  ],
+  "classes": [
+   "big",
+   "console",
+   "muted",
+   "note",
+   "num",
+   "panel",
+   "subtitle",
+   "table-wrap",
+   "timeline",
+   "toolbar"
+  ],
+  "controls": [
+   "button",
+   "input",
+   "table"
+  ]
+ },
+ "macros.html": {
+  "attributes": [
+   "aria-labelledby=notes-h-{{ kind }}",
+   "data-id={{ ident }}",
+   "data-kind={{ kind }}",
+   "data-notes-url={{ url_for('writes.notes') }}",
+   "data-tags-url={{ url_for('writes.tags') }}",
+   "href={{ url_for('attempt', attempt_id=r.attempt_id) }}",
+   "href={{ url_for('attempt', attempt_id=r.parent_id) }}",
+   "id=notes-h-{{ kind }}",
+   "name=save-note",
+   "name=save-tags",
+   "name=tags",
+   "name=text",
+   "type=button",
+   "type=submit"
+  ],
+  "classes": [
+   "annotations",
+   "badge",
+   "empty",
+   "facts",
+   "full",
+   "md",
+   "more",
+   "muted",
+   "note-form",
+   "num",
+   "panel",
+   "stack",
+   "status-",
+   "table-wrap",
+   "tag",
+   "toolbar",
+   "warnings",
+   "wrap"
+  ],
+  "controls": [
+   "button",
+   "details",
+   "form",
+   "input",
+   "table",
+   "textarea"
+  ]
+ },
+ "report.html": {
+  "attributes": [
+   "aria-labelledby=holdout-h",
+   "aria-labelledby=report-h",
+   "aria-labelledby=subs-h",
+   "aria-labelledby=sugg-h",
+   "href={{ url_for('attempt', attempt_id=holdout.attempt_id) }}",
+   "id=holdout-h",
+   "id=report-h",
+   "id=subs-h",
+   "id=sugg-h"
+  ],
+  "classes": [
+   "badge",
+   "facts",
+   "muted",
+   "note",
+   "num",
+   "panel",
+   "status-waiting",
+   "subtitle",
+   "table-wrap",
+   "wrap"
+  ],
+  "controls": [
+   "details",
+   "table"
+  ]
+ },
+ "round.html": {
+  "attributes": [
+   "aria-labelledby=guid-h",
+   "aria-labelledby=rev-h",
+   "aria-labelledby=role-{{ role }}-h",
+   "aria-labelledby=tasks-h",
+   "href={{ url_for('attempt', attempt_id=o.candidate_id) }}",
+   "href={{ url_for('cycle', cycle_id=run.id) }}",
+   "href={{ url_for('trace_view', cycle_id=run.id, n=o.n) }}",
+   "id=guid-h",
+   "id=rev-h",
+   "id=role-{{ role }}-h",
+   "id=tasks-h"
+  ],
+  "classes": [
+   "muted",
+   "note",
+   "panel",
+   "subtitle"
+  ],
+  "controls": []
+ },
+ "rounds.html": {
+  "attributes": [
+   "href={{ url_for('round_view', cycle_id=run.id, round_id=r.id) }}"
+  ],
+  "classes": [
+   "muted",
+   "num",
+   "subtitle",
+   "table-wrap",
+   "wrap"
+  ],
+  "controls": [
+   "table"
+  ]
+ },
+ "run_control.html": {
+  "attributes": [
+   "aria-labelledby=buttons-h",
+   "aria-labelledby=history-h",
+   "aria-labelledby=state-h",
+   "aria-labelledby=stop-h",
+   "data-after=reload",
+   "data-confirm=stop-confirm",
+   "data-dialog=stop-dialog",
+   "data-post={{ url_for('writes.run_pause') }}",
+   "data-post={{ url_for('writes.run_resume') }}",
+   "data-post={{ url_for('writes.run_start') }}",
+   "data-post={{ url_for('writes.run_stop') }}",
+   "data-post={{ url_for('writes.settings') }}",
+   "data-reason=stop-reason",
+   "data-state={{ state.state }}",
+   "id=auto-resume",
+   "id=buttons-h",
+   "id=history-h",
+   "id=run-buttons",
+   "id=run-message",
+   "id=state-badge",
+   "id=state-h",
+   "id=state-text",
+   "id=stop-confirm",
+   "id=stop-dialog",
+   "id=stop-go",
+   "id=stop-h",
+   "id=stop-reason",
+   "method=dialog",
+   "type=button",
+   "type=checkbox"
+  ],
+  "classes": [
+   "badge",
+   "danger",
+   "muted",
+   "note",
+   "panel",
+   "status-",
+   "subtitle",
+   "table-wrap",
+   "toolbar",
+   "warnings"
+  ],
+  "controls": [
+   "button",
+   "dialog",
+   "form",
+   "input",
+   "table",
+   "textarea"
+  ]
+ },
+ "setup.html": {
+  "attributes": [
+   "aria-labelledby=preview-h",
+   "aria-labelledby=profile-h",
+   "aria-live=polite",
+   "data-error-for=competition.direction",
+   "data-error-for=competition.metric",
+   "data-error-for=competition.slug",
+   "data-error-for=competition.target",
+   "data-error-for=limits.candidates",
+   "data-error-for=limits.fix_retries",
+   "data-error-for=limits.pause_every",
+   "data-error-for=limits.rounds",
+   "data-error-for=limits.stagnation",
+   "data-error-for=protocol.holdout_share",
+   "data-error-for=protocol.repetitions",
+   "data-error-for=protocol.seed",
+   "data-error-for=protocol.threshold_k",
+   "data-error-for=protocol.validation_scheme",
+   "data-job-url={{ url_for('api.job', job_id='JOB') }}",
+   "data-post={{ url_for('writes.job_preview') }}",
+   "data-post={{ url_for('writes.job_profile') }}",
+   "data-save={{ url_for('writes.config_save') }}",
+   "data-started={{ 'yes' if started else 'no' }}",
+   "data-target=preview-result",
+   "data-target=profile-result",
+   "data-validate={{ url_for('writes.config_validate') }}",
+   "id=bar-value",
+   "id=baseline-text",
+   "id=config-form",
+   "id=config-message",
+   "id=config-save",
+   "id=config-validate",
+   "id=k-value",
+   "id=preview-h",
+   "id=preview-result",
+   "id=profile-h",
+   "id=profile-result",
+   "id=run-preview",
+   "id=run-profile",
+   "id=threshold-k",
+   "id=threshold-words",
+   "name=competition.direction",
+   "name=competition.metric",
+   "name=competition.slug",
+   "name=competition.target",
+   "name=limits.candidates",
+   "name=limits.fix_retries",
+   "name=limits.pause_every",
+   "name=limits.rounds",
+   "name=limits.stagnation",
+   "name=models.{{ role }}",
+   "name=protocol.holdout_share",
+   "name=protocol.repetitions",
+   "name=protocol.seed",
+   "name=protocol.threshold_k",
+   "name=protocol.validation_params.n_folds",
+   "name=protocol.validation_scheme",
+   "type=button",
+   "type=number",
+   "type=submit"
+  ],
+  "classes": [
+   "error",
+   "hint",
+   "job-result",
+   "note",
+   "panel",
+   "stack",
+   "subtitle",
+   "toolbar",
+   "warnings"
+  ],
+  "controls": [
+   "button",
+   "form",
+   "input",
+   "select"
+  ]
+ },
+ "suggestions.html": {
+  "attributes": [
+   "href={{ url_for('cycle', cycle_id=c) }}",
+   "href={{ url_for('cycle', cycle_id=s.origin_cycle) }}"
+  ],
+  "classes": [
+   "note",
+   "panel",
+   "subtitle"
+  ],
+  "controls": []
+ },
+ "trace_detail.html": {
+  "attributes": [
+   "href={{ url_for('traces', cycle_id=cycle_id) }}"
+  ],
+  "classes": [
+   "subtitle"
+  ],
+  "controls": []
+ },
+ "trace_fragment.html": {
+  "attributes": [],
+  "classes": [
+   "muted",
+   "note",
+   "trace-fragment"
+  ],
+  "controls": []
+ },
+ "traces.html": {
+  "attributes": [
+   "action={{ url_for('traces', cycle_id=run.id) }}",
+   "data-filter-count=calls-table",
+   "data-filter-for=calls-table",
+   "data-filter=outcome",
+   "data-filter=role",
+   "data-filter=text",
+   "data-outcome={{ c.outcome }}",
+   "data-role={{ c.role or '' }}",
+   "data-sort=number",
+   "data-sort=text",
+   "data-text={{ (c.purpose ~ ' ' ~ (c.model or '') ~ ' ' ~ (c.rejection_reason or '')) | lower }}",
+   "href={{ url_for('attempt', attempt_id=t.candidate_id) }}",
+   "href={{ url_for('round_view', cycle_id=run.id, round_id=t.round_id) }}",
+   "href={{ url_for('trace_view', cycle_id=run.id, n=t.n) }}",
+   "hx-get={{ url_for('trace_view', cycle_id=run.id, n=t.n) }}",
+   "hx-swap=innerHTML",
+   "hx-target=#trace-{{ t.n }}",
+   "id=calls-table",
+   "id=trace-{{ t.n }}",
+   "method=get",
+   "name=outcome",
+   "name=q",
+   "name=role",
+   "name=round",
+   "type=button",
+   "type=search",
+   "type=submit"
+  ],
+  "classes": [
+   "count",
+   "muted",
+   "note",
+   "num",
+   "sort",
+   "subtitle",
+   "table-wrap",
+   "toolbar",
+   "wrap"
+  ],
+  "controls": [
+   "button",
+   "form",
+   "input",
+   "select",
+   "table"
+  ]
+ }
+}

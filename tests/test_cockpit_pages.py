@@ -62,7 +62,7 @@ def test_the_shell_has_navigation_status_bar_ticker_skip_link_and_landmarks(cock
     assert 'aria-current="page"' in html
     tokens = (STATIC / "css" / "tokens.css").read_text(encoding="utf-8")
     app_css = (STATIC / "css" / "app.css").read_text(encoding="utf-8")
-    assert "prefers-color-scheme: dark" in tokens
+    assert 'data-theme="dark"' in tokens
     for status in ("succeeded", "failed", "running", "waiting", "suspended"):
         assert f"--st-{status}-fg" in tokens and f"--st-{status}-bg" in tokens
         assert f".status-{status}" in app_css

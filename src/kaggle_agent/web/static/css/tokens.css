@@ -1,10 +1,15 @@
-/* Design tokens of the cockpit: type scale, spacing, colours, status colours.
-   Light by default, dark through prefers-color-scheme. Colours are plain hex values so the tests
-   can read them and check the contrast of each foreground/background pair (WCAG AA, 4.5:1 for
-   text; 3:1 for large text and control borders). Pairs checked by tests/test_cockpit_assets.py:
-   --text/--bg, --text/--surface, --text-muted/--bg, --text-muted/--surface, --link/--surface,
-   --accent-fg/--accent, --border-strong/--surface (3:1), and --st-*-fg/--st-*-bg for the
-   statuses succeeded, failed, running, waiting, suspended and unknown. */
+/* Design tokens of the cockpit: type scale, spacing, radii, shadows, colours, status colours.
+   The page is LIGHT (white, light blue, slate text) for every user, also when the operating system
+   or the browser is in dark mode: there is no media rule on the system colour preference. The dark variant (deep
+   slate blue, blue accent, never pure black) applies only when the user opts in with the toggle of
+   the status bar (js/theme.js sets data-theme="dark" on <html>). Colours are plain 6-digit hex
+   values so the tests can read them and check the contrast of each pair (WCAG AA: 4.5:1 for text,
+   3:1 for large text, control borders, focus rings, progress fill and chart series). Pairs checked
+   by tests/test_cockpit_assets.py: --text and --text-muted on --bg, --surface, --surface-alt;
+   --link on --surface and --accent-soft; --accent-fg/--accent; --nav-active-fg/--nav-active-bg;
+   --text-muted/--table-head-bg; --danger/--danger-bg; --st-*-fg/--st-*-bg; and 3:1 for
+   --border-strong, --focus, --progress-fill and the chart series. Shadows are the only values that
+   may use rgba. Every other file takes its colours from here. */
 
 :root {
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -15,9 +20,9 @@
   --fs-base: 0.875rem;
   --fs-md: 1rem;
   --fs-lg: 1.25rem;
-  --fs-xl: 1.5rem;
+  --fs-xl: 1.625rem;
   --lh-tight: 1.25;
-  --lh-base: 1.45;
+  --lh-base: 1.5;
 
   --sp-1: 0.25rem;
   --sp-2: 0.5rem;
@@ -26,21 +31,38 @@
   --sp-5: 1.5rem;
   --sp-6: 2rem;
 
-  --radius: 4px;
-  --nav-width: 13.5rem;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --radius: var(--radius-sm);
+  --nav-width: 14rem;
   --content-max: 96rem;
 
-  --bg: #f4f5f7;
+  --bg: #ffffff;
   --surface: #ffffff;
-  --surface-alt: #eef0f3;
-  --text: #1b1f27;
-  --text-muted: #4b5563;
+  --surface-alt: #f5f9ff;
+  --table-head-bg: #eaf3fe;
+  --text: #14233b;
+  --text-muted: #4a5b73;
   --link: #0b57d0;
-  --accent: #1a56c4;
+  --accent: #1a6fd0;
   --accent-fg: #ffffff;
-  --border: #d5d9e0;
-  --border-strong: #6b7280;
-  --focus: #0b57d0;
+  --accent-soft: #e3f0ff;
+  --border: #dbe5f1;
+  --border-strong: #7b8aa0;
+  --focus: #2a7de1;
+  --nav-active-bg: #e3f0ff;
+  --nav-active-fg: #0b3f91;
+  --danger: #b42318;
+  --danger-bg: #fee4e2;
+  --progress-track: #dbe8f8;
+  --progress-fill: #2f80ed;
+  --overlay: rgba(20, 35, 59, 0.45);
+
+  --shadow-sm: 0 1px 2px rgba(20, 35, 59, 0.06), 0 1px 3px rgba(20, 35, 59, 0.08);
+  --shadow-md: 0 4px 14px rgba(20, 35, 59, 0.10);
+  --shadow-focus: 0 0 0 3px rgba(42, 125, 225, 0.35);
 
   --st-succeeded-fg: #14532d;
   --st-succeeded-bg: #dcfce7;
@@ -55,48 +77,68 @@
   --st-unknown-fg: #374151;
   --st-unknown-bg: #e5e7eb;
 
-  --chart-line: #1a56c4;
-  --chart-error: #4b5563;
+  --chart-bg: #ffffff;
+  --chart-line: #2f80ed;
+  --chart-error: #4a5b73;
   --chart-baseline: #6b7280;
   --chart-bar: #b45309;
   --chart-chosen: #15803d;
-  --chart-grid: #d5d9e0;
+  --chart-grid: #e1e9f4;
   --chart-failed: #b91c1c;
+  --chart-axis: #4a5b73;
+  --chart-cursor: #2f80ed;
+  --chart-select: #cfe3fb;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1217;
-    --surface: #171b22;
-    --surface-alt: #1e232c;
-    --text: #e6e9ef;
-    --text-muted: #a3acba;
-    --link: #8ab4ff;
-    --accent: #5b8def;
-    --accent-fg: #0b1220;
-    --border: #2b323d;
-    --border-strong: #7f8998;
-    --focus: #8ab4ff;
+/* Optional dark variant, only on explicit opt-in. Radius, spacing and type tokens are not redefined. */
+:root[data-theme="dark"] {
+  --bg: #0f1b2e;
+  --surface: #162540;
+  --surface-alt: #1b2d4c;
+  --table-head-bg: #1e3254;
+  --text: #e6edf7;
+  --text-muted: #a9b7cc;
+  --link: #8cbcff;
+  --accent: #5ea1ff;
+  --accent-fg: #0a1a33;
+  --accent-soft: #1f3a66;
+  --border: #2c4266;
+  --border-strong: #8093b2;
+  --focus: #8cbcff;
+  --nav-active-bg: #1f3a66;
+  --nav-active-fg: #d6e7ff;
+  --danger: #ff9a92;
+  --danger-bg: #4a1f2a;
+  --progress-track: #25395c;
+  --progress-fill: #5ea1ff;
+  --overlay: rgba(5, 12, 25, 0.65);
 
-    --st-succeeded-fg: #86efac;
-    --st-succeeded-bg: #14391f;
-    --st-failed-fg: #fca5a5;
-    --st-failed-bg: #4a1515;
-    --st-running-fg: #93c5fd;
-    --st-running-bg: #162a52;
-    --st-waiting-fg: #fcd34d;
-    --st-waiting-bg: #4a3410;
-    --st-suspended-fg: #c4b5fd;
-    --st-suspended-bg: #2e2158;
-    --st-unknown-fg: #d1d5db;
-    --st-unknown-bg: #2b313b;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.35);
+  --shadow-focus: 0 0 0 3px rgba(140, 188, 255, 0.45);
 
-    --chart-line: #7aa7ff;
-    --chart-error: #a3acba;
-    --chart-baseline: #9aa4b2;
-    --chart-bar: #f59e0b;
-    --chart-chosen: #4ade80;
-    --chart-grid: #2b323d;
-    --chart-failed: #f87171;
-  }
+  --st-succeeded-fg: #86efac;
+  --st-succeeded-bg: #14391f;
+  --st-failed-fg: #fca5a5;
+  --st-failed-bg: #4a1515;
+  --st-running-fg: #93c5fd;
+  --st-running-bg: #1d3a6e;
+  --st-waiting-fg: #fcd34d;
+  --st-waiting-bg: #4a3410;
+  --st-suspended-fg: #c4b5fd;
+  --st-suspended-bg: #2e2158;
+  --st-unknown-fg: #d1d5db;
+  --st-unknown-bg: #2f3d55;
+
+  --chart-bg: #162540;
+  --chart-line: #7aa7ff;
+  --chart-error: #a9b7cc;
+  --chart-baseline: #9aa9c0;
+  --chart-bar: #f59e0b;
+  --chart-chosen: #4ade80;
+  --chart-grid: #2c4266;
+  --chart-failed: #f87171;
+  --chart-axis: #a9b7cc;
+  --chart-cursor: #8cbcff;
+  --chart-select: #25395c;
 }

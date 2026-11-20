@@ -103,6 +103,7 @@ def test_stale_pid_and_lock_recovery(live):
     block.write_text("x", encoding="utf-8")
     live.ok("/api/run/start")
     live.wait_state("running")
+    wait_for_stage(live)  # the run has started its cycle: a kill before that would leave nothing to resume
     info = kill_hard(live)
     assert info["pid"] > 0
     state = live.run_state()
