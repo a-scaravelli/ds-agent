@@ -18,7 +18,7 @@ from . import analytics_data as ad
 ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 
-def attempt_id(value: str) -> str:
+def valid_attempt_id(value: str) -> str:
     if not ID.fullmatch(value or ""):
         raise NotFoundError(f"unknown attempt {str(value)[:40]!r}")
     return value
@@ -58,71 +58,71 @@ def _text(name: str, limit: int = 100) -> str | None:
 
 
 def register(get, source, ok) -> None:
-    @get("/attempts/<path:aid>/analytics")
-    def a_overview(aid):
+    @get("/attempts/<path:attempt_id>/analytics")
+    def a_overview(attempt_id):
         src = source()
-        return ok(ad.overview(src, attempt_id(aid)), src)
+        return ok(ad.overview(src, valid_attempt_id(attempt_id)), src)
 
-    @get("/attempts/<path:aid>/folds")
-    def a_folds(aid):
+    @get("/attempts/<path:attempt_id>/folds")
+    def a_folds(attempt_id):
         src = source()
-        return ok(ad.fold_scores(src, attempt_id(aid)), src)
+        return ok(ad.fold_scores(src, valid_attempt_id(attempt_id)), src)
 
-    @get("/attempts/<path:aid>/panels")
-    def a_panels(aid):
+    @get("/attempts/<path:attempt_id>/panels")
+    def a_panels(attempt_id):
         src = source()
-        return ok(ad.panels(src, attempt_id(aid), _int("rep", 0, 0, 1000)), src)
+        return ok(ad.panels(src, valid_attempt_id(attempt_id), _int("rep", 0, 0, 1000)), src)
 
-    @get("/attempts/<path:aid>/segments")
-    def a_segments(aid):
+    @get("/attempts/<path:attempt_id>/segments")
+    def a_segments(attempt_id):
         src = source()
-        return ok(ad.segment_table(src, attempt_id(aid), _int("min_size", 1, 1, 10 ** 7),
+        return ok(ad.segment_table(src, valid_attempt_id(attempt_id), _int("min_size", 1, 1, 10 ** 7),
                                    _flag("interactions", True), _int("top", 20, 1, 100)), src)
 
-    @get("/attempts/<path:aid>/hardest")
-    def a_hardest(aid):
+    @get("/attempts/<path:attempt_id>/hardest")
+    def a_hardest(attempt_id):
         src = source()
         order = _text("order") or "desc"
-        return ok(ad.hardest_rows(src, attempt_id(aid), _text("sort") or "error", order, _int("limit", 50, 1, 10 ** 6)), src)
+        return ok(ad.hardest_rows(src, valid_attempt_id(attempt_id), _text("sort") or "error", order, _int("limit", 50, 1, 10 ** 6)), src)
 
-    @get("/attempts/<path:aid>/flags")
-    def a_flags(aid):
+    @get("/attempts/<path:attempt_id>/flags")
+    def a_flags(attempt_id):
         src = source()
-        return ok(ad.sanity_flags(src, attempt_id(aid)), src)
+        return ok(ad.sanity_flags(src, valid_attempt_id(attempt_id)), src)
 
-    @get("/attempts/<path:aid>/features")
-    def a_features(aid):
+    @get("/attempts/<path:attempt_id>/features")
+    def a_features(attempt_id):
         src = source()
-        return ok(ad.features(src, attempt_id(aid)), src)
+        return ok(ad.features(src, valid_attempt_id(attempt_id)), src)
 
-    @get("/runs/<path:rid>/paired")
-    def r_paired(rid):
+    @get("/runs/<path:run_id>/paired")
+    def r_paired(run_id):
         src = source()
         a, b = request.args.get("a"), request.args.get("b")
         if not a or not b:
             raise ValidationError("a", "give both attempts: ?a=ID&b=ID")
-        return ok(ad.paired(src, rid, attempt_id(a), attempt_id(b)), src)
+        return ok(ad.paired(src, run_id, valid_attempt_id(a), valid_attempt_id(b)), src)
 
-    @get("/runs/<path:rid>/history")
-    def r_history(rid):
+    @get("/runs/<path:run_id>/history")
+    def r_history(run_id):
         src = source()
-        return ok(ad.history(src, rid), src)
+        return ok(ad.history(src, run_id), src)
 
-    @get("/runs/<path:rid>/compare")
-    def r_compare(rid):
+    @get("/runs/<path:run_id>/compare")
+    def r_compare(run_id):
         src = source()
-        return ok(ad.compare_table(src, rid, _text("sort") or "attempt", _text("order") or "asc", _text("q"),
+        return ok(ad.compare_table(src, run_id, _text("sort") or "attempt", _text("order") or "asc", _text("q"),
                                    _text("round"), _text("family")), src)
 
-    @get("/runs/<path:rid>/side-by-side")
-    def r_side(rid):
+    @get("/runs/<path:run_id>/side-by-side")
+    def r_side(run_id):
         src = source()
         ids = [i for i in (request.args.get("ids") or "").split(",") if i]
         for i in ids:
-            attempt_id(i)
-        return ok(ad.side_by_side(src, rid, ids), src)
+            valid_attempt_id(i)
+        return ok(ad.side_by_side(src, run_id, ids), src)
 
-    @get("/runs/<path:rid>/ablation")
-    def r_ablation(rid):
+    @get("/runs/<path:run_id>/ablation")
+    def r_ablation(run_id):
         src = source()
-        return ok(ad.ablation(src, rid), src)
+        return ok(ad.ablation(src, run_id), src)

@@ -12,7 +12,7 @@
 <section class="panel" aria-labelledby="hist-h">
 <h2 id="hist-h">Score history</h2>
 {{ explain("The score of every successful attempt in order, the best so far, the baseline and the program's improvement bar. A rising line that stays inside the bar may be noise.") }}
-<div data-analytics-section="history" data-url="{{ url_for('api.r_history', rid=run_id) }}" aria-live="polite"><p class="muted">Loading the chart...</p></div>
+<div data-analytics-section="history" data-url="{{ url_for('api.r_history', run_id=run_id) }}" aria-live="polite"><p class="muted">Loading the chart...</p></div>
 </section>
 
 <section class="panel" aria-labelledby="all-h">

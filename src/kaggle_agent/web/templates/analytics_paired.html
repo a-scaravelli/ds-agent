@@ -39,7 +39,7 @@
 <section class="panel" aria-labelledby="corr-h">
 <h2 id="corr-h">Prediction correlation</h2>
 {{ explain("How alike the out-of-fold predictions of the two attempts are, on the rows both have.") }}
-<div data-analytics-section="correlation" data-url="{{ url_for('api.r_paired', rid=run_id) }}" data-query="?a={{ a | urlencode }}&amp;b={{ b | urlencode }}" aria-live="polite"><p class="muted">Loading the correlation...</p></div>
+<div data-analytics-section="correlation" data-url="{{ url_for('api.r_paired', run_id=run_id) }}" data-query="?a={{ a | urlencode }}&amp;b={{ b | urlencode }}" aria-live="polite"><p class="muted">Loading the correlation...</p></div>
 </section>
 {% endif %}
 {% endblock %}

@@ -37,7 +37,7 @@ def register(app) -> None:
     @get("/attempts/<path:attempt_id>/analytics")
     def analytics_attempt(attempt_id):
         src = _source()
-        attempt_id = analytics_api.attempt_id(attempt_id)
+        attempt_id = analytics_api.valid_attempt_id(attempt_id)
         ov = ad.overview(src, attempt_id)
         run = data.run_row(src, ov["run_id"])
         folds = ad.fold_scores(src, attempt_id)
@@ -65,7 +65,7 @@ def register(app) -> None:
         if ids:
             try:
                 for i in ids:
-                    analytics_api.attempt_id(i)
+                    analytics_api.valid_attempt_id(i)
                 side = ad.side_by_side(src, run_id, ids)
             except ValidationError as exc:
                 side_error = str(exc)
@@ -82,7 +82,7 @@ def register(app) -> None:
         attempts = [r["attempt"] for r in ad._attempt_rows(src, run_id) if r["status"] == "succeeded"]
         result = None
         if a and b:
-            result = ad.paired(src, run_id, analytics_api.attempt_id(a), analytics_api.attempt_id(b),
+            result = ad.paired(src, run_id, analytics_api.valid_attempt_id(a), analytics_api.valid_attempt_id(b),
                                with_correlation=False)
         return render_template("analytics_paired.html", run=run, warnings=src.warnings, run_id=run_id, a=a, b=b,
                                result=result, attempts=attempts)

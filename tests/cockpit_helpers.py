@@ -291,6 +291,9 @@ def all_page_urls(run=RUN_A):
         f"/cycles/{run}/report", f"/cycles/{run}/guidance", "/attempts/a1", "/suggestions",
         # ticket 27: the cockpit pages
         "/live", "/run", "/decisions", "/setup", "/environment", "/audit",
+        # ticket 29: the performance analytics pages
+        "/attempts/a1/analytics", f"/runs/{run}/compare", f"/runs/{run}/compare?sort=score&order=desc&q=trees",
+        f"/runs/{run}/compare?ids=a1,a3", f"/runs/{run}/paired", f"/runs/{run}/paired?a=a1&b=a3",
     ]
 
 
@@ -303,6 +306,10 @@ def all_api_urls(run=RUN_A):
         f"{base}/submissions", f"{base}/holdout", f"{base}/final-report", f"{base}/bundles",
         f"{base}/llm-calls", f"{base}/role-traces", f"{base}/role-traces/3", "/api/attempts/a1",
         "/api/attempts/a1/executions", "/api/suggestions",
+        # ticket 29: analytics
+        "/api/attempts/a1/analytics", "/api/attempts/a1/folds", "/api/attempts/a1/panels", "/api/attempts/a1/segments",
+        "/api/attempts/a1/hardest", "/api/attempts/a1/flags", "/api/attempts/a1/features", f"{base}/history",
+        f"{base}/compare", f"{base}/ablation", f"{base}/paired?a=a1&b=a3", f"{base}/side-by-side?ids=a1,a3",
     ]
 
 

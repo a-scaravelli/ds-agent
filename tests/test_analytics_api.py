@@ -150,7 +150,7 @@ def test_the_ablation_table_groups_by_family_counts_missing_describes_and_starts
     assert "x2" not in [r["family"] for r in out["rows"]]  # every described attempt uses it: nothing to compare
     page = client.get(f"/runs/{run}/compare").get_data(as_text=True)
     assert "Display only" in page and f"Not provided (no describe.json): {a2}" in page
-    assert [r.rule for r in client.application.url_map.iter_rules() if "ablation" in r.rule] == ["/api/runs/<path:rid>/ablation"]
+    assert [r.rule for r in client.application.url_map.iter_rules() if "ablation" in r.rule] == ["/api/runs/<path:run_id>/ablation"]
     assert not [w for w in WRITE_ENDPOINTS if "ablation" in w]
     assert client.post(f"/api/runs/{run}/ablation").status_code == 405
 

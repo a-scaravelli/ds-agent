@@ -45,7 +45,7 @@ These views use the DEVELOPMENT data only (validation folds): the holdout is nev
 {% if folds.stability.repeat_range is not none %}<p>Range between repetitions: {{ folds.stability.repeat_range | num(4) }}</p>{% endif %}
 {% if folds.stability.warning %}<div class="warnings" role="status">{{ folds.stability.warning }}</div>{% endif %}
 {% if folds.warning %}<div class="warnings" role="status">{{ folds.warning }}</div>{% endif %}
-<div data-analytics-section="folds" data-url="{{ url_for('api.a_folds', aid=a_id) }}" aria-live="polite"><p class="muted">Loading the dot plot...</p></div>
+<div data-analytics-section="folds" data-url="{{ url_for('api.a_folds', attempt_id=a_id) }}" aria-live="polite"><p class="muted">Loading the dot plot...</p></div>
 {% endif %}
 </section>
 
@@ -54,7 +54,7 @@ These views use the DEVELOPMENT data only (validation folds): the holdout is nev
 {{ explain("Standard views of the predictions for this kind of task. They use one repetition, so no row is counted twice.") }}
 {% if oof_bad %}{{ not_recorded(oof_bad.reason) }}{% else %}
 {% if label_only %}{{ not_recorded("ROC, precision-recall, calibration and log loss are not available: the metric of this run scores labels only (no probabilities or scores). Only the confusion matrix is shown.") }}{% endif %}
-<div data-analytics-section="panels" data-url="{{ url_for('api.a_panels', aid=a_id) }}" aria-live="polite"><p class="muted">Loading the panels...</p></div>
+<div data-analytics-section="panels" data-url="{{ url_for('api.a_panels', attempt_id=a_id) }}" aria-live="polite"><p class="muted">Loading the panels...</p></div>
 {% endif %}
 </section>
 
@@ -64,7 +64,7 @@ These views use the DEVELOPMENT data only (validation folds): the holdout is nev
 {% if oof_bad %}{{ not_recorded(oof_bad.reason) }}{% elif dev_bad %}{{ not_recorded(dev_bad.reason) }}{% else %}
 <div class="toolbar"><label>Minimum segment size: <output id="segment-min-size-value">1</output>
 <input type="range" id="segment-min-size" min="1" max="500" value="1"></label></div>
-<div data-analytics-section="segments" data-url="{{ url_for('api.a_segments', aid=a_id) }}" aria-live="polite"><p class="muted">Loading the segments...</p></div>
+<div data-analytics-section="segments" data-url="{{ url_for('api.a_segments', attempt_id=a_id) }}" aria-live="polite"><p class="muted">Loading the segments...</p></div>
 {% endif %}
 </section>
 
@@ -75,7 +75,7 @@ These views use the DEVELOPMENT data only (validation folds): the holdout is nev
 <div class="toolbar">
 <label>Sort by<select id="hardest-sort"><option value="error">error</option><option value="row">row</option><option value="truth">truth</option><option value="prediction">prediction</option></select></label>
 <label>Order<select id="hardest-order"><option value="desc">worst first</option><option value="asc">best first</option></select></label></div>
-<div data-analytics-section="hardest" data-url="{{ url_for('api.a_hardest', aid=a_id) }}" aria-live="polite"><p class="muted">Loading the rows...</p></div>
+<div data-analytics-section="hardest" data-url="{{ url_for('api.a_hardest', attempt_id=a_id) }}" aria-live="polite"><p class="muted">Loading the rows...</p></div>
 {% endif %}
 </section>
 
@@ -83,7 +83,7 @@ These views use the DEVELOPMENT data only (validation folds): the holdout is nev
 <h2 id="flags-h">Leakage and sanity flags</h2>
 {{ explain("Quick automatic checks: columns that look like identifiers, features almost identical to the target, suspiciously large jumps. They are heuristics, not proof.") }}
 {% if ov.not_recorded %}{{ not_recorded(ov.not_recorded.reason) }}{% else %}
-<div data-analytics-section="flags" data-url="{{ url_for('api.a_flags', aid=a_id) }}" aria-live="polite"><p class="muted">Loading the checks...</p></div>
+<div data-analytics-section="flags" data-url="{{ url_for('api.a_flags', attempt_id=a_id) }}" aria-live="polite"><p class="muted">Loading the checks...</p></div>
 {% endif %}
 </section>
 
@@ -98,6 +98,6 @@ These views use the DEVELOPMENT data only (validation folds): the holdout is nev
 <span id="importance-progress" class="note" aria-live="polite"></span></div>
 <p class="hint">Optional. It runs in the background and can take minutes; it slows a live run a little because it shares the machine.</p>
 {% endif %}
-<div data-analytics-section="features" data-url="{{ url_for('api.a_features', aid=a_id) }}" aria-live="polite"><p class="muted">Loading the features...</p></div>
+<div data-analytics-section="features" data-url="{{ url_for('api.a_features', attempt_id=a_id) }}" aria-live="polite"><p class="muted">Loading the features...</p></div>
 </section>
 {% endblock %}
