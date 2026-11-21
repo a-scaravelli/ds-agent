@@ -72,8 +72,11 @@ def _inflate(blob: bytes, limit: int) -> bytes:
     return out
 
 
-def decode_oof(blob: bytes, max_rows: int = MAX_ROWS, max_bytes: int = MAX_DECOMPRESSED) -> OofTable:
-    """Decode with limits on rows and decompressed bytes and strict column checks."""
+def decode_oof(blob: bytes, max_rows: int = MAX_ROWS, max_bytes: int = MAX_DECOMPRESSED,
+               classification: bool = False) -> OofTable:
+    """Decode with limits on rows and decompressed bytes and strict column checks.
+
+    ``classification`` (or a probability matrix) makes ``classes`` the sorted labels of the truth."""
     text = _inflate(blob, max_bytes)
     try:
         frame = pd.read_csv(io.BytesIO(text), nrows=max_rows + 1)
@@ -97,8 +100,41 @@ def decode_oof(blob: bytes, max_rows: int = MAX_ROWS, max_bytes: int = MAX_DECOM
     if frame["truth"].isna().any():
         raise OofError("the truth column has missing values")
     classes: tuple = ()
-    if matrix:
+    if matrix or classification:
         classes = tuple(sorted(frame["truth"].unique().tolist()))
+    if matrix:
         if len(classes) > len(rest):
             raise OofError("more classes in the truth than probability columns")
     return OofTable(frame, classes, matrix)
+
+
+MAX_SNAPSHOT_ROWS = 200_000
+MAX_SNAPSHOT_COLUMNS = 500
+MAX_SNAPSHOT_BYTES = 400 * 1024 * 1024
+
+
+def decode_snapshot(blob: bytes, max_rows: int = MAX_SNAPSHOT_ROWS) -> pd.DataFrame:
+    """The development features (a ``row`` column, then the features), indexed by row; bounded."""
+    text = _inflate_snapshot(blob)
+    try:
+        frame = pd.read_csv(io.BytesIO(text), nrows=max_rows + 1)
+    except Exception as error:
+        raise OofError(f"not a readable table ({type(error).__name__})") from None
+    if len(frame) > max_rows:
+        raise OofError(f"more than {max_rows} rows")
+    if not len(frame.columns) or frame.columns[0] != "row" or len(frame.columns) > MAX_SNAPSHOT_COLUMNS + 1:
+        raise OofError("the first column must be row, with at most 500 features")
+    if not pd.api.types.is_integer_dtype(frame["row"]):
+        raise OofError("column row must hold integers")
+    return frame.set_index("row")
+
+
+def _inflate_snapshot(blob: bytes) -> bytes:
+    inflater = zlib.decompressobj(wbits=31)
+    try:
+        out = inflater.decompress(blob, MAX_SNAPSHOT_BYTES + 1)
+    except zlib.error as error:
+        raise OofError(f"not a gzip file ({error})") from None
+    if len(out) > MAX_SNAPSHOT_BYTES:
+        raise OofError("the decompressed file is over the size limit")
+    return out

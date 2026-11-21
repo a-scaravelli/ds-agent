@@ -21,7 +21,15 @@ read-only registry connections. Everything the web writes lives in ``<project>/c
 ``pause-request.json``      web: asks the orchestrator to pause at a safe checkpoint
 ``jobs/<id>.json``          web: state of a background job (the child writes ``jobs/<id>.out.json``)
 ``config-history/``         web: the previous ``config.toml`` copies
+``jobs/<id>.progress.jsonl``  orchestrator job: progress events of a heavy job (read by the web)
 ==========================  =====================================================================
+
+ANALYTICS (ticket 29). ``<project>/analytics/`` holds files written ONLY by the orchestrator (see
+``orchestrator.analytics_record``): content-addressed, immutable files plus ``index.jsonl``, whose line is the commit
+point. The web READS them here and nowhere else: a path comes only from ``analytics_path`` (strict regexes for the
+bundle id and the sha12, never a request string), a file is opened only if an index line names it, is read with a
+byte cap, its sha256 is compared with the index (one retry, then "not readable") and a GET never creates the
+folder. Because files are never rewritten, a reader cannot see a half-written file while the orchestrator writes.
 
 The folder is created lazily by a WRITER; a GET never creates anything, and a project without it opens
 normally. ``lead.toml``, ``lead-ledger.json``, ``NOTICES.txt`` and ``last-run.json`` live in the project
@@ -39,6 +47,7 @@ Every path of the web package is built by ``cockpit_path`` from a fixed set of n
 
 import fcntl
 import getpass
+import hashlib
 import json
 import os
 import re
@@ -339,3 +348,106 @@ def list_jobs(project_dir) -> list[Path]:
         return sorted(p for p in folder.iterdir() if p.name.endswith(".json") and ".out." not in p.name)
     except OSError:
         return []
+
+
+# -- analytics files (read only; written by the orchestrator) ----------------------------------------
+
+ANALYTICS_DIR = "analytics"
+BUNDLE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+SHA12 = re.compile(r"[a-f0-9]{12}")
+ANALYTICS_CAPS = {"oof": 25 * 1024 * 1024, "describe": 80 * 1024, "development": 100 * 1024 * 1024,
+                  "importance": 5 * 1024 * 1024}
+_SUFFIX = {"oof": ".csv.gz", "describe": ".json"}
+
+
+def analytics_path(project_dir, kind: str, bundle_id: str | None = None, sha12: str | None = None) -> Path:
+    """A path in ``<project>/analytics/`` built from a kind and validated ids (never from a request string)."""
+    base = Path(project_dir) / ANALYTICS_DIR
+    if kind == "index":
+        return base / "index.jsonl"
+    if kind == "development":
+        if not (sha12 and SHA12.fullmatch(sha12)):
+            raise ValueError("bad hash")
+        return base / f"development-{sha12}.csv.gz"
+    if kind not in ("oof", "describe", "importance") or not (bundle_id and BUNDLE_ID.fullmatch(bundle_id)):
+        raise ValueError("bad analytics file")
+    if kind == "importance":
+        return base / "importance" / f"{bundle_id}.json"
+    if not (sha12 and SHA12.fullmatch(sha12)):
+        raise ValueError("bad hash")
+    return base / kind / f"{bundle_id}-{sha12}{_SUFFIX[kind]}"
+
+
+def analytics_index(project_dir) -> tuple[dict, int]:
+    """The last valid index line per (kind, bundle_id); a torn or invalid line is skipped and counted."""
+    records, skipped = read_jsonl(analytics_path(project_dir, "index"))
+    latest: dict = {}
+    for record in records:
+        kind, bundle = record.get("kind"), record.get("bundle_id")
+        if record.get("v") != 1 or kind not in ("oof", "describe", "development"):
+            skipped += 1
+            continue
+        latest[(kind, bundle if kind != "development" else None)] = record
+    return latest, skipped
+
+
+def _read_capped(path: Path, cap: int) -> bytes:
+    with open(path, "rb") as handle:
+        blob = handle.read(cap + 1)
+    if len(blob) > cap:
+        raise ValueError("the file is over the size cap")
+    return blob
+
+
+def read_analytics_file(project_dir, line: dict) -> tuple[bytes | None, str | None]:
+    """The bytes a valid index line names, checked against its sha256; (None, reason) when not readable."""
+    kind = line.get("kind")
+    digest = line.get("sha256")
+    try:
+        if kind not in ANALYTICS_CAPS or not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest):
+            raise ValueError("the index line is not valid")
+        path = analytics_path(project_dir, kind, line.get("bundle_id"), digest[:12])
+        relative = path.relative_to(Path(project_dir) / ANALYTICS_DIR).as_posix()
+        if line.get("file") != relative:
+            raise ValueError("the index line names a different file")
+    except ValueError as exc:
+        return None, str(exc)
+    reason = "the file is missing"
+    for attempt in range(2):  # one retry: a copy of the folder may be half way
+        try:
+            blob = _read_capped(path, ANALYTICS_CAPS[kind])
+        except FileNotFoundError:
+            reason = "the file named by the index is missing"
+        except (OSError, ValueError) as exc:
+            reason = f"the file cannot be read ({exc})"
+        else:
+            if hashlib.sha256(blob).hexdigest() == digest:
+                return blob, None
+            reason = "the file does not match the hash of the index"
+        if attempt == 0:
+            threading.Event().wait(0.05)
+    return None, reason
+
+
+def read_importance(project_dir, bundle_id: str) -> dict | None:
+    """The result of the importance job for a bundle (a JSON object), or None."""
+    try:
+        path = analytics_path(project_dir, "importance", bundle_id)
+        value = json.loads(_read_capped(path, ANALYTICS_CAPS["importance"]).decode("utf-8"))
+    except (ValueError, OSError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def job_progress(project_dir, job_id: str) -> dict:
+    """The last progress event of a heavy job and its percentage (nothing is created)."""
+    if not JOB_ID.fullmatch(job_id):
+        raise ValueError("bad job id")
+    records, _ = read_jsonl(Path(project_dir) / COCKPIT_DIR / "jobs" / f"{job_id}.progress.jsonl")
+    last = records[-1] if records else None
+    total = next((r.get("total") for r in records if r.get("type") == "job_start"), None)
+    done = next((r.get("done") for r in reversed(records) if r.get("type") == "job_progress"), 0)
+    finished = bool(last) and last.get("type") == "job_end"
+    percent = 100.0 if finished and last.get("status") == "done" else (
+        round(100.0 * done / total, 1) if isinstance(total, int) and total > 0 and isinstance(done, int) else None)
+    return {"last": last, "events": len(records), "percent": percent}

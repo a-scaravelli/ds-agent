@@ -36,6 +36,7 @@ from kaggle_agent.writer import ClaudeBundleWriter, WriterTask
 from .cockpit import CockpitFiles
 from .config import FROM_INFO, FROM_METRIC, FROM_SPEC, Config
 from .errors import ConfigError, ProjectError
+from .analytics_record import RecordingCandidate
 from .events import NULL, Emitter
 from .lead_file import FileLeadInput, Ledger, make_plan_hook
 from .metric import infer_metric
@@ -78,6 +79,13 @@ def real_dependencies() -> Dependencies:
 
     return Dependencies(kaggle=RealKaggleClient(), llm=lambda: RealClaudeClient(),
                         sandbox=SubprocessSandbox())
+
+
+def real_sandbox() -> Sandbox:
+    """The real subprocess sandbox alone (the importance job needs no Kaggle or Claude client)."""
+    from kaggle_agent.sandbox import SubprocessSandbox
+
+    return SubprocessSandbox()
 
 
 @dataclass
@@ -220,6 +228,8 @@ def build_context(config: Config, deps: Dependencies, cockpit: CockpitFiles | No
 
         def runner_factory(loaded):
             runner = BundleRunner(deps.sandbox, policy, loaded, target_column=state.target, input_kind=kind)
+            # ticket 29: runner -> RecordingCandidate -> EventingCandidate (supervised only)
+            runner = RecordingCandidate(runner, frame, protocol, loaded.bundle_id, paths.folder)
             if eventing is None:
                 return runner
             return EventingCandidate(runner, emitter, frame, protocol, loaded.bundle_id)

@@ -515,7 +515,9 @@ def test_bundle_imports_only_stdlib_pandas_numpy_and_allowed_packages():
 
 # --- ticket 27: the run controller (the one web module that imports subprocess) and the event log ---
 
-ORCHESTRATOR_LITERALS = {"start", "resume", "validate-config", "profile", "preview", "--config", "--supervised", "--out"}
+# ticket 29: ``importance`` and its two extra options (the attempt id and the job id are validated by regex)
+ORCHESTRATOR_LITERALS = {"start", "resume", "validate-config", "profile", "preview", "importance", "--config",
+                         "--supervised", "--out", "--attempt", "--job"}
 
 
 def _spawn_violations(source: str) -> list[str]:
@@ -569,7 +571,7 @@ def _check_argv(arg: ast.AST, line: int) -> list[str]:
         for element in items[1:]:
             if isinstance(element, ast.Constant) and element.value in ORCHESTRATOR_LITERALS:
                 continue
-            if isinstance(element, ast.Name) and element.id in ("command", "kind"):
+            if isinstance(element, ast.Name) and element.id in ("command", "kind", "attempt", "job_id"):
                 continue  # validated against the closed tuples RUN_COMMANDS / JOB_COMMANDS at the top of the function
             if isinstance(element, ast.Call) and getattr(element.func, "id", "") == "str" and \
                     len(element.args) == 1 and isinstance(element.args[0], (ast.Name, ast.Attribute)):
