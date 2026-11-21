@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "macros.html" import not_recorded, explain, badge %}
+{% block title %}Compare {{ run_id }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='vendor/uplot.min.css') }}">{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='vendor/uplot.iife.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/analytics.js') }}" defer></script>{% endblock %}
+{% block body %}
+<h1>Compare and history of run {{ run_id }}</h1>
+<p class="subtitle">Development (validation) scores only. Direction: {{ table.direction }}.</p>
+
+<section class="panel" aria-labelledby="hist-h">
+<h2 id="hist-h">Score history</h2>
+{{ explain("The score of every successful attempt in order, the best so far, the baseline and the program's improvement bar. A rising line that stays inside the bar may be noise.") }}
+<div data-analytics-section="history" data-url="{{ url_for('api.r_history', rid=run_id) }}" aria-live="polite"><p class="muted">Loading the chart...</p></div>
+</section>
+
+<section class="panel" aria-labelledby="all-h">
+<h2 id="all-h">All attempts</h2>
+{{ explain("Every attempt of the run. Sort with the column links and filter with the form. Family, features and fold spread need the description the bundle may write; otherwise they show a dash.") }}
+<form class="toolbar" method="get" action="{{ url_for('analytics_compare', run_id=run_id) }}">
+<label>Search<input type="search" name="q" value="{{ q }}"></label>
+<label>Round<select name="round"><option value="">all</option>{% for r in table.rounds %}<option value="{{ r }}"{% if r == round_id %} selected{% endif %}>{{ r }}</option>{% endfor %}</select></label>
+<label>Family<select name="family"><option value="">all</option>{% for f in table.families %}<option value="{{ f }}"{% if f == family %} selected{% endif %}>{{ f }}</option>{% endfor %}</select></label>
+<input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="order" value="{{ order }}">
+<button type="submit">Filter</button><span class="count">{{ table.count }} attempts</span></form>
+{% if table.rows %}
+<div class="table-wrap"><table>
+<thead><tr>
+{% for key, label in (('attempt', 'Attempt'), ('round', 'Round'), ('score', 'Score'), ('spread', 'Spread'), ('family', 'Family'), ('features', 'Features'), ('time', 'Time (s)')) %}
+<th class="{{ 'num' if key in ('score', 'spread', 'features', 'time') }}"{% if sort == key %} aria-sort="{{ 'ascending' if order == 'asc' else 'descending' }}"{% endif %}><a href="{{ url_for('analytics_compare', run_id=run_id, sort=key, order=('desc' if sort == key and order == 'asc' else 'asc'), q=q or none, round=round_id or none, family=family or none) }}">{{ label }}</a></th>
+{% endfor %}
+<th>Status</th><th>Analytics</th></tr></thead>
+<tbody>
+{% for r in table.rows %}
+<tr><td><a href="{{ url_for('attempt', attempt_id=r.attempt) }}">{{ r.attempt }}</a></td><td>{{ r.round or '-' }}</td>
+<td class="num">{{ r.score | num }}</td><td class="num">{{ r.spread | num(4) }}</td><td>{{ r.family or '-' }}</td>
+<td class="num">{{ r.features if r.features is not none else '-' }}</td><td class="num">{{ r.time | num(4) }}</td>
+<td>{{ badge(r.status) }}</td>
+<td>{% if r.score is not none %}<a href="{{ url_for('analytics_attempt', attempt_id=r.attempt) }}">analytics</a>{% else %}<span class="muted">no scores: the run failed or is open</span>{% endif %}</td></tr>
+{% endfor %}
+</tbody></table></div>
+{% else %}<div class="empty" role="status"><strong>No attempts match</strong>Change the filters.</div>{% endif %}
+</section>
+
+<section class="panel" aria-labelledby="side-h">
+<h2 id="side-h">Side by side</h2>
+{{ explain("Pick two or three attempts (comma separated ids) to see their hypothesis, features, hyperparameters and per-fold scores next to each other. No code is shown.") }}
+<form class="toolbar" method="get" action="{{ url_for('analytics_compare', run_id=run_id) }}">
+<label>Attempt ids<input type="text" name="ids" value="{{ ids }}" size="48"></label><button type="submit">Compare</button></form>
+{% if side_error %}<p class="error" role="alert">{{ side_error }}</p>{% endif %}
+{% if side %}
+<div class="table-wrap"><table>
+<thead><tr><th>&nbsp;</th>{% for s in side.attempts %}<th>{{ s.attempt }}</th>{% endfor %}</tr></thead>
+<tbody>
+{% for key, label in (('hypothesis', 'Hypothesis'), ('what_changed', 'What changed'), ('score', 'Score'), ('spread', 'Spread')) %}
+<tr><th scope="row">{{ label }}</th>{% for s in side.attempts %}<td class="wrap">{{ s[key] if s[key] is not none else '-' }}</td>{% endfor %}</tr>
+{% endfor %}
+<tr><th scope="row">Features</th>{% for s in side.attempts %}<td class="wrap">{% if s.features is not none %}{{ s.features | join(', ') }}{% else %}not provided{% endif %}</td>{% endfor %}</tr>
+<tr><th scope="row">Derived features</th>{% for s in side.attempts %}<td class="wrap">{% if s.derived_features is not none %}{% for d in s.derived_features %}{{ d.name }} (from {{ d.sources | join(', ') }}){% if not loop.last %}; {% endif %}{% endfor %}{% else %}not provided{% endif %}</td>{% endfor %}</tr>
+<tr><th scope="row">Hyperparameters</th>{% for s in side.attempts %}<td class="wrap">{% if s.hyperparameters is not none %}{% for k, v in s.hyperparameters.items() %}{{ k }} = {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}not provided{% endif %}</td>{% endfor %}</tr>
+<tr><th scope="row">Per-fold scores</th>{% for s in side.attempts %}<td class="wrap">{% if s.folds %}{% for p, v in s.folds.items() %}{{ p }}: {{ v | num }}{% if not loop.last %}; {% endif %}{% endfor %}{% else %}not recorded for this attempt{% endif %}</td>{% endfor %}</tr>
+</tbody></table></div>
+{% endif %}
+</section>
+
+<section class="panel" aria-labelledby="abl-h">
+<h2 id="abl-h">Ablation: with and without a feature family</h2>
+{{ explain(ablation.note) }}
+{% if ablation.rows %}
+<div class="table-wrap"><table>
+<thead><tr><th>Family</th><th class="num">With: attempts</th><th class="num">With: mean score</th><th class="num">Without: attempts</th><th class="num">Without: mean score</th></tr></thead>
+<tbody>{% for r in ablation.rows %}<tr><td>{{ r.family }}</td><td class="num">{{ r.with.count }}</td><td class="num">{{ r.with.mean_score | num }}</td><td class="num">{{ r.without.count }}</td><td class="num">{{ r.without.mean_score | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% else %}{{ not_recorded("no family appears in some attempts and not in others, or the bundles did not provide describe.json") }}{% endif %}
+{% if ablation.not_provided %}<p class="note">Not provided (no describe.json): {{ ablation.not_provided | join(', ') }}.</p>{% endif %}
+</section>
+{% endblock %}

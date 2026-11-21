@@ -69,3 +69,11 @@
 </form>
 </section>
 {% endmacro %}
+
+{# the clear state of a section whose input was not recorded (ticket 29): a distinct, plain reason #}
+{% macro not_recorded(reason) %}
+<div class="empty not-recorded" role="status"><strong>Not recorded for this attempt</strong>{{ reason }}</div>
+{% endmacro %}
+
+{# the plain-words explanation every analytics panel carries #}
+{% macro explain(text) %}<p class="explain muted">{{ text }}</p>{% endmacro %}

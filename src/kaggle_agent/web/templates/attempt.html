@@ -6,7 +6,7 @@
 <p class="subtitle">Run <a href="{{ url_for('cycle', cycle_id=a.run_id) }}">{{ a.run_id }}</a>;
 {% if a.round_id %}round <a href="{{ url_for('round_view', cycle_id=a.run_id, round_id=a.round_id) }}">{{ a.round_id }}</a>{% else %}not in a round{% endif %};
 iteration {{ a.iteration }}; phase {{ a.phase }}; {% if a.closed %}closed{% else %}open{% endif %}.
-<a href="{{ url_for('traces', cycle_id=a.run_id) }}?q={{ a.id | urlencode }}">LLM calls of this run</a>{% if a.role_trace_count %}, <a href="{{ url_for('traces', cycle_id=a.run_id) }}">{{ a.role_trace_count }} role trace(s) of this attempt</a>{% endif %}</p>
+<a href="{{ url_for('analytics_attempt', attempt_id=a.id) }}">Performance analytics</a>, <a href="{{ url_for('traces', cycle_id=a.run_id) }}?q={{ a.id | urlencode }}">LLM calls of this run</a>{% if a.role_trace_count %}, <a href="{{ url_for('traces', cycle_id=a.run_id) }}">{{ a.role_trace_count }} role trace(s) of this attempt</a>{% endif %}</p>
 
 <div class="kpis">
 <div class="kpi"><div class="label">Outcome</div><div class="value">{{ badge(a.outcome or 'open') }}</div></div>

@@ -348,3 +348,25 @@ details.more .full { margin-top: var(--sp-2); color: var(--text-muted); }
   .plan-col, .plan-cell { min-width: 12rem; }
   .table-wrap { overflow-x: auto; }
 }
+
+/* -- performance analytics (ticket 29): tokens only, rounded containers, tables inside .table-wrap ---------- */
+
+.explain { margin: var(--sp-1) 0 var(--sp-3); max-width: 70ch; }
+.not-recorded { text-align: left; }
+.subpanel { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface-alt); padding: var(--sp-3) var(--sp-4); margin: var(--sp-3) 0; }
+.subpanel > h3:first-child { margin-top: 0; }
+.bars { display: grid; gap: var(--sp-1); margin: var(--sp-2) 0; }
+.bars .bar-label { min-width: 7rem; font-variant-numeric: tabular-nums; }
+.bars progress { width: 14rem; max-width: 100%; }
+output { font-variant-numeric: tabular-nums; font-weight: 600; }
+input[type="range"] { width: 16rem; max-width: 100%; padding: 0; }
+th a { color: inherit; text-decoration: none; }
+th[aria-sort] a { color: var(--nav-active-fg); }
+th[aria-sort="ascending"] a::after { content: " \25B2"; }
+th[aria-sort="descending"] a::after { content: " \25BC"; }
+td.wrap { min-width: 10rem; }
+#importance-progress progress { width: 10rem; }
+@media (max-width: 900px) {
+  .subpanel { padding: var(--sp-2) var(--sp-3); }
+  .bars progress { width: 8rem; }
+}

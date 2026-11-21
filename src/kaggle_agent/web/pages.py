@@ -2,7 +2,7 @@
 
 from flask import current_app, redirect, render_template, request, url_for
 
-from . import data
+from . import analytics_pages, data
 from . import audit, decisions, live, store
 from kaggle_agent.proposals import ALLOWED_LIBRARIES
 
@@ -188,6 +188,8 @@ def register(app) -> None:
     def environment_page():
         src = _source()
         return _page("environment.html", src)
+
+    analytics_pages.register(app)  # ticket 29: attempt analytics, compare and paired pages
 
     @get("/audit")
     def audit_page():

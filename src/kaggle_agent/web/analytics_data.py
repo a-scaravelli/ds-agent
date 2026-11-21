@@ -395,7 +395,7 @@ def _valid_attempt(src, run_id, attempt_id):
     return detail
 
 
-def paired(src, run_id: str, a: str, b: str) -> dict:
+def paired(src, run_id: str, a: str, b: str, with_correlation: bool = True) -> dict:
     """A (reference) against B (candidate) fold by fold, the program's rule beside it, and the OOF correlation."""
     data._core(src, run_id)
     da, db = _valid_attempt(src, run_id, a), _valid_attempt(src, run_id, b)
@@ -414,6 +414,8 @@ def paired(src, run_id: str, a: str, b: str) -> dict:
             baseline_scores = _scores_of(be) if be else None
         out["comparison"] = compare.paired_comparison(_scores_of(la), _scores_of(lb), baseline_scores,
                                                       proto["direction"], proto["threshold_k"])
+    if not with_correlation:
+        return out
     ta, ba, _, _ = _oof_for(src, a)
     tb, bb, _, _ = _oof_for(src, b)
     if ta is None or tb is None:
@@ -498,8 +500,7 @@ def side_by_side(src, run_id: str, ids: list[str]) -> dict:
 def ablation(src, run_id: str) -> dict:
     """Attempts with and without each feature family (display only; no ablation candidate is started)."""
     rows = _attempt_rows(src, run_id)
-    dev, _ = _development(src)
-    known = [str(c) for c in dev.columns] if dev is not None else None
+    known = None  # no snapshot is decoded here: the table is cheap and works from describe.json alone
     feats, derived = set(), []
     for r in rows:
         d = r["describe"]

@@ -44,6 +44,7 @@
 <ul>
 <li><a href="{{ url_for('cycle', cycle_id=run.id) }}" data-key="o"{% if ep == 'cycle' %} aria-current="page"{% endif %}>Overview <kbd>g o</kbd></a></li>
 <li><a href="{{ url_for('rounds', cycle_id=run.id) }}" data-key="n"{% if ep in ('rounds', 'round_view') %} aria-current="page"{% endif %}>Rounds <kbd>g n</kbd></a></li>
+<li><a href="{{ url_for('analytics_compare', run_id=run.id) }}" data-key="m"{% if ep in ('analytics_compare', 'analytics_paired', 'analytics_attempt') %} aria-current="page"{% endif %}>Compare and history <kbd>g m</kbd></a></li>
 <li><a href="{{ url_for('attempts', cycle_id=run.id) }}" data-key="a"{% if ep in ('attempts', 'attempt') %} aria-current="page"{% endif %}>Attempts <kbd>g a</kbd></a></li>
 <li><a href="{{ url_for('traces', cycle_id=run.id) }}" data-key="t"{% if ep in ('traces', 'trace_view') %} aria-current="page"{% endif %}>LLM trace <kbd>g t</kbd></a></li>
 <li><a href="{{ url_for('report', cycle_id=run.id) }}" data-key="p"{% if ep == 'report' %} aria-current="page"{% endif %}>Report and submissions <kbd>g p</kbd></a></li>
