@@ -288,6 +288,12 @@ The old `/cycles/<id>/metrics` and `/cycles/<id>/reports` URLs answer 301 to `/c
 **Manual checklist for a real run folder.** Not run by the automatic tests (they cannot execute JavaScript). With a real project folder: (1) `python -m kaggle_agent.web --db <folder>/registry.db --project <folder>` while the orchestrator runs; (2) open the runs list and the overview, and check that the chart shows the points with error bars, the baseline, the bar and the chosen attempt, in light and in dark mode; (3) open a round, an attempt, the LLM trace (open a stored trace) and the report; (4) check that the keyboard shortcuts work and that the layout holds at 1280 px and at a narrow width; (5) run `KAGGLE_AGENT_RUN_COCKPIT_DIR=<folder> .venv/bin/pytest tests/test_cockpit_manual.py` to check that every page answers 200. It was not run on macOS here: run the tests once on a Mac before relying on it.
 
 
+**Analytics endpoints** (all GET, envelope as the rest of `/api`; shapes in `docs/api.md`): `/api/attempts/<id>/analytics`
+(what is recorded), `/api/attempts/<id>/folds`, `/api/attempts/<id>/panels`, `/api/attempts/<id>/segments`,
+`/api/attempts/<id>/hardest`, `/api/attempts/<id>/flags`, `/api/attempts/<id>/features`, `/api/runs/<id>/paired`,
+`/api/runs/<id>/history`, `/api/runs/<id>/compare`, `/api/runs/<id>/side-by-side`, `/api/runs/<id>/ablation`. The only write is
+`/api/jobs/importance` (POST, CSRF token, Origin check, audit line first), polled with `/api/jobs/<id>`.
+
 ### Run control, live progress, decisions and files (ticket 27)
 
 The page now also starts and controls the run and answers its questions. Principles: the DS is in control and can overwrite what they want, so the system warns, asks for a reason where risky, records the action and labels the result, and blocks only for a technical reason; the DS never sees or writes code; frozen things (metric, validation scheme, seed, threshold, holdout) are never edited in place: a change means a new plan version or a new run. Open the pages `/live` (timeline, per-attempt fold progress bars with partial scores, call log with tokens, console), `/run` (state, buttons, limits), `/decisions` (plan, guidance, review, limits, lead.toml conflicts), `/setup` (open or create the project), `/environment` and `/audit`. Start without a registry: `python -m kaggle_agent.web --project <folder>` (`--db` defaults to `<folder>/registry.db`; a missing registry means setup mode).

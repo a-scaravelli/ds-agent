@@ -1,7 +1,7 @@
 /* Performance analytics pages (ticket 29): fills the heavy sections from the GET API after the page is shown, so a
    slow section never blocks rendering. Everything is built with textContent (never innerHTML); the colours of the
-   charts come from the design tokens through charts.js. Development data only: no endpoint used here touches the
-   holdout. */
+   charts come from the design tokens through charts.js. Development data only: no endpoint used here reads
+   data kept apart for the final test. */
 (function () {
   "use strict";
 

@@ -493,6 +493,7 @@ Existing subpackages under `src/kaggle_agent/`:
 
 - `writer`: the Claude-driven `BundleWriter` (step 12, part 1): prompt from the role outputs and the bundle contract, file tools only in a staging directory, checks with the bundle loader, bounded repair turns, recording of the calls; it imports `loop`, `bundle`, `agents`, `llm`, `registry` and `sandbox` but not `evaluation`, `pipeline` or the network.
 
+- `analytics`: the pure functions of the performance analytics (ticket 29: per-fold views, paired comparison, metric panels, segments, hardest rows, leakage flags, importance grouping); pandas, numpy and `sklearn.metrics` only, no file, registry, network or holdout access; the orchestrator records its input files by wrapping the runner and `web` reads them (section 13, "Performance analytics");
 - `orchestrator`: the orchestrator of step 12 (part 2, level 1), with the command line: one TOML configuration, the project folder, the builder of the real `CycleContext` (every external piece injected), the lead input as a file (`FileLeadInput` over `review.LeadInput`) and the real submission, sent only with an explicit flag after the review. It is the only package that builds real adapters; no other package imports it.
 
 **The three levels.** All levels keep the same core structure, the same five roles and the same guarantees: frozen protocol, labels and holdout owned by the evaluator, everything in the registry, tests with fakes. Level 1 is built first (tickets 6 to 12 of section 15). Levels 2 and 3 are directions.

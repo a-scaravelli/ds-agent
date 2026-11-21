@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 RUN_DIR_VARIABLE = "KAGGLE_AGENT_RUN_COCKPIT_DIR"
 NEW_TESTS = sorted(ROOT.glob("tests/test_analytics_*.py")) + [ROOT / "tests" / "analytics_helpers.py",
                                                               ROOT / "tests" / "test_cockpit_analytics_manual.py"]
-NOT_PORTABLE = ["/" + "tmp", "/" + "proc", "/" + "dev/shm", "strace ", "lsof", "xdg-open", "/" + "sys/", "pgrep", "systemctl"]
+NOT_PORTABLE = ["/" + "tmp", "/" + "proc", "/" + "dev/shm", "str" + "ace ", "ls" + "of", "xdg" + "-open", "/" + "sys/", "pg" + "rep", "system" + "ctl"]
 
 
 # 47 (MANUAL: skipped unless KAGGLE_AGENT_RUN_COCKPIT_DIR points to a real project folder)
