@@ -7,7 +7,7 @@ For each partition the model is fitted once in the sandbox (``BundleRunner.fit_m
 ``predict_with_model`` scores the unshuffled and the column-shuffled validation rows (seeded with
 ``derive_seed``). The result goes to ``analytics/importance/<bundle>.json`` (atomic, this job is its single
 writer) and the progress to ``cockpit/jobs/<job>.progress.jsonl`` (events ``job_start``, ``job_progress``,
-``job_end``). It never writes ``events.jsonl`` (a live run is its single writer) and never the registry.
+``job_end``). It never writes the event log of the run (a live run is its single writer) and never the registry.
 """
 
 import json

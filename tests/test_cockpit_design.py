@@ -33,7 +33,7 @@ APP_CSS = (STATIC / "css" / "app.css").read_text(encoding="utf-8")
 APP_RULE_LIST = [(m.group(1).strip(), m.group(2))
                  for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", re.sub(r"/\*.*?\*/", "", APP_CSS, flags=re.S))]
 APP_RULES = dict(APP_RULE_LIST)
-OWN_JS = [STATIC / "js" / n for n in ("app.js", "charts.js", "cockpit.js", "live.js", "markdown.js", "notify.js", "theme.js")]
+OWN_JS = [STATIC / "js" / n for n in ("app.js", "charts.js", "cockpit.js", "live.js", "markdown.js", "notify.js", "theme.js", "analytics.js")]
 STATUSES = ("succeeded", "failed", "running", "waiting", "suspended", "unknown")
 
 
@@ -217,7 +217,7 @@ def colour_violations(path: Path) -> list:
 
 def test_no_hard_coded_colour_outside_the_tokens_file():
     files = [*sorted(TEMPLATES.glob("*.html")), STATIC / "css" / "app.css", *OWN_JS]
-    assert len(OWN_JS) == 7 and all(p.is_file() for p in files)
+    assert len(OWN_JS) == 8 and all(p.is_file() for p in files)
     for path in files:
         assert colour_violations(path) == [], path.name
     assert "#b42318" not in APP_CSS

@@ -87,7 +87,8 @@ def test_the_orchestrator_imports_no_network_module_and_builds_real_adapters_onl
         for name in imports(path):
             assert name.split(".")[0] not in NETWORK, (path, name)
             assert not name.endswith(("kaggle.real", "llm.real")) or path.name == "build.py", (path, name)
-        allowed = {n for f in ast.walk(tree) if isinstance(f, ast.FunctionDef) and f.name == "real_dependencies"
+        # ticket 29: real_sandbox builds the subprocess sandbox alone (the importance job needs no Kaggle or Claude client)
+        allowed = {n for f in ast.walk(tree) if isinstance(f, ast.FunctionDef) and f.name in ("real_dependencies", "real_sandbox")
                    for n in ast.walk(f)}
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
