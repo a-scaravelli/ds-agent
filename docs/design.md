@@ -419,6 +419,34 @@ Rejected alternatives: batch approval of proposals (contradicts autonomous work 
 
 **Cockpit 2 of 4 (ticket 27): live progress, run control and decisions.** Step 15 of section 15, "web interface with input", is being built in four tickets; this one adds the basic input. Single writer principle: the orchestrator process is the only writer of `registry.db`; the web keeps read-only registry connections and writes only files under `<project>/cockpit/`, each with one writer process (append-only JSONL with `flock`, or atomic JSON). Decisions from the page are applied by the orchestrator exactly once through the same lead input as `lead.toml` and are recorded exactly like it (guidance rows, frozen protocol, state, plan revisions in the ledger); they are addressed to a question, so a stale one is ignored. The protocol is not changed in place: metric, validation scheme, seed, threshold and holdout are frozen, a change means a new plan version or a new run. The DS can override what they want (an own plan, a limit extension, a stop) and every such action is audited (who, when, what, why) before it takes effect; the system warns, asks for a reason where risky and labels the result, and blocks only for a technical reason. Limit extensions are append-only records overlaid on the stored limits, never rewriting `Cycle.parameters`. Events and pause are injected from the orchestrator by wrappers around the registry, the roles, the writer and the runner; the only change in `loop/` is one line that re-resolves the limits at each turn. Subprocess rule: before this ticket only `llm/real.py` and the sandbox runner imported `subprocess`; now `web/controller.py` is a third, narrow exception with a closed command allowlist (the orchestrator command with `start`, `resume`, `validate-config`, `profile`, `preview`; `ps -o lstart= -p <pid>`; `claude auth status`), checked on its source by a test. Analytics (ticket 3) and the final, memory and power overrides (ticket 4) follow.
 
+### Performance analytics (ticket 29)
+
+**What is recorded.** For every attempt that ran, the orchestrator records, under `<project>/analytics/`, the out-of-fold
+(OOF) predictions (row id, repetition, fold, truth, prediction or class probabilities), the per-partition scores, a validated
+copy of the optional `describe.json` of the bundle and, once per project, the development features. Files are
+content-addressed (`<name>-<sha12>`) and listed in `index.jsonl` (`v` = 1), whose line is the commit point.
+
+**Why by wrapping the runner.** The frozen evaluation engine only sees `Candidate.fit_predict`. A `RecordingCandidate` wraps
+the `BundleRunner` the build creates (order: runner -> RecordingCandidate -> EventingCandidate) and repeats what
+`BundleRunner.fit_predict` does (`fit_model` into a temporary model folder, `predict_with_model`, delete it) so it can read
+`describe.json` and keep the validation predictions that it returns unchanged. `evaluation/`, `loop/` and `registry/` stay
+byte-identical (pinned hashes); `bundle/` and `writer/` changed only in the text that asks for `describe.json`. The
+registry is not touched: no new column, only additive files, so old projects open and show "not recorded".
+
+**The holdout is never used.** Row ids and truth come from `FrozenSplit.data`, which refuses any non-development row; the
+snapshot is `development_data()`; the web reads only these files and the registry's validation metrics. Nothing in
+`analytics/`, `web/analytics_*.py`, `orchestrator/analytics_record.py` or `orchestrator/importance.py` calls the holdout
+accessor, imports `evaluation.split` or reads a holdout record (an AST test enforces it).
+
+**Formats and caps.** OOF: gzip CSV, mtime 0, at most 200,000 rows and 25 MB compressed (decoded with a bounded
+decompressor); snapshot at most 100 MB and 500 columns; `describe.json` at most 64 KB; the folder at most 1 GB. Over a limit:
+an index line with `too_large` or `budget_exhausted` and no file.
+
+**Safe readers.** A file is written to a temporary name, `fsync`ed and `os.replace`d to its content-addressed name, then one
+index line is appended (flock, one `os.write`). A reader opens only files named by an index line (paths built from validated
+ids), compares the sha256, retries once, and treats a torn last line as skipped. Heavy computation of the pages (segments,
+hardest rows, flags) is cached by file hash; only permutation importance is a true background job.
+
 ## 14. Architecture and repository structure
 
 ```mermaid

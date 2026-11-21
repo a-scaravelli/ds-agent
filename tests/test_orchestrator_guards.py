@@ -153,7 +153,7 @@ def test_only_the_manual_test_names_the_manual_variable():
             cockpit_named.append(path.name)
     assert named == ["test_orchestrator_manual_real.py"]
     assert cockpit_uses_real == []  # no cockpit test names the real-run variable
-    assert cockpit_named == ["test_cockpit_manual.py"]  # ticket 27: the one cockpit manual variable
+    assert cockpit_named == ["test_cockpit_analytics_manual.py", "test_cockpit_manual.py"]  # tickets 27 and 29: the cockpit manual variable
     manual = (TESTS / "test_orchestrator_manual_real.py").read_text(encoding="utf-8")
     assert manual.count("pytest.mark.skipif") == 2 and "KAGGLE_AGENT_RUN_REAL=1" in manual
     assert (TESTS / "MANUAL_COCKPIT_RUN.md").exists()
