@@ -91,6 +91,16 @@ def finished_world(tmp_path, **kwargs) -> World:
     return world
 
 
+def halted_world(tmp_path, **kwargs) -> World:
+    """The run stops at the first guidance question: the baseline and round 1 are done, the holdout is untouched."""
+    world = make_world(tmp_path, **kwargs)
+    assert world.run("start")[0] == 10
+    world.lead('[plan]\ndecision = "approve"\n')
+    code, _ = world.run("resume")
+    assert code == 10 and world.state() == "AWAITING_GUIDANCE"
+    return world
+
+
 def client_of(world: World):
     return client_for(str(world.project / "registry.db"), world.project)
 
@@ -160,16 +170,16 @@ def crash_source(marker: str) -> str:
 
 @pytest.fixture(scope="session")
 def proba_world(tmp_path_factory):
-    """Probabilities (log loss), 2 repetitions x 3 folds, every bundle writes a valid describe.json."""
+    """Probabilities (log loss), 2 repetitions x 3 folds, valid describe.json; stops before the holdout step."""
     text = json.dumps(VALID_DESCRIBE)
-    return finished_world(tmp_path_factory.mktemp("proba"), model=lambda n, b: with_describe(PROBA_MODEL, text),
+    return halted_world(tmp_path_factory.mktemp("proba"), model=lambda n, b: with_describe(PROBA_MODEL, text),
                           repetitions=2, evaluation="Submissions are evaluated on log loss.")
 
 
 @pytest.fixture(scope="session")
 def labels_world(tmp_path_factory):
     """Labels only (accuracy), 1 repetition x 3 folds, no describe.json."""
-    return finished_world(tmp_path_factory.mktemp("labels"))
+    return halted_world(tmp_path_factory.mktemp("labels"))
 
 
 @pytest.fixture(scope="session")

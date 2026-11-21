@@ -20,10 +20,12 @@ PINNED = {
     # limits every turn so a limit extension reaches a running cycle); nothing else in loop/ changed
     "loop": "83835939181e704198356b794c2e9c4e2254ce583b12ef87ae381bc9c6ef851d",
     "pipeline": "612f737d5af5dd10e3ddd0c4071928abc4d2ebc77e5a9bc3b876ff941ee9543c",
-    "writer": "2a40997bd9258bccd7d41da8ca0091ab39a404978867e9e021cf3fd5281286e4",
+    # ticket 29: writer and bundle were updated DELIBERATELY, only for the text of the optional describe.json
+    # (writer/prompt.py, bundle/contract.py docstring); evaluation, loop and registry are byte-identical
+    "writer": "eeea51357936f8305e667a141385b6c13ab4467b2e94b80fa5d19329444746b2",
     "llm": "acbe904742217e7fc6062554462a0f9fb1b43a2a33a92d1a7adf9b741c25464a",
     "kaggle": "844b183fa141703d045b676cf886a7449655fad56ad375d72a1c4758dd8e594a",
-    "bundle": "d082d3d2c7191c7a0d8ab7d0b4fea23a7bcce706f874b6fe490832705ebb7985",
+    "bundle": "4508e9950482f2176cf8ef029a3956799a4677e0b1472e0d2b69da1dcc36d9b6",
     "registry": "04350ec5249dcffe22929c187ec50b13beb028406cd58a15dbeb15992890ef23",
 }
 NETWORK = {"socket", "urllib", "http", "requests", "httpx", "ftplib", "smtplib", "subprocess", "asyncio"}
