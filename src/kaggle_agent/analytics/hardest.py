@@ -22,7 +22,7 @@ def hardest_rows(features: pd.DataFrame, errors: pd.DataFrame, sort: str = "erro
         raise ValidationError("sort", "must be one of the returned columns")
     key = "log_loss" if "log_loss" in errors.columns else "error"
     common = features.index.intersection(errors.index)
-    worst = errors.loc[common].reset_index().sort_values([key, "row"], ascending=[False, True], kind="stable").head(limit)
+    worst = errors.loc[common].rename_axis("row").reset_index().sort_values([key, "row"], ascending=[False, True], kind="stable").head(limit)
     rows = []
     for _, r in worst.iterrows():
         feat = features.loc[int(r["row"])]

@@ -34,7 +34,7 @@ def paired_comparison(a: dict[str, float], b: dict[str, float], baseline: dict[s
     if not common:
         return {"not_comparable": True, "common": 0, "reason": "the two attempts have no partition in common"}
     sign = 1.0 if direction == "maximize" else -1.0
-    diffs = [sign * (b[p] - a[p]) for p in common]
+    diffs = [sign * (b[p] - a[p]) + 0.0 for p in common]  # + 0.0 turns -0.0 into 0.0
     n = len(diffs)
     mean = float(np.mean(diffs))
     sd = float(np.std(diffs, ddof=1)) if n > 1 else None
