@@ -195,3 +195,43 @@ def failure_world(tmp_path_factory):
         return MAJORITY_MODEL
 
     return finished_world(base / "w", model=model)
+
+
+def _describe_for(bundle_id: str):
+    if "-R0-" in bundle_id:
+        return {"features_used": ["x1", "x2", "x1_sq"], "model_family": "linear",
+                "derived_features": [{"name": "x1_sq", "sources": ["x1"]}], "hyperparameters": {"depth": 2}}
+    if "-R1-" in bundle_id:
+        return {"features_used": ["x2"], "model_family": "boost", "hyperparameters": {"depth": 4, "rate": 0.1}}
+    return None
+
+
+@pytest.fixture(scope="session")
+def ablation_world(tmp_path_factory):
+    """Three succeeded attempts: R0 and R1 describe themselves (with and without the family x1), R2 does not."""
+    def model(n, bundle_id):
+        content = _describe_for(bundle_id)
+        return with_describe(MAJORITY_MODEL, json.dumps(content)) if content else MAJORITY_MODEL
+
+    return finished_world(tmp_path_factory.mktemp("ablation"), model=model)
+
+
+def old_project(world, folder) -> Path:
+    """A copy of the registry and project.json of ``world`` WITHOUT analytics/ and cockpit/ (a project from before)."""
+    import sqlite3
+    import shutil
+
+    folder = Path(folder).resolve()
+    folder.mkdir(parents=True, exist_ok=True)
+    source = sqlite3.connect(str(world.project / "registry.db"))
+    target = sqlite3.connect(str(folder / "registry.db"))
+    with target:
+        source.backup(target)
+    source.close()
+    target.close()
+    shutil.copy(world.project / "project.json", folder / "project.json")
+    return folder
+
+
+def client_for_folder(folder):
+    return client_for(str(Path(folder) / "registry.db"), folder)
