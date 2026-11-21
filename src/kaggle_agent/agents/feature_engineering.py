@@ -90,7 +90,7 @@ class FeatureEngineeringInput(JsonObject):
 
 def build_feature_engineering_prompt(role_input: FeatureEngineeringInput) -> str:
     """The prompt of the feature engineering role: instructions and the serialized input."""
-    return render_prompt(INSTRUCTIONS, role_input, LIMITS_NOTE, libraries=True)
+    return render_prompt(INSTRUCTIONS, role_input, LIMITS_NOTE, libraries=True, describe=True)
 
 
 def run_feature_engineering(

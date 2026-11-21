@@ -2,7 +2,7 @@
 
 import json
 
-from kaggle_agent.proposals import LIBRARY_APIS, LIBRARY_RULES
+from kaggle_agent.proposals import LIBRARY_APIS, LIBRARY_RULES, describe_paragraph
 
 
 def libraries_note(allowed_libraries: tuple[str, ...]) -> str:
@@ -23,8 +23,18 @@ def libraries_note(allowed_libraries: tuple[str, ...]) -> str:
     )
 
 
+def describe_note() -> str:
+    """The optional describe.json request, shared with the writer prompt (ticket 29)."""
+    return (
+        "The bundle writer turns your attempt into code. " + describe_paragraph()
+        + " So name the input columns and the derived features (with their source columns) in "
+        "what_changed."
+    )
+
+
 def render_prompt(
-    instructions: str, role_input: object, limits_note: str = "", libraries: bool = False
+    instructions: str, role_input: object, limits_note: str = "", libraries: bool = False,
+    describe: bool = False,
 ) -> str:
     """The role instructions followed by the input, serialized deterministically.
 
@@ -40,5 +50,7 @@ def render_prompt(
         text = f"{text}\n\n{limits_note.strip()}"
         if libraries and (extra := libraries_note(limits.allowed_libraries)):
             text = f"{text}\n{extra}"
+        if describe:
+            text = f"{text}\n{describe_note()}"
     payload = json.dumps(role_input.to_dict(), sort_keys=True, ensure_ascii=False)
     return f"{text}\n\nInput (JSON):\n{payload}"
