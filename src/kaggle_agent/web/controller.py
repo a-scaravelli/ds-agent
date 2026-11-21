@@ -236,7 +236,12 @@ class RunController:
                                     "--supervised"), stdout=console, new_session=True)
             finally:
                 console.close()
-            start_time = self.process_start_time(proc.pid)
+            start_time = None
+            for _ in range(5):  # `ps` can fail or come back empty under load: ask again
+                start_time = self.process_start_time(proc.pid)
+                if start_time is not None or not self.is_alive(proc.pid):
+                    break
+                time.sleep(0.1)
             store.write_json(store.cockpit_path(self.project_dir, "run.json"), {
                 "pid": proc.pid, "pgid": proc.pid, "start_time": start_time, "command": command,
                 "config": str(self.config_path), "started_at": store.utc_text(), "stop_requested": False,
@@ -278,10 +283,11 @@ class RunController:
     def _kill_later(self, info: dict) -> None:
         deadline = time.monotonic() + self.grace_seconds
         while time.monotonic() < deadline:
-            if not self._verified(info):
+            if not self.is_alive(info["pid"]):  # a failed `ps` under load must not cancel the kill
                 return
             time.sleep(0.05)
-        if self._verified(info):
+        # still alive after the grace period: confirm it is the same process (ps can fail under load, so ask again)
+        if any(self._verified(info) for _ in range(5)):
             try:
                 os.killpg(int(info["pgid"]), signal.SIGKILL)
             except ProcessLookupError:
