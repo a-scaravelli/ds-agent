@@ -80,3 +80,12 @@
 {% endif %}
 </section>
 {% endmacro %}
+
+{% macro override_list(items) %}
+{% if items %}
+<section class="panel" aria-labelledby="ovl-h" id="override-list">
+<h2 id="ovl-h">Your overrides</h2>
+<ul>{% for o in items %}<li>{{ o.summary }}: <span class="badge status-{{ 'succeeded' if o.status == 'applied' else 'waiting' if o.status == 'pending' else 'unknown' }}">{{ o.status }}</span>{% if o.reason %} <span class="muted">{{ o.reason }}</span>{% endif %}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+{% endmacro %}
