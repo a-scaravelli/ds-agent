@@ -20,8 +20,9 @@ class LeadFileError(OrchestratorError):
 class SubmitRefused(OrchestratorError):
     """A submission was refused; ``code`` is the exit code of the command."""
 
-    def __init__(self, code: int, message: str) -> None:
+    def __init__(self, code: int, message: str, data: dict | None = None) -> None:
         self.code = code
+        self.data = data
         super().__init__(message)
 
 

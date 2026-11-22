@@ -19,6 +19,7 @@ The model is the one fitted on the development data only (the persisted model th
 scored on the holdout); it is not retrained on development plus holdout.
 """
 
+import dataclasses
 import json
 import tempfile
 from datetime import datetime, timezone
@@ -46,6 +47,7 @@ from . import codes
 from .build import Dependencies
 from .codes import CommandResult
 from .config import Config
+from .cycles import active_state
 from .errors import OrchestratorError, ProjectError, SubmitRefused
 from .project import file_sha256, read_project, write_atomic
 
@@ -200,22 +202,76 @@ def _find(entries: list[SubmissionEntry], sha: str) -> SubmissionEntry | None:
 
 
 def run_submit(config: Config, deps: Dependencies, confirm: bool = False,
-           assume_not_sent: bool = False) -> CommandResult:
-    """The submit command; ``SubmitRefused`` becomes a result with its exit code."""
+               assume_not_sent: bool = False, expect_sha256: str | None = None,
+               adopt_id: str | None = None) -> CommandResult:
+    """The submit command; ``SubmitRefused`` becomes a result with its exit code (and the data it knew)."""
     try:
-        return _run_submit(config, deps, confirm, assume_not_sent)
+        return _run_submit(config, deps, confirm, assume_not_sent, expect_sha256, adopt_id)
     except SubmitRefused as refusal:
-        return CommandResult(refusal.code, (f"refused: {refusal}", "nothing was sent."))
+        return CommandResult(refusal.code, (f"refused: {refusal}", "nothing was sent."), refusal.data)
 
 
-def _run_submit(config: Config, deps: Dependencies, confirm: bool, assume_not_sent: bool) -> CommandResult:
+def _final_model(config: Config, registry, cycle_id: str, report: FinalReport) -> dict:
+    """The effective final model: ``out/chosen/<cycle>.json`` if present, else the stored report."""
+    from .bundle_jobs import effective_model
+
+    model = effective_model(config, registry, cycle_id)
+    if model is None:
+        raise SubmitRefused(codes.NOT_ACCEPTED, "the cycle has no persisted bundle to predict with")
+    chosen = report.chosen or {}
+    if model["attempt_id"] == chosen.get("attempt_id"):
+        score = chosen["validation_mean"]
+    else:
+        detail = registry.get_attempt(model["attempt_id"])
+        score = next(m.mean for m in detail.executions[-1].metrics if m.partition == "validation")
+    return {**model, "validation_mean": score, "program_choice": chosen.get("attempt_id")}
+
+
+def _preview_data(target: Path, sha: str, rows: int, columns: list[str], message: str, model: dict,
+                  report: FinalReport, left, limit, marker: dict | None) -> dict:
+    holdout = report.holdout
+    return {
+        "file": str(target), "sha256": sha, "rows": rows, "columns": columns, "message": message,
+        "chosen": {"attempt_id": model["attempt_id"], "bundle_id": model["bundle_id"], "by": model["source"],
+                   "program_choice": model["program_choice"]},
+        "cv": model["validation_mean"], "metric": report.metric,
+        "holdout": {"status": holdout.get("status"), "score": holdout.get("score"),
+                    "of_program_choice": model["attempt_id"] != model["program_choice"]},
+        "daily_limit": None if limit is None else {"left": left, "limit": limit.limit,
+                                                   "resets_at": limit.resets_at.isoformat()},
+        "marker": None if marker is None else {"state": marker.get("state"), "sha256": marker.get("sha256"),
+                                               "submission_id": marker.get("submission_id")},
+    }
+
+
+def _adopt(registry, deps: Dependencies, config: Config, cycle_id: str, marker: dict | None,
+           marker_file: Path, adopt_id: str, out: Path, entries) -> CommandResult:
+    """The DS checked Kaggle and the file WAS sent: record that submission, send nothing."""
+    if marker is None or marker.get("state") != SENDING:
+        raise SubmitRefused(codes.MARKER, "there is no pending marker to recover")
+    if any(e.submission_id == adopt_id for e in entries):
+        raise SubmitRefused(codes.MARKER, f"submission {adopt_id} is already recorded")
+    try:
+        record = deps.kaggle.get_submission(config.competition.slug, adopt_id)
+    except KaggleError as error:
+        raise SubmitRefused(codes.ERROR, f"Kaggle does not know submission {adopt_id} ({error})") from None
+    entry = record_submission(registry, cycle_id, dataclasses.replace(record, file_sha256=marker["sha256"]))
+    _write_marker(marker_file, {**marker, "state": RECORDED, "submission_id": adopt_id, "adopted": True})
+    result = _wait_and_record(registry, deps, config, cycle_id, entry, out)
+    return CommandResult(result.code, (f"adopted: submission {adopt_id} was sent earlier; nothing was sent now",
+                                       *result.lines), {"adopted": adopt_id})
+
+
+def _run_submit(config: Config, deps: Dependencies, confirm: bool, assume_not_sent: bool,
+                expect_sha256: str | None = None, adopt_id: str | None = None) -> CommandResult:
     paths, slug = config.paths, config.competition.slug
-    state = read_project(paths)
-    if state is None:
+    base = read_project(paths)
+    if base is None:
         raise ProjectError(f"no project in {paths.folder}: run start first")
+    state = active_state(paths, base)
     out = paths.out
     try:
-        registry = SqliteRegistry(str(paths.registry), read_only=not confirm)
+        registry = SqliteRegistry(str(paths.registry), read_only=not (confirm or adopt_id))
     except RegistryError as error:
         raise ProjectError(str(error)) from None
     try:
@@ -228,13 +284,16 @@ def _run_submit(config: Config, deps: Dependencies, confirm: bool, assume_not_se
         report = FinalReport.from_dict(stored.content)
         if report.chosen is None or report.persisted_path is None:
             raise SubmitRefused(codes.NOT_ACCEPTED, "the cycle has no persisted bundle to predict with")
+        model = _final_model(config, registry, cycle_id, report)
         try:
-            persisted = load_persisted(report.persisted_path)
+            persisted = load_persisted(model["persisted"])
         except PersistedBundleError as error:
             raise SubmitRefused(codes.ERROR, f"the persisted bundle is not valid: {error}") from None
         entries = registry.list_submissions(cycle_id)
         marker_file = marker_path(out, cycle_id)
         marker = read_marker(marker_file)
+        if adopt_id:
+            return _adopt(registry, deps, config, cycle_id, marker, marker_file, adopt_id, out, entries)
         if confirm and marker is not None:
             known = _find(entries, marker.get("sha256", ""))
             if known is not None:
@@ -258,25 +317,34 @@ def _run_submit(config: Config, deps: Dependencies, confirm: bool, assume_not_se
         except SubmissionFormatError as error:
             raise SubmitRefused(codes.INVALID_FILE, f"the submission file is invalid: {error}") from None
         sha = file_sha256(target)
+        if confirm and expect_sha256 is not None and sha != expect_sha256:
+            raise SubmitRefused(codes.INVALID_FILE, (
+                f"the file to send (sha256 {sha[:12]}) is not the one that was previewed "
+                f"({expect_sha256[:12]}): preview it again"))
         sent = _find(entries, sha)
         if confirm and sent is not None:  # the same file was already sent: never send it twice
             return _wait_and_record(registry, deps, config, cycle_id, sent, out)
-        left, limit = check_daily_limit(deps, slug, entries)
-        chosen = report.chosen
-        message = (f"kaggle-agent {cycle_id} {chosen['bundle_id']} "
-                   f"validation {report.metric} {chosen['validation_mean']:.5f}")
+        message = (f"kaggle-agent {cycle_id} {model['bundle_id']} "
+                   f"validation {report.metric} {model['validation_mean']:.5f}")
         holdout = report.holdout
         holdout_text = (f"{holdout['score']:.5f}" if holdout.get("status") == "succeeded"
                         else f"n/a ({holdout.get('status')})")
+        try:
+            left, limit = check_daily_limit(deps, slug, entries)
+        except SubmitRefused as refusal:
+            status = deps.kaggle.daily_limit(slug)
+            refusal.data = _preview_data(target, sha, rows, columns, message, model, report, 0, status, marker)
+            raise
+        data = _preview_data(target, sha, rows, columns, message, model, report, left, limit, marker)
         if not confirm:
             return CommandResult(codes.FINISHED, (
                 "DRY RUN: nothing is sent.", f"file: {target}", f"sha256: {sha}", f"rows: {rows}",
                 f"columns: {', '.join(columns)}", f"message: {message}",
-                f"chosen bundle: {chosen['bundle_id']} (attempt {chosen['attempt_id']}), validation "
-                f"{report.metric} {chosen['validation_mean']:.5f}, holdout {holdout_text}",
+                f"chosen bundle: {model['bundle_id']} (attempt {model['attempt_id']}), validation "
+                f"{report.metric} {model['validation_mean']:.5f}, holdout {holdout_text}",
                 f"daily limit: {left} of {limit.limit} submissions left today "
                 f"(resets at {limit.resets_at.isoformat()})",
-                "To send it, run the same command with --confirm-submit."))
+                "To send it, run the same command with --confirm-submit."), data)
 
         _write_marker(marker_file, {"state": SENDING, "sha256": sha, "message": message,
                                     "file": str(target), "at": deps.clock().astimezone(timezone.utc).isoformat()})
@@ -295,7 +363,8 @@ def _run_submit(config: Config, deps: Dependencies, confirm: bool, assume_not_se
         _write_marker(marker_file, {"state": RECORDED, "sha256": sha, "message": message, "file": str(target),
                                     "at": deps.clock().astimezone(timezone.utc).isoformat(),
                                     "submission_id": record.submission_id})
-        return _wait_and_record(registry, deps, config, cycle_id, entry, out)
+        result = _wait_and_record(registry, deps, config, cycle_id, entry, out)
+        return CommandResult(result.code, result.lines, {**data, "submission_id": record.submission_id})
     except (NotFoundError, RegistryError) as error:
         raise ProjectError(f"registry: {error}") from None
     finally:
