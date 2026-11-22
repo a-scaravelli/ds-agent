@@ -216,8 +216,11 @@ def _submit_locked(args, config, deps) -> CommandResult:
     """A confirmed send (or an adoption) writes the registry: it takes the run lock, a run excludes it."""
     lock = RunLock(CockpitFiles(config.paths.folder))
     if not lock.acquire():
-        return CommandResult(codes.ERROR, ("error: a run is active in this project (run.lock is held): "
-                                           "nothing was sent.",))
+        lines = ("error: a run is active in this project (run.lock is held): nothing was sent.",)
+        if args.out:  # a cockpit job always leaves its answer in the result file
+            from .project import write_atomic
+            write_atomic(Path(args.out), json.dumps({"code": codes.ERROR, "lines": list(lines), "data": None}))
+        return CommandResult(codes.ERROR, lines)
     try:
         return _submit(args, config, deps)
     finally:
