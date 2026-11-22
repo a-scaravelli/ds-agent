@@ -10,7 +10,7 @@ for the same question wins, and a different ``lead.toml`` answer is shown as a c
 from kaggle_agent.proposals import ShortPlan, ValidationError
 from kaggle_agent.proposals.errors import require_text, require_text_list
 
-from . import data, store
+from . import cycles_data, data, store
 from .controller import Conflict
 
 PLAN_STATE = "AWAITING_PLAN_APPROVAL"
@@ -21,9 +21,10 @@ KINDS = {"plan": ("approve", "revise", "own"), "guidance": ("guidance", "continu
 
 
 def cycle_id_of(src: data.Source) -> str | None:
-    info = data.read_project_file(src.project_dir)
-    if info and isinstance(info.get("cycle_id"), str):
-        return info["cycle_id"]
+    """The ACTIVE cycle: the last fork of ``cycles.json``, else the cycle of ``project.json`` (ticket 30)."""
+    active = cycles_data.active_cycle_id(src.project_dir) if src.project_dir else None
+    if active:
+        return active
     cycles = src.section("cycles", lambda: src.registry.list_cycles(), [])
     return cycles[-1].id if cycles else None
 
@@ -72,7 +73,7 @@ def current_question(src: data.Source) -> dict | None:
         return None
     project = src.project_dir
     if cycle.state == PLAN_STATE:
-        number = len(store.read_ledger(project)) + 1
+        number = len(store.read_ledger_of(project, cycle_id, cycles_data.first_cycle_id(project) or cycle_id)) + 1
         return {"kind": "plan", "address": number, "state": cycle.state, "cycle": cycle_id,
                 "plan": plan_view(src, cycle_id)}
     if cycle.state == GUIDANCE_STATE:

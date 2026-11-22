@@ -2,7 +2,7 @@
 
 from flask import current_app, redirect, render_template, request, url_for
 
-from . import analytics_pages
+from . import analytics_pages, override_pages, report_export
 from . import data
 from . import audit, decisions, live, store
 from kaggle_agent.proposals import ALLOWED_LIBRARIES
@@ -30,7 +30,8 @@ def register(app) -> None:
     def round_view(cycle_id, round_id):
         src = _source()
         run = data.run_row(src, cycle_id)
-        return _page("round.html", src, run, round=data.round_detail(src, cycle_id, round_id))
+        return _page("round.html", src, run, round=data.round_detail(src, cycle_id, round_id),
+                     **override_pages.override_context(src, cycle_id))
 
     @get("/cycles/<path:cycle_id>/rounds")
     def rounds(cycle_id):
@@ -92,12 +93,8 @@ def register(app) -> None:
     @get("/cycles/<path:cycle_id>/report")
     def report(cycle_id):
         src = _source()
-        summary = data.run_summary(src, cycle_id)
-        return _page(
-            "report.html", src, summary, report=data.final_report(src, cycle_id),
-            holdout=data.holdout(src, cycle_id), submissions=data.submissions(src, cycle_id),
-            suggestions=[s for s in data.suggestions(src) if s["origin_cycle"] == cycle_id],
-        )
+        ctx = report_export.context(src, cycle_id)
+        return _page("report.html", src, ctx.pop("run"), print_view=False, **ctx)
 
     @get("/cycles/<path:cycle_id>/guidance")
     def guidance(cycle_id):
@@ -118,7 +115,7 @@ def register(app) -> None:
         src = _source()
         detail = data.attempt_detail(src, attempt_id)
         run = data.run_row(src, detail["run_id"])
-        return _page("attempt.html", src, run, a=detail)
+        return _page("attempt.html", src, run, a=detail, **override_pages.override_context(src, detail["run_id"]))
 
     @get("/suggestions")
     def suggestions():
@@ -191,6 +188,7 @@ def register(app) -> None:
         return _page("environment.html", src)
 
     analytics_pages.register(app)  # ticket 29: attempt analytics, compare and paired pages
+    override_pages.register(app)  # ticket 30: bundle, predict, submission, gap, history, learnings, fork, print view
 
     @get("/audit")
     def audit_page():

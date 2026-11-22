@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "macros.html" import empty %}
+{% block title %}Submission {{ run.id }}{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/overrides.js') }}" defer></script>{% endblock %}
+{% block body %}
+<h1>Submission of {{ run.id }}</h1>
+<p class="subtitle">A dry run shows exactly what would be sent. Sending is a separate, explicit step, and the same file is never sent twice. This page never handles your Kaggle credentials: the orchestrator does.</p>
+{% set marker = sub.marker %}
+{% if marker and marker.recovery_needed %}
+<section class="panel warnings" aria-labelledby="rec-h" id="recovery-panel" role="alert">
+<h2 id="rec-h">A send was started and never recorded (exit 24)</h2>
+<p>{{ marker.text }}</p>
+<p>File <code>{{ marker.sha256[:12] }}</code>, started {{ marker.at }}. Nothing is sent again until you say what happened.</p>
+<form id="recover-not-sent" class="stack" data-url="{{ url_for('writes.submission_recover') }}" data-job-url="{{ url_for('api.job', job_id='JOB') }}">
+<h3>It was NOT sent</h3>
+<label>Reason (what you saw on the Kaggle page)<textarea name="reason" rows="2"></textarea></label>
+<label class="check"><input type="checkbox" name="confirm"> I checked the Kaggle submissions page: it is not there</label>
+<button type="submit">Send it now</button>
+</form>
+<form id="recover-adopt" class="stack" data-url="{{ url_for('writes.submission_recover') }}" data-job-url="{{ url_for('api.job', job_id='JOB') }}">
+<h3>It WAS sent</h3>
+<label>Kaggle submission id<input name="submission_id" autocomplete="off"></label>
+<label class="check"><input type="checkbox" name="confirm"> I checked the Kaggle submissions page: it is there</label>
+<button type="submit">Record it (nothing is sent)</button>
+</form>
+</section>
+{% endif %}
+<section class="panel" aria-labelledby="dry-h">
+<h2 id="dry-h">Dry-run preview</h2>
+<p><button type="button" id="preview-button" data-job-post="{{ url_for('writes.submission_preview') }}" data-job-url="{{ url_for('api.job', job_id='JOB') }}" data-target="preview-result" data-render="submit-preview">Preview the submission</button></p>
+<div id="preview-result" role="status" aria-live="polite">
+{% if sub.preview %}
+<dl class="facts" id="preview-facts" data-sha="{{ sub.preview.sha256 }}">
+<dt>File</dt><dd>{{ sub.preview.file }}</dd><dt>sha256</dt><dd><code>{{ sub.preview.sha256 }}</code></dd>
+<dt>Rows</dt><dd>{{ sub.preview.rows }}</dd><dt>Columns</dt><dd>{{ sub.preview.columns | join(', ') }}</dd>
+<dt>Message</dt><dd>{{ sub.preview.message }}</dd>
+<dt>Daily limit</dt><dd>{{ sub.preview.daily_limit.left }} of {{ sub.preview.daily_limit.limit }} left (resets {{ sub.preview.daily_limit.resets_at }})</dd>
+</dl>
+{% elif sub.preview_lines %}<pre>{{ sub.preview_lines | join('\n') }}</pre>{% endif %}
+</div>
+</section>
+<section class="panel" aria-labelledby="send-h">
+<h2 id="send-h">Send</h2>
+<p><button type="button" id="send-open" data-dialog="send-dialog">Send this file to Kaggle...</button></p>
+<dialog id="send-dialog" aria-labelledby="send-title">
+<form method="dialog" class="stack">
+<h3 id="send-title">Send the previewed file to Kaggle?</h3>
+<p>This uses one of today's submissions and cannot be undone. Type <b>SEND</b> to confirm.</p>
+<label>Confirmation<input id="send-typed" autocomplete="off"></label>
+<label class="check"><input type="checkbox" id="send-confirm"> I confirm: send exactly the previewed file</label>
+<div class="toolbar"><button type="button" id="send-go" data-url="{{ url_for('writes.submission_confirm') }}" data-job-url="{{ url_for('api.job', job_id='JOB') }}" data-target="send-result">Send</button><button value="cancel">Cancel</button></div>
+</form>
+</dialog>
+<div id="send-result" role="status" aria-live="polite"></div>
+<p id="submission-message" class="note" role="status"></p>
+</section>
+<section class="panel" aria-labelledby="hist-h">
+<h2 id="hist-h">History next to CV and holdout</h2>
+{% if sub.history %}
+<div class="table-wrap"><table>
+<thead><tr><th>Submission</th><th>Status</th><th class="num">Public score</th><th class="num">CV</th><th class="num">Holdout</th><th>Submitted at</th></tr></thead>
+<tbody>{% for s in sub.history %}
+<tr><td>{{ s.submission_id }}</td><td>{{ s.status }}</td><td class="num">{{ s.public_score | num }}</td><td class="num">{{ s.cv | num }}</td>
+<td class="num">{% if s.holdout is string %}<span class="muted">{{ s.holdout }}</span>{% else %}{{ s.holdout | num }}{% endif %}</td><td>{{ s.submitted_at }}</td></tr>
+{% endfor %}</tbody></table></div>
+<p><a href="{{ url_for('gap_page', cycle_id=run.id) }}">Compare with the leaderboard gap</a></p>
+{% else %}{{ empty("No submission yet", "Nothing was sent for this run.") }}{% endif %}
+<p><button type="button" id="refresh-button" data-job-post="{{ url_for('writes.submission_preview') }}" data-job-url="{{ url_for('api.job', job_id='JOB') }}" data-target="preview-result" data-render="submit-preview">Refresh the status</button></p>
+</section>
+{% endblock %}

@@ -370,3 +370,11 @@ td.wrap { min-width: 10rem; }
   .subpanel { padding: var(--sp-2) var(--sp-3); }
   .bars progress { width: 8rem; }
 }
+
+/* ticket 30: labels of the DS overrides, the holdout panel, forms of the final steps (tokens only) */
+.label-chip { display: inline-block; padding: 0 var(--sp-2); border: 1px solid var(--border-strong); border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--nav-active-fg); font-size: var(--fs-sm); }
+.holdout-panel[data-state="sealed"], .holdout-panel[data-state="ready"] { background: var(--surface-alt); }
+a.button { display: inline-block; padding: var(--sp-1) var(--sp-3); border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface); color: var(--link); text-decoration: none; }
+label.check { display: flex; gap: var(--sp-2); align-items: flex-start; }
+fieldset { border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-3); }
+form.stack textarea, form.stack input[type="text"], form.stack input[type="number"], form.stack select, form.stack input:not([type]) { max-width: 100%; }

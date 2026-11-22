@@ -20,10 +20,11 @@ import json
 import sqlite3
 from pathlib import Path
 
+from kaggle_agent.overrides.sealing import UNSEALED, classify_read, seal_state
 from kaggle_agent.proposals import ValidationError, validate_role
 from kaggle_agent.registry import OUTCOMES, NotFoundError, RegistryError
 
-from . import store, views
+from . import cycles_data, store, views
 from .serialize import jsonable
 
 PROJECT_FILE = "project.json"
@@ -212,6 +213,9 @@ def _infer_direction(comparisons, mean_of) -> str | None:
 def _protocol(src: Source, cycle, comparisons, mean_of, best_param) -> dict:
     """Metric, direction, scheme, repeats, threshold_k, seed and hash, each with its source."""
     project = read_project_file(src.project_dir)
+    entry = cycles_data.entry_of(src.project_dir, cycle.id) if project else None
+    if entry and isinstance(entry.get("protocol"), dict):  # a fork may have its own protocol (ticket 30)
+        project = {**project, "protocol": entry["protocol"]}
     proto = project.get("protocol") if project and isinstance(project.get("protocol"), dict) else {}
     values: dict = {}
     sources: dict = {}
@@ -350,21 +354,46 @@ def _rounds_done(run_id: str, rounds) -> int:
     return done
 
 
-def _holdout_view(core: dict) -> dict:
-    """Sealed unless the registry recorded a read or an outcome; never a computed number."""
-    outcome, reads = core["outcome"], core["reads"]
-    if outcome is None and not reads:
-        return {"status": "sealed", "score": None, "rows": None, "attempt_id": None,
-                "reason": None, "reads": [], "metric": None, "recorded_at": None}
+SEALED_TEXT = ("The holdout is sealed: the engine allows ONE holdout session per cycle and its number is not "
+               "shown before the end of the run. At the review you can unseal and read it.")
+EARLY_WARNING = ("An early read looks at the holdout before the cycle ended: from now on the holdout stops being "
+                 "a fair test of what you chose with the validation numbers. The read is logged with your reason, "
+                 "the run is labelled 'holdout re-read' and the run is asked to finish now.")
+SECOND_WARNING = ("This is a second look at the holdout: decisions made after seeing it overfit to it. The read is "
+                  "logged with your reason and the run is labelled 'holdout re-read'. Nothing is recomputed: the "
+                  "engine allows one holdout session per cycle, so you see the same recorded number.")
+
+
+def _holdout_view(src: Source, core: dict) -> dict:
+    """The holdout panel: sealed until the DS unseals it; a number appears only after an unseal record.
+
+    ``state``: ``sealed`` (no unseal record, no outcome yet), ``ready`` (the outcome is recorded, a first read
+    is allowed at the review) or ``unsealed`` (a read record exists; the number shows once the outcome does).
+    The registry outcome itself is never changed by an unseal: it is a display gate.
+    """
+    cycle = core["cycle"]
+    outcome, registry_reads = core["outcome"], core["reads"]
+    ds_reads = cycles_data.reads_of(src.project_dir, cycle.id)
+    state = seal_state(ds_reads, outcome is not None)
+    kind = classify_read(cycle.state, ds_reads)
+    shown = state == UNSEALED and outcome is not None
     out = {
-        "status": outcome.status if outcome else "read",
-        "score": outcome.score if outcome else None,
-        "rows": outcome.rows if outcome else None,
-        "attempt_id": outcome.attempt_id if outcome else reads[-1].attempt_id,
-        "reason": outcome.reason if outcome else None,
-        "metric": outcome.metric if outcome else None,
-        "recorded_at": outcome.recorded_at if outcome else None,
-        "reads": jsonable(reads),
+        "state": state,
+        "status": (outcome.status if shown else "sealed") if state != UNSEALED else (
+            outcome.status if outcome else "waiting"),
+        "score": outcome.score if shown else None,
+        "rows": outcome.rows if shown else None,
+        "attempt_id": outcome.attempt_id if shown else None,
+        "reason": outcome.reason if shown else None,
+        "metric": outcome.metric if shown else None,
+        "recorded_at": outcome.recorded_at if shown else None,
+        "reads": jsonable(registry_reads) if shown else [],
+        "ds_reads": [{k: r.get(k) for k in ("id", "kind", "reason", "who", "at")} for r in ds_reads],
+        "next_kind": kind,
+        "warning": {"early": EARLY_WARNING, "second": SECOND_WARNING}.get(kind),
+        "reason_required": kind in ("early", "second"),
+        "text": SEALED_TEXT if state != UNSEALED else (
+            "Unsealed by the DS." if outcome else "Unsealed by the DS; the number shows when the run reports."),
     }
     return out
 
@@ -436,7 +465,7 @@ def run_row(src: Source, run_id: str, best_param=None) -> dict:
         "attempts_total": len(core["attempts"]),
         "best": _point_view(core["best"]),
         "chosen": chosen,
-        "holdout": _holdout_view(core),
+        "holdout": _holdout_view(src, core),
         "submission": (jsonable({
             "submission_id": submissions[-1].submission_id, "status": submissions[-1].status,
             "public_score": submissions[-1].public_score,
@@ -788,16 +817,23 @@ def submissions(src: Source, run_id: str) -> list[dict]:
 
 
 def holdout(src: Source, run_id: str) -> dict:
-    return _holdout_view(_core(src, run_id))
+    return _holdout_view(src, _core(src, run_id))
 
 
 def final_report(src: Source, run_id: str) -> dict:
     core = _core(src, run_id)
     report = core["report"]
+    content = jsonable(report.content) if report else None
+    state = _holdout_view(src, core)["state"]
+    if content is not None and state != UNSEALED and isinstance(content.get("holdout"), dict):
+        # sealed: the report keeps its structure, the holdout number and rows are masked
+        content["holdout"] = {**{k: v for k, v in content["holdout"].items() if k not in ("score", "rows")},
+                              "score": None, "rows": None, "sealed": True}
     return {
         "available": report is not None,
         "created_at": report.created_at if report else None,
-        "content": jsonable(report.content) if report else None,
+        "content": content,
+        "holdout_state": state,
     }
 
 

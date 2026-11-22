@@ -1,0 +1,40 @@
+{# the holdout panel: sealed until the DS unseals it; `holdout` is data.holdout, `print_view` hides the controls #}
+<section class="panel holdout-panel" aria-labelledby="holdout-h" data-state="{{ holdout.state }}">
+<h2 id="holdout-h">Holdout</h2>
+{% if holdout.state != 'unsealed' %}
+<p><span class="badge status-waiting">sealed</span> {{ holdout.text }}</p>
+{% else %}
+<dl class="facts">
+<dt>Status</dt><dd>{{ holdout.status }}</dd>
+{% if holdout.status == 'succeeded' %}
+<dt>Score</dt><dd>{{ holdout.score | num }}{% if holdout.metric %} <span class="muted">({{ holdout.metric }})</span>{% endif %}</dd>
+<dt>Rows</dt><dd>{{ holdout.rows if holdout.rows is not none else '-' }}</dd>
+{% endif %}
+<dt>Attempt</dt><dd>{% if holdout.attempt_id %}<a href="{{ url_for('attempt', attempt_id=holdout.attempt_id) }}">{{ holdout.attempt_id }}</a>{% else %}-{% endif %}</dd>
+<dt>Reason</dt><dd>{{ holdout.reason or '-' }}</dd>
+<dt>Recorded at</dt><dd>{{ holdout.recorded_at or '-' }}</dd>
+</dl>
+{% if holdout.status == 'waiting' %}<p class="note">{{ holdout.text }}</p>{% endif %}
+{% endif %}
+{% if holdout.ds_reads %}
+<h3>Reads logged</h3>
+<ul>{% for r in holdout.ds_reads %}<li>{{ r.kind }} read by {{ r.who }}, {{ r.at }}{% if r.reason %}: {{ r.reason }}{% endif %}</li>{% endfor %}</ul>
+{% endif %}
+{% if not print_view %}
+<p><button type="button" id="unseal-open" data-dialog="unseal-dialog">Unseal and read</button></p>
+<dialog id="unseal-dialog" aria-labelledby="unseal-h">
+<form method="dialog" class="stack">
+<h3 id="unseal-h">Unseal and read the holdout ({{ holdout.next_kind }} read)</h3>
+{% if holdout.warning %}<p class="warnings" role="alert">{{ holdout.warning }}</p>
+{% else %}<p>You are at the review: this is the first and fair look at the holdout. It is logged.</p>{% endif %}
+<label>Reason{% if not holdout.reason_required %} (optional){% endif %}<textarea id="unseal-reason" rows="3"></textarea></label>
+<label class="check"><input type="checkbox" id="unseal-confirm"> I understand and want to read the holdout now</label>
+<div class="toolbar">
+<button type="button" data-post="{{ url_for('writes.holdout_unseal') }}" data-body='{"kind": "{{ holdout.next_kind }}"}' data-reason="unseal-reason" data-confirm="unseal-confirm" data-after="reload">Unseal and read</button>
+<button value="cancel">Cancel</button>
+</div>
+<p id="decision-message" class="note" role="status"></p>
+</form>
+</dialog>
+{% endif %}
+</section>

@@ -362,7 +362,7 @@ def _prepare_fork(config, base, entries, from_run, from_attempt, request_id, thr
         note = "" if same else (f"this run uses a new protocol (threshold_k {changes['threshold_k'][0]:g} to "
                                 f"{changes['threshold_k'][1]:g}): the scores of the origin were measured under another "
                                 "protocol and are not comparable")
-        notes = fold_notes(read_jsonl(files.folder / "notes.jsonl")[0], from_run, from_attempt)
+        notes = fold_notes(read_jsonl(files.folder / "notes.jsonl")[0], from_run, from_attempt, base.competition)
         carry = build_carry(registry, from_run, from_attempt, base.direction, same, note, notes)
     finally:
         registry.close()

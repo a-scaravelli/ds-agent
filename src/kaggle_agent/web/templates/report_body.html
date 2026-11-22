@@ -1,0 +1,87 @@
+{# the report as the DS reads it: shared by the page and the print view; every value is escaped by Jinja #}
+{% from "macros.html" import badge, empty, md, value %}
+{% set c = report.content %}
+<p class="labels">{% for l in labels %}<span class="label-chip" title="{{ l.reason }}">{{ l.label }}</span> {% else %}<span class="muted">no override by the DS: the program's own choices stand</span>{% endfor %}</p>
+{% if not report.available %}
+{{ empty("No final report yet", "The report is written when the cycle reaches its end.") }}
+{% else %}
+<p class="note">Created {{ report.created_at }}; stop reason {{ c.stop_reason }}; metric {{ c.metric }} ({{ c.direction }}); protocol hash <code>{{ (c.protocol_hash or '')[:12] }}</code>; baseline {{ c.baseline_score | num }}.</p>
+
+<section class="panel" aria-labelledby="chosen-h">
+<h2 id="chosen-h">Chosen bundle</h2>
+{% if c.chosen %}
+<dl class="facts">
+<dt>Bundle</dt><dd>{{ c.chosen.bundle_id }} (attempt <a href="{{ url_for('attempt', attempt_id=c.chosen.attempt_id) }}">{{ c.chosen.attempt_id }}</a>)</dd>
+<dt>Hypothesis</dt><dd>{{ c.chosen.hypothesis }}</dd>
+<dt>Validation {{ c.metric }}</dt><dd>{{ c.chosen.validation_mean | num }} <span class="muted">&plusmn; {{ c.chosen.validation_dispersion | num(4) }}</span></dd>
+{% if choice.ds %}<dt>Chosen by the DS</dt><dd>attempt {{ choice.ds.attempt }} ({{ choice.ds.when }}); reason: {{ choice.ds.reason }}</dd>
+<dt>The program's own choice</dt><dd>{{ choice.program or 'none' }}</dd>{% endif %}
+</dl>
+{% else %}{{ empty("No bundle", "No usable attempt: no bundle was chosen.") }}{% endif %}
+</section>
+
+{% include "holdout_panel.html" %}
+
+<section class="panel" aria-labelledby="rounds-h">
+<h2 id="rounds-h">Rounds</h2>
+{% for r in c.rounds %}
+<details open><summary>Round {{ r.index }} ({{ r.round_id }}){% if r.improved %} - improved{% endif %}</summary>
+<p>Tasks: {{ r.tasks | join('; ') }}</p>
+{% if r.comparison %}<p>Comparison: difference {{ r.comparison.difference | num }} against the bar {{ r.comparison.threshold | num }}: {{ 'real improvement' if r.comparison.is_real else 'not a real improvement' }}</p>{% endif %}
+<p>Reviewer: {{ r.reviewer or 'none' }}</p>
+<ul>{% for cand in r.candidates %}<li>{{ cand.id }}: {{ cand.outcome }}, score {{ cand.score | num }} - {{ cand.hypothesis }}</li>{% endfor %}</ul>
+{% for g in r.guidance %}<p>Guidance of the lead: {{ g.text }}</p>{% endfor %}
+</details>
+{% else %}{{ empty("No round", "The report lists no round.") }}{% endfor %}
+</section>
+
+<section class="panel" aria-labelledby="worked-h">
+<h2 id="worked-h">What worked</h2>
+<ul>{% for w in c.worked %}<li>{{ w.round_id }}: {{ w.id }} ({{ w.score | num }}) - {{ w.hypothesis }}</li>{% else %}<li>nothing beat the baseline by a real margin</li>{% endfor %}</ul>
+</section>
+
+<section class="panel" aria-labelledby="failed-h">
+<h2 id="failed-h">What failed</h2>
+<ul>{% for kind, count in c.failures.items() %}<li>{{ kind }}: {{ count }}</li>{% else %}<li>no failed attempt</li>{% endfor %}</ul>
+</section>
+
+<section class="panel" aria-labelledby="sugg-h">
+<h2 id="sugg-h">Suggestions for the next cycle</h2>
+{% for s in suggestions %}<h3>{{ s.id }}</h3>{{ md(s.text) }}{% else %}{{ empty("No suggestion", "This run created no suggestion.") }}{% endfor %}
+</section>
+
+<section class="panel" aria-labelledby="persisted-h">
+<h2 id="persisted-h">Persisted bundle and reproduction</h2>
+{% if bundle.available %}
+<dl class="facts">
+<dt>Folder hash</dt><dd><code>{{ bundle.hashes.folder }}</code></dd>
+<dt>Model hash</dt><dd><code>{{ bundle.hashes.model }}</code></dd>
+<dt>Protocol hash</dt><dd><code>{{ bundle.hashes.protocol }}</code></dd>
+<dt>Data hash</dt><dd><code>{{ bundle.hashes.data }}</code></dd>
+<dt>Library versions</dt><dd>{% if bundle.library_versions is string %}{{ bundle.library_versions }}{% else %}{% for k, v in bundle.library_versions.items() %}{{ k }} {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</dd>
+</dl>
+{% if not print_view %}<p><a href="{{ url_for('bundle_page', cycle_id=run.id) }}">Reproduce and download</a></p>{% endif %}
+{% else %}{{ empty("No persisted bundle", bundle.reason) }}{% endif %}
+</section>
+{% endif %}
+
+<section class="panel" aria-labelledby="subs-h">
+<h2 id="subs-h">Submissions</h2>
+{% if submissions %}
+<div class="table-wrap"><table>
+<thead><tr><th>Submission</th><th>Status</th><th class="num">Public score</th><th class="num">CV</th><th class="num">Holdout</th><th>Submitted at</th><th>Message</th></tr></thead>
+<tbody>{% for s in submissions %}
+<tr><td>{{ s.submission_id }}</td><td>{{ s.status }}</td><td class="num">{{ s.public_score | num }}</td><td class="num">{{ s.cv | num }}</td>
+<td class="num">{% if s.holdout is string %}<span class="muted">{{ s.holdout }}</span>{% else %}{{ s.holdout | num }}{% endif %}</td><td>{{ s.submitted_at }}</td><td class="wrap">{{ s.message }}</td></tr>
+{% endfor %}</tbody></table></div>
+{% else %}{{ empty("No submission", "Nothing was submitted for this run.") }}{% endif %}
+</section>
+
+<section class="panel" aria-labelledby="ds-h">
+<h2 id="ds-h">Decisions of the DS and labels</h2>
+{% if labels or decisions %}
+<ul>{% for l in labels %}<li><span class="label-chip">{{ l.label }}</span> {% if l.reason %}reason: {{ l.reason }}{% endif %}{% if l.status != 'applied' %} ({{ l.status }}){% endif %}</li>{% endfor %}
+{% for d in decisions %}<li>{{ d.summary }}: {{ d.status }}{% if d.reason %} ({{ d.reason }}){% endif %}</li>{% endfor %}</ul>
+{% if choice.ds %}<p>The program's own choice was {{ choice.program or 'none' }}; the model of this report is attempt {{ choice.ds.attempt }}, chosen by the DS.</p>{% endif %}
+{% else %}{{ empty("No override", "The DS did not override the program in this run.") }}{% endif %}
+</section>

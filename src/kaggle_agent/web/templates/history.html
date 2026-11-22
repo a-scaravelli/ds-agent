@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "macros.html" import empty %}
+{% block title %}Run history{% endblock %}
+{% block body %}
+<h1>Run history</h1>
+<p class="subtitle">What each run of the competition tried and what it learned. Start a new run from any attempt on the <a href="{{ url_for('fork_page') }}">fork page</a>.</p>
+{% for r in runs %}
+<section class="panel" aria-labelledby="run-{{ r.id }}-h">
+<h2 id="run-{{ r.id }}-h"><a href="{{ url_for('cycle', cycle_id=r.id) }}">{{ r.id }}</a> <span class="badge status-unknown">{{ r.state }}</span></h2>
+<p>{% if r.origin %}Started from <a href="{{ url_for('cycle', cycle_id=r.origin.cycle_id) }}">{{ r.origin.cycle_id }}</a>{% if r.origin.attempt_id %}, attempt {{ r.origin.attempt_id }}{% endif %}.{% else %}The first run.{% endif %}
+Protocol: {% if r.protocol_label == 'changed' %}<b>new protocol</b>{% for k, v in r.protocol_changes.items() %} ({{ k }} {{ v[0] }} to {{ v[1] }}){% endfor %}{% else %}same protocol{% endif %}.
+{% for l in r.labels %}<span class="label-chip">{{ l.label }}</span> {% endfor %}</p>
+<h3>Tried</h3>
+<ul>{% for t in r.tried %}<li><a href="{{ url_for('attempt', attempt_id=t.attempt_id) }}">{{ t.attempt_id }}</a> {{ t.outcome }}{% if t.score is not none %}, {{ t.score | num }}{% endif %}: {{ t.hypothesis }}</li>{% else %}<li class="muted">nothing yet</li>{% endfor %}</ul>
+<h3>Learned</h3>
+<ul>
+{% for t in r.learned.reviewer %}<li>Reviewer: {{ t }}</li>{% endfor %}
+{% for t in r.learned.guidance %}<li>Guidance: {{ t }}</li>{% endfor %}
+{% for t in r.learned.suggestions %}<li>Suggestion: {{ t }}</li>{% endfor %}
+{% for t in r.learned.notes %}<li>Note: {{ t }}</li>{% endfor %}
+</ul>
+</section>
+{% else %}{{ empty("No run", "There is no run in this registry yet.") }}{% endfor %}
+{% endblock %}

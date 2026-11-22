@@ -121,8 +121,8 @@ def _validation(detail) -> float | None:
     return next((m.mean for m in detail.executions[-1].metrics if m.partition == "validation"), None)
 
 
-def fold_notes(records: list[dict], run_id: str, attempt_id: str | None) -> list[str]:
-    """The live notes (add, edit, delete) of the run and the attempt, from ``notes.jsonl`` records."""
+def fold_notes(records: list[dict], run_id: str, attempt_id: str | None, competition: str) -> list[str]:
+    """The live notes (add, edit, delete) of the run, the attempt and the competition, from ``notes.jsonl`` records."""
     live: dict[str, dict] = {}
     for record in records:
         if record.get("op") == "tags":
@@ -134,7 +134,7 @@ def fold_notes(records: list[dict], run_id: str, attempt_id: str | None) -> list
             live[key] = {**live[key], "text": record.get("text")}
         elif record.get("op") == "delete":
             live.pop(key, None)
-    wanted = {("run", run_id)} | ({("attempt", attempt_id)} if attempt_id else set()) | {("competition", "*")}
+    wanted = {("run", run_id)} | ({("attempt", attempt_id)} if attempt_id else set()) | {("competition", competition)}
     return [n["text"] for n in live.values() if (n.get("target_type"), n.get("target_id")) in wanted
             and isinstance(n.get("text"), str) and n["text"].strip()]
 

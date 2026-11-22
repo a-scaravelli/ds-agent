@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "macros.html" import empty %}
+{% block title %}Learnings{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/overrides.js') }}" defer></script>{% endblock %}
+{% block body %}
+<h1>Learnings of the competition</h1>
+<p class="subtitle">Your notes and the suggestions of the agent, in one searchable place.</p>
+<form method="get" class="toolbar" role="search">
+<label>Search<input type="search" name="q" value="{{ q }}"></label>
+<button type="submit">Search</button>
+</form>
+<p class="note">{{ found.total }} item(s).</p>
+<ul id="learnings-list">
+{% for i in found["items"] %}
+<li><span class="label-chip">{{ i.source }}</span> {{ i.target_type }} {{ i.target_id }}{% if i.title %} ({{ i.title }}){% endif %}: {{ i.text }}
+{% for t in i.tags %}<span class="tag">{{ t }}</span> {% endfor %}{% if i.who %}<span class="muted">{{ i.who }} {{ i.at or '' }}</span>{% endif %}</li>
+{% else %}<li class="muted">nothing found</li>{% endfor %}
+</ul>
+{% if competition %}
+<section class="panel annotations" aria-labelledby="cnote-h">
+<h2 id="cnote-h">Note for the whole competition</h2>
+<form class="note-form stack" id="competition-note" data-id="{{ competition }}" data-notes-url="{{ url_for('writes.notes') }}" data-tags-url="{{ url_for('writes.tags') }}">
+<label>New note<textarea name="text" rows="2"></textarea></label>
+<label>Tags (comma separated)<input name="tags"></label>
+<div class="toolbar"><button type="submit" name="save-note">Add note</button><button type="button" name="save-tags">Save tags</button></div>
+</form>
+<p id="decision-message" class="note" role="status"></p>
+</section>
+{% endif %}
+{% endblock %}

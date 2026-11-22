@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "macros.html" import empty %}
+{% block title %}Bundle {{ run.id }}{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/overrides.js') }}" defer></script>{% endblock %}
+{% block body %}
+<h1>Persisted bundle of {{ run.id }}</h1>
+<p class="subtitle">The persisted model, its hashes and what you may download. The code of the bundle is never shown or served.</p>
+{% if not bundle.available %}
+{{ empty("No persisted bundle", bundle.reason) }}
+{% else %}
+<section class="panel" aria-labelledby="hash-h">
+<h2 id="hash-h">Hashes and versions</h2>
+<dl class="facts">
+<dt>Bundle</dt><dd>{{ bundle.bundle_id }} (attempt {{ bundle.attempt_id }}, chosen by {{ bundle.chosen_by }})</dd>
+<dt>Folder hash</dt><dd><code>{{ bundle.hashes.folder }}</code></dd>
+<dt>Model hash</dt><dd><code>{{ bundle.hashes.model }}</code></dd>
+<dt>Protocol hash</dt><dd><code>{{ bundle.hashes.protocol }}</code></dd>
+<dt>Data hash</dt><dd><code>{{ bundle.hashes.data }}</code></dd>
+<dt>Code</dt><dd>{{ bundle.code.files }} files, not shown</dd>
+<dt>Library versions</dt><dd>{% if bundle.library_versions is string %}{{ bundle.library_versions }}{% else %}{% for k, v in bundle.library_versions.items() %}{{ k }} {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</dd>
+</dl>
+</section>
+<section class="panel" aria-labelledby="repro-h">
+<h2 id="repro-h">Reproduce</h2>
+<p>Re-runs the stored code under the frozen protocol and compares the metric with the reported one. It runs in the background and shows OK or the exact mismatch.</p>
+<p><button type="button" id="reproduce-button" data-job-post="{{ url_for('writes.job_reproduce') }}" data-job-url="{{ url_for('api.job', job_id='JOB') }}" data-target="reproduce-result" data-render="reproduce">Reproduce</button></p>
+<div id="reproduce-result" role="status" aria-live="polite">{% if bundle.reproduce and bundle.reproduce.result %}<pre>{{ bundle.reproduce.result.lines | join('\n') }}</pre>{% endif %}</div>
+</section>
+<section class="panel" aria-labelledby="files-h">
+<h2 id="files-h">Files you may download</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>File</th><th>sha256</th></tr></thead>
+<tbody>{% for f in bundle.files %}
+<tr><td><a href="{{ url_for('api.bundle_file', run_id=run.id, name=f.name) }}" download>{{ f.name }}</a></td><td><code>{{ f.sha256 }}</code></td></tr>
+{% endfor %}</tbody></table></div>
+</section>
+{% endif %}
+{% endblock %}

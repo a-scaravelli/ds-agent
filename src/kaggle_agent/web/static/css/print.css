@@ -1,0 +1,10 @@
+/* Print view of the report (ticket 30): no script, no external asset, colours only from tokens.css. */
+.print-view { background: var(--bg); color: var(--text); font-family: var(--font-sans); margin: 0 auto; max-width: 52rem; padding: var(--sp-4); }
+.print-view .panel { break-inside: avoid; border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-3); margin-bottom: var(--sp-3); }
+.print-view details > summary { font-weight: 600; }
+.print-view a { color: var(--link); }
+@media print {
+  .print-view { max-width: none; padding: 0; }
+  .print-view .note { display: none; }
+  .print-view a { text-decoration: none; }
+}
