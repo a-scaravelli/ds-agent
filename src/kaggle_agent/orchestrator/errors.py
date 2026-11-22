@@ -23,3 +23,7 @@ class SubmitRefused(OrchestratorError):
     def __init__(self, code: int, message: str) -> None:
         self.code = code
         super().__init__(message)
+
+
+class ForkRefused(OrchestratorError):
+    """A fork was refused for a technical reason (a run is active, the cycle is not stopped, ...)."""
