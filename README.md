@@ -294,6 +294,14 @@ The old `/cycles/<id>/metrics` and `/cycles/<id>/reports` URLs answer 301 to `/c
 `/api/runs/<id>/history`, `/api/runs/<id>/compare`, `/api/runs/<id>/side-by-side`, `/api/runs/<id>/ablation`. The only write is
 `/api/jobs/importance` (POST, CSRF token, Origin check, audit line first), polled with `/api/jobs/<id>`.
 
+**Ticket 30 routes.** Read routes: `/api/runs/<id>/labels`, `/api/runs/<id>/origin`, `/api/runs/<id>/bundle`, `/api/runs/<id>/bundle/files/<name>`,
+`/api/runs/<id>/report.md`, `/api/jobs/<id>/predictions.csv`, `/api/runs/<id>/submissions/preview`, `/api/runs/<id>/gap`,
+`/api/runs/<id>/bar-override`, `/api/history`, `/api/learnings`, `/api/overrides/pending`. Write routes (all POST, CSRF token,
+Origin check, audit first): `/api/holdout/unseal`, `/api/decisions/choose-model`, `/api/decisions/bar-override`,
+`/api/decisions/steering`, `/api/decisions/try-this`, `/api/jobs/rerun`, `/api/jobs/finalize`, `/api/jobs/reproduce`,
+`/api/jobs/predict`, `/api/run/fork`, `/api/submission/preview`, `/api/submission/confirm`, `/api/submission/recover`.
+Shapes and bodies are in `docs/api.md`.
+
 ### Run control, live progress, decisions and files (ticket 27)
 
 The page now also starts and controls the run and answers its questions. Principles: the DS is in control and can overwrite what they want, so the system warns, asks for a reason where risky, records the action and labels the result, and blocks only for a technical reason; the DS never sees or writes code; frozen things (metric, validation scheme, seed, threshold, holdout) are never edited in place: a change means a new plan version or a new run. Open the pages `/live` (timeline, per-attempt fold progress bars with partial scores, call log with tokens, console), `/run` (state, buttons, limits), `/decisions` (plan, guidance, review, limits, lead.toml conflicts), `/setup` (open or create the project), `/environment` and `/audit`. Start without a registry: `python -m kaggle_agent.web --project <folder>` (`--db` defaults to `<folder>/registry.db`; a missing registry means setup mode).
@@ -385,6 +393,90 @@ events in `cockpit/jobs/<id>.progress.jsonl`. It shares the machine with a live 
 importance job, a macOS run); `KAGGLE_AGENT_RUN_COCKPIT_DIR=<folder> .venv/bin/pytest -q tests/test_cockpit_analytics_manual.py`
 checks that every analytics page answers 200 over a real folder. Statistics with 3 to 5 folds are small-sample: the interval
 is wide and folds share training rows, so it is optimistic; the program's rule decides, not the interval.
+
+### Final model, holdout, submission, memory across runs and DS overrides (ticket 30)
+
+The last cockpit ticket finishes the journey and gives the data scientist (DS) the power to override the program. The DS
+never sees or writes code: there is no code editor, no upload of code and no download of the `code/` folder. The
+principles are the ones of ticket 27: the DS is in control; the system warns, asks for a reason where it is risky, records
+the action in `cockpit/audit.jsonl` (the audit line comes BEFORE the decision record) and LABELS the result; it blocks only
+for a technical reason. Frozen things (metric, validation scheme, seed, threshold, holdout) are never edited in place: a
+change is a new plan version or a new run (a fork), and `/api/config/save` keeps answering with the frozen note. The web
+writes only files under the project folder; every action that writes `registry.db` (rerun, finalize, send, fork, decisions)
+is an orchestrator command started through the closed list of the controller, and a decision is applied exactly once by the
+orchestrator (marker in `cockpit/decisions-applied.jsonl`); a decision addressed to an old plan, round or slot is ignored
+and marked `stale`. `evaluation/`, `loop/`, `registry/`, `pipeline/`, `llm/`, `kaggle/`, `sandbox/`, `bundle/`, `writer/` and
+`analytics/` are byte-identical to the previous ticket: the new behaviour is in the neutral stdlib-only package
+`kaggle_agent.overrides` and in wrappers of the orchestrator.
+
+| Page | URL |
+|------|-----|
+| Final report with the holdout panel (sealed until unsealed), export to Markdown, print view | `/cycles/<id>/report`, `/cycles/<id>/report/print` |
+| Persisted bundle: hashes, library versions, Reproduce, downloads | `/cycles/<id>/bundle` |
+| Predict on new data (CSV upload) | `/cycles/<id>/predict` |
+| Submission cockpit: dry run, confirm dialog, history, recovery | `/cycles/<id>/submission` |
+| Leaderboard gap (public versus CV versus holdout) | `/cycles/<id>/gap` |
+| Run history of the competition, learnings notebook, fork form | `/history`, `/learnings`, `/fork` |
+
+The routes of this ticket are listed under "Ticket 30 routes" in the Cockpit section above.
+
+**A. Final model, holdout, report.** The holdout panel says plainly that the holdout is sealed: no score and no row count
+appear in any JSON, page, export or print view until an unseal record exists (the registry outcome stays untouched).
+*Unseal and read* at the review is a first read (no reason). An early read (the run still iterates) or a second read shows a
+warning and needs a reason; it is logged in `cockpit/holdout-reads.jsonl` and the run is labelled `holdout re-read`. An early
+read also records a finish-now limit change. The engine allows one holdout session per cycle, so unsealing is a display gate
+over the outcome the pipeline already recorded; a second computed read exists only in a fork with the same protocol hash.
+The file `out/reports/<cycle>.md` written by the orchestrator contains the number (the pipeline renders it), so only the page,
+the API and the web export are sealed. The report page shows every section; `report.md` is the Markdown export and the print view
+uses `print.css`, with no new dependency. The bundle page shows the folder, model, file, protocol and data hashes and the library
+versions of the execution resources (`not recorded` for older runs). *Reproduce* runs the existing reproduce command as a
+background job and shows OK or the exact mismatch lines. Predict takes a CSV (size cap, row cap, the columns of the training
+header: missing ones are an error, extra ones a warning), runs the existing predict command in the sandbox and removes the
+upload afterwards.
+
+**B. Submission.** The submission page runs the existing submit logic only: a dry run (file, sha256, rows, columns, message,
+daily limit left), an explicit confirm dialog (the previewed hash and the word SEND; the orchestrator refuses with exit 21 if the
+file changed), score tracking and a history next to CV and holdout (`sealed` until unsealed). Exit codes: 22 daily limit, 23 score
+pending, 24 pending marker. Recovery of exit 24: *it was NOT sent* (reason, reruns with `--assume-not-sent`) or *it WAS sent* (the
+Kaggle submission id, recorded through `get_submission` with `--adopt-id`, nothing is sent). A confirmed send takes the run lock.
+The web never reads or shows the Kaggle token: only the orchestrator process has it. The gap page shows the public score versus
+CV versus holdout and explains why they differ (small public test sets, overfitting to the public board, optimism of the CV).
+
+**C. Memory across runs.** The history page lists, per run, what it tried and learned. *Start from run n / attempt m* (fork) creates
+a new cycle `<slug>-2`, `-3`... in the same project, listed in the orchestrator-written `cycles.json` (absent for a project of an
+older version: the legacy single cycle). What is stored: `carry/<cycle>.json`, an immutable snapshot of descriptions and numbers
+of the origin (the digest of attempt m: hypothesis, rationale, what changed, validation score; the top attempts and failures, the
+guidance, reviewer texts and DS notes), never code. It reaches the coordinator, feature-engineering and modeling roles as the typed
+`carry` input and a CARRY_NOTE in the prompt. Protocol: by default the SAME protocol hash is frozen (label `same protocol`); a
+different `threshold_k` with a reason makes a NEW protocol, labelled `new protocol (set by the DS)` with the old and new value, and the
+carried scores are flagged as measured under another protocol. A repeated launch with the same `request_id` never makes a second
+cycle; a fork needs the current cycle STOPPED and no active run. The learnings notebook searches DS notes (run, attempt and
+competition level, with tags) and agent suggestions, case-insensitively.
+
+**D. Power overrides** (each audited and labelled): *choose the model* (the DS pick, with a reason, becomes the chosen bundle;
+before the report it is persisted and the holdout is read once for it, after the report the finalize job persists it; the program's
+own pick stays visible; label `chosen by the DS`), *override the improvement rule* (accept the candidate the strict bar rejected for a
+round or, as a standing rule, for a cycle from a round on; the panel shows the bar, the paired differences and the win count; the
+stored comparison is not rewritten; label `bar overridden by the DS`), *structured steering* (focus, pinned or avoided features and
+families, allowed model families: typed guidance in the role inputs, label `steered by the DS`; nothing enforces it, the reviewer
+report is the check), *Try this* (a hypothesis with optional constraints, bound once to the first proposal of the next round and
+evaluated under the frozen protocol; `not used` if the cycle stops first) and *re-run* (a new attempt with the same bundle and a
+seed offset, label `re-run with another seed`; a repeat is refused as a duplicate). Overrides are honoured by every run, supervised or
+not. The labels appear in the page, the API, the Markdown export, the print view and the marked `ds-decisions` section of
+`out/reports/<cycle>.md`.
+
+**Files.** `cockpit/holdout-reads.jsonl` (written by the web), `cockpit/uploads/` (temporary), `cycles.json`, `carry/<cycle>.json`,
+`out/chosen/<cycle>.json`, `out/submissions/<cycle>.pending.json`, `out/reports/<cycle>.md` (written by the orchestrator).
+
+**Manual checklist.** `tests/MANUAL_COCKPIT_FINISH.md` (sealed holdout, unseal, export and print, reproduce, predict, a real dry-run
+submission with the real daily limit, fork, steering, Try this, overrides, light and dark, narrow width, macOS);
+`KAGGLE_AGENT_RUN_COCKPIT_DIR=<folder> .venv/bin/pytest -q tests/test_cockpit_finish_manual.py`. A confirmed send is out of scope by default.
+
+**Known limits.** A paired per-fold comparison rule may be proposed later (backlog): this ticket only adds the override. An override
+must be given while the cycle waits (ideally `pause_every=1`); a late one is 409 on the page and `stale` for the orchestrator. Re-runs
+vary the model seed only (the folds are identical) and are not part of any round. The library versions come from the execution
+resources and may be absent in old runs. Upload limits (size, rows, timeout) are provisional. The real dry run and the adopt flow are
+checked only by hand. A hand-edited cockpit file can show a label without an effect: the audit log is the authority.
 
 ## Light sandbox (`kaggle_agent.sandbox`)
 

@@ -71,7 +71,15 @@ LIVE_ONLY = {"/api/jobs/<id>"}  # needs a job id; checked by the setup tests
 # ticket 29: the analytics endpoints answer with data or with a not_recorded object (a different key set); their shapes
 # are checked against real recorded runs by tests/test_analytics_docs.py
 ANALYTICS_ONLY = {e for e in documented_shapes() if re.search(
-    r"/(analytics|folds|panels|segments|hardest|flags|features|paired|history|compare|side-by-side|ablation)$", e)}
+    r"/(analytics|folds|panels|segments|hardest|flags|features|paired|compare|side-by-side|ablation)$", e)
+    or e == "/api/runs/<id>/history"}
+# ticket 30: these answer for a finished project with a bundle; their shapes are checked by tests/test_cockpit_finish_docs.py
+FINISH_ONLY = {"/api/runs/<id>/labels", "/api/runs/<id>/origin", "/api/runs/<id>/bundle",
+               "/api/runs/<id>/submissions/preview", "/api/runs/<id>/gap", "/api/runs/<id>/bar-override",
+               "/api/history", "/api/learnings", "/api/overrides/pending"}
+# downloads are not JSON: documented as "FILE", like the stream is documented as "SSE"
+NOT_JSON = {"/api/events/stream", "/api/runs/<id>/report.md", "/api/runs/<id>/bundle/files/<name>",
+            "/api/jobs/<id>/predictions.csv"}
 
 
 def endpoint_url(endpoint: str) -> str:
@@ -108,14 +116,14 @@ def test_every_endpoint_has_the_documented_shape(cockpit_client):
         if r.rule.startswith("/api/") and "GET" in (r.methods or ())
     }
     # the server-sent stream is not JSON: it is documented as "SSE", not "GET"
-    assert rules - {"/api/events/stream"} == set(shapes), (rules - {"/api/events/stream"}) ^ set(shapes)
+    assert rules - NOT_JSON == set(shapes), (rules - NOT_JSON) ^ set(shapes)
     nonempty = 0
     for endpoint in shapes:
-        if endpoint in LIVE_ONLY | ANALYTICS_ONLY:
+        if endpoint in LIVE_ONLY | ANALYTICS_ONLY | FINISH_ONLY:
             continue
         body = api(cockpit_client, endpoint_url(endpoint))
         nonempty += bool(check_shape(endpoint, body))
-    assert nonempty == len(shapes) - len(LIVE_ONLY | ANALYTICS_ONLY)  # the fixture has data for every endpoint
+    assert nonempty == len(shapes) - len(LIVE_ONLY | ANALYTICS_ONLY | FINISH_ONLY)  # the fixture has data for every endpoint
     # the other run (running, nothing read) and the attempt without scores have the same shapes
     check_shape("/api/runs/<id>", api(cockpit_client, f"/api/runs/{RUN_B}"))
     check_shape("/api/runs/<id>/holdout", api(cockpit_client, f"/api/runs/{RUN_B}/holdout"))
@@ -135,7 +143,8 @@ def test_the_doc_lists_the_endpoints_bundles_and_no_code_or_diff_endpoint(cockpi
     for endpoint in shapes:
         assert not re.search(r"code|diff|files?\b|workspace", endpoint), endpoint
     for rule in cockpit_client.application.url_map.iter_rules():
-        assert not re.search(r"code|diff|/files?\b|workspace", rule.rule), rule.rule
+        # the one file route of ticket 30 is an allowlist of bundle downloads (the code/ folder is never served)
+        assert not re.search(r"code|diff|/files?\b|workspace", rule.rule.replace("/bundle/files/<path:name>", "")), rule.rule
     for url in (f"/api/runs/{RUN_A}/code", f"/api/attempts/a1/diff", f"/api/runs/{RUN_A}/files"):
         response = cockpit_client.get(url)
         assert response.status_code == 404 and "error" in response.get_json()
@@ -218,7 +227,7 @@ def test_an_old_registry_file_gives_200_with_empty_sections_and_warnings(cockpit
     assert api(client, f"/api/runs/{RUN_A}/role-traces")["data"] == []
     assert len(api(client, f"/api/runs/{RUN_A}/attempts")["data"]) == 5
     holdout = api(client, f"/api/runs/{RUN_A}/holdout")["data"]  # the reads table still exists
-    assert holdout["status"] == "read" and holdout["score"] is None
+    assert holdout["status"] == "sealed" and holdout["score"] is None  # sealed: no number before the DS unsealed it
     # the pages render with a note instead of failing
     for url in ("/", f"/cycles/{RUN_A}", f"/cycles/{RUN_A}/rounds", f"/cycles/{RUN_A}/attempts",
                 f"/cycles/{RUN_A}/traces", f"/cycles/{RUN_A}/report", f"/cycles/{RUN_A}/guidance",

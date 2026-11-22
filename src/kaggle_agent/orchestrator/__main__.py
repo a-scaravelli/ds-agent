@@ -203,7 +203,8 @@ def run(args, deps: Dependencies | None) -> CommandResult:
 
 
 def _submit(args, config, deps) -> CommandResult:
-    result = run_submit(config, deps, args.confirm_submit, args.assume_not_sent, args.expect_sha256, args.adopt_id)
+    result = run_submit(config, deps, args.confirm_submit, args.assume_not_sent, args.expect_sha256, args.adopt_id,
+                        mask_holdout=bool(args.out))
     if args.out:
         from .project import write_atomic
         write_atomic(Path(args.out), json.dumps({"code": result.code, "lines": list(result.lines),

@@ -25,8 +25,21 @@ def extract(text: str) -> dict:
     return {"attributes": sorted(found), "classes": sorted(classes), "controls": sorted(set(CONTROL.findall(text)))}
 
 
+INCLUDE = re.compile(r"\{%\s*include\s+[\"']([\w.-]+)[\"']")
+
+
+def _with_includes(path: Path, seen: frozenset = frozenset()) -> str:
+    """The template text with the templates it includes (ticket 30 moved the report into included parts)."""
+    text = path.read_text(encoding="utf-8")
+    parts = [text]
+    for name in INCLUDE.findall(text):
+        if name not in seen and (TEMPLATES / name).is_file():
+            parts.append(_with_includes(TEMPLATES / name, seen | {path.name}))
+    return "\n".join(parts)
+
+
 def current() -> dict:
-    return {p.name: extract(p.read_text(encoding="utf-8")) for p in sorted(TEMPLATES.glob("*.html"))}
+    return {p.name: extract(_with_includes(p)) for p in sorted(TEMPLATES.glob("*.html"))}
 
 
 if __name__ == "__main__":

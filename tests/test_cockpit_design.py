@@ -350,4 +350,4 @@ def test_the_test_map_holds_exactly_the_cases_of_this_ticket():
             tree = ast.parse((ROOT / entry["file"]).read_text(encoding="utf-8"))
             assert entry["name"] in {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}, (key, entry)
     for name in ("test_cockpit_docs.py", "test_orchestrator_docs.py"):
-        assert "PLAN_CASES = 48" in (ROOT / "tests" / name).read_text(encoding="utf-8")
+        assert "PLAN_CASES = 58" in (ROOT / "tests" / name).read_text(encoding="utf-8")

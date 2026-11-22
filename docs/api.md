@@ -16,8 +16,9 @@ the pages and keep this API. Version 1.
   question, or a run already active), 429 (too many live streams) or 503 (registry or audit log unreadable).
 - **Ids.** Run (cycle), attempt and round ids may contain a slash; they are written as they are
   in the path.
-- **No code.** There is no endpoint for bundle files, code or diffs: the web never reads a bundle
-  folder. `bundles` returns the records of the registry only; `reference` is plain text.
+- **No code.** There is no endpoint for code or diffs. `bundles` returns the records of the registry only;
+  `reference` is plain text. The only bundle files served are the allowlisted downloads of ticket 30 (`persisted.json`,
+  model files, the report); the `code/` folder is never served.
 - **Numbers.** `NaN` and infinity are never sent (they become `null`).
 - **No holdout number is computed.** `holdout` shows what the registry recorded; before a read
   it is `{"status": "sealed"}` with empty fields.
@@ -272,31 +273,43 @@ completed_at: string|null
 
 ### GET /api/runs/<id>/holdout
 
-`status` is `sealed` (nothing recorded: no number), or the status of the recorded outcome
-(`succeeded`, `failed`, `skipped`), or `read` when only a read was logged. `score`, `rows`,
-`reason` and `metric` come from the stored outcome; `reads` are the logged reads.
+The holdout panel. `state` is `sealed` (the default: no number, no row count), `ready` (the cycle is at its review and
+a read has not happened yet) or `unsealed` (a read of the DS is logged in `cockpit/holdout-reads.jsonl`). `status` is
+`sealed` or the status of the recorded outcome (`succeeded`, `failed`, `skipped`) once unsealed. `score`, `rows`,
+`reason`, `metric` and `attempt_id` come from the stored outcome and are `null` while sealed. `reads` are the logged
+reads of the registry, `ds_reads` those of the DS (`kind` first, early or second, with the reason). `next_kind` is the
+kind of the next read, `reason_required` says whether it needs a reason, `warning` is the text shown before an early or a
+second read, `text` the plain explanation of the state.
 
 ```shape
 data: object
+state: string
 status: string
 score: number|null
 rows: integer|null
 attempt_id: string|null
 reason: string|null
 reads: array
+ds_reads: array
 metric: string|null
 recorded_at: string|null
+next_kind: string
+reason_required: boolean
+warning: string|null
+text: string
 ```
 
 ### GET /api/runs/<id>/final-report
 
-The stored report. `content` is the object the pipeline stored (its keys belong to the pipeline).
+The stored report. `content` is the object the pipeline stored (its keys belong to the pipeline); while the holdout is sealed
+its `holdout` entry carries no score and no row count. `holdout_state` is `sealed`, `ready` or `unsealed`.
 
 ```shape
 data: object
 available: boolean
 created_at: string|null
 content: object|null
+holdout_state: string
 ```
 
 ### GET /api/runs/<id>/bundles
@@ -793,6 +806,175 @@ rows: array
 run_id: string
 ```
 
+## Final steps, memory across runs and overrides (ticket 30)
+
+All of these are read only. The holdout number is never in any of them until the DS unsealed it. `<id>` is a cycle id.
+
+### GET /api/runs/<id>/labels
+
+The labels of the run, derived from the cockpit files and the registry facts (`chosen by the DS`,
+`bar overridden by the DS`, `holdout re-read`, `new protocol (set by the DS)`, `steered by the DS`,
+`re-run with another seed`), each with its reason; `choice` holds the program's own pick beside the DS pick.
+
+```shape
+data: object
+labels: array
+choice: object
+```
+
+### GET /api/runs/<id>/origin
+
+Where the run started from: the entry of `cycles.json` and the carry-over snapshot (both `null` for the first cycle).
+
+```shape
+data: object
+run_id: string
+entry: object|null
+carry: object|null
+```
+
+### GET /api/runs/<id>/bundle
+
+The persisted bundle of the effective final model: folder, model and file hashes, protocol and data hash,
+`library_versions` (`not recorded` where the execution has none), `files` the DS may download (never the `code/`
+folder; `code` says so), `predict` the columns the stored model expects and the limits of an upload, and `reproduce`
+the last reproduce job (`null` before the first).
+
+```shape
+data: object
+available: boolean
+run_id: string
+attempt_id: string|null
+bundle_id: string|null
+chosen_by: string|null
+metric: string|null
+validation_mean: number|null
+hashes: object
+library_versions: object
+files: array
+code: object
+predict: object
+reproduce: object|null
+```
+
+### FILE /api/runs/<id>/bundle/files/<name>
+
+A download (not JSON) of one allowed file: `persisted.json`, a file of `model/`, or the report. The `code/` folder,
+a path with `..` and any unknown name answer 404. The hash of the file is in the `X-Content-SHA256` header.
+
+### FILE /api/runs/<id>/report.md
+
+The final report as Markdown, `Content-Disposition: attachment`. The holdout is masked while sealed; the labels, the
+reasons and the program's own values are in the section `ds-decisions`. The print view is the page
+`/cycles/<id>/report/print` (print CSS, no external asset).
+
+### FILE /api/jobs/<id>/predictions.csv
+
+The predictions of a finished predict job as CSV (one row per input row, the id column if the input had one).
+
+### GET /api/runs/<id>/submissions/preview
+
+What the submission page shows: the last dry-run (`preview`: file, sha256, rows, columns, message, daily limit left
+and its reset, chosen bundle, CV, holdout status), the `history` of submissions with CV and holdout columns (the holdout
+reads `sealed` until the DS unsealed it), the unrecorded-send `marker` with its recovery options (`null` when none) and
+the last job.
+
+```shape
+data: object
+run_id: string
+preview: object|null
+preview_code: integer|null
+preview_lines: array|null
+preview_job: object|null
+history: array
+marker: object|null
+last_job: object|null
+```
+
+### GET /api/runs/<id>/gap
+
+Public score versus CV versus holdout per submission, with the gaps and a plain explanation of the typical gap (small
+public test sets, overfitting to the public board, optimism of the validation). Empty and pending states are explained
+in `state_text`. A sealed holdout is not leaked.
+
+```shape
+data: object
+run_id: string
+cycle_state: string
+direction: string
+rows: array
+explanation: string
+state_text: string
+```
+
+### GET /api/runs/<id>/bar-override
+
+The numbers behind the override panel of the last complete round: the `bar`, the paired `differences`, `wins`, `ties`,
+`losses` and the interval from the analytics. `available` is false when nothing can be overridden now;
+`stale_warning` says why an old override would be ignored.
+
+```shape
+data: object
+available: boolean
+run_id: string
+round_id: string|null
+round: integer|null
+rounds_started: integer
+candidate: string|null
+reference: string|null
+bar: number|null
+difference: number|null
+differences: object|null
+interval: array|null
+folds: integer|null
+wins: integer|null
+ties: integer|null
+losses: integer|null
+is_real: boolean|null
+stale_warning: string|null
+text: string
+```
+
+### GET /api/history
+
+The run history of the competition: per run what it tried (hypotheses, outcomes, scores) and learned (conclusions,
+reviewer texts, guidance, suggestions, DS notes), its origin, `protocol_label` (`same` or `changed`) and labels.
+
+```shape
+data: array<object>
+id: string
+state: string
+origin: object|null
+protocol_label: string
+protocol_changes: object
+tried: array
+learned: object
+labels: array
+```
+
+### GET /api/learnings
+
+The learnings notebook: DS notes (run, attempt and competition level, with tags) and agent suggestions, searched
+case-insensitively by `?q=` over text, tags and suggestions; paged by `limit` and `offset`. Every item names its source.
+
+```shape
+data: object
+q: string
+total: integer
+limit: integer
+offset: integer
+items: array
+```
+
+### GET /api/overrides/pending
+
+The overrides of the DS that wait for the orchestrator, with their state (`pending`, `applied`, `stale`, `not used`).
+
+```shape
+data: object
+overrides: array
+```
+
 ## Write endpoints (POST)
 
 Every one needs the CSRF token (header `X-CSRF-Token` or the form field `csrf_token`) and an `Origin` that
@@ -885,3 +1067,88 @@ reader never blocks it. The server opens one read-only connection per request. A
 of a WAL file needs a writable folder for the `-shm` file. An old file stays in the old journal
 mode until the orchestrator opens it for writing. A request may mix two moments while the
 orchestrator writes (each registry read is its own statement).
+
+## Write endpoints of ticket 30 (POST)
+
+The same guard as above (CSRF, Origin, validation 400, preconditions 409, audit, action). Nothing here writes
+`registry.db`: a decision is a record in `cockpit/decisions.jsonl` applied once by the orchestrator, a job is an
+orchestrator command started through the closed allowlist of the controller (409 while a run is active). Where a
+reason is required (marked *risky*) the answer without it is 400 naming `reason`; `confirm: true` is required where noted.
+
+### POST /api/holdout/unseal
+
+Body `kind` (`first` at the review, `early` while the run iterates, `second` after a read), `reason` (*risky*: required
+for `early` and `second`; the 400 carries the warning text), `confirm: true`, `request_id`. Logs the read in
+`cockpit/holdout-reads.jsonl`; an early read also records a finish-now limit change. The run is labelled
+`holdout re-read` for an early or second read. The registry is not written: the pipeline took one holdout session per
+cycle and this is a display gate over it.
+
+### POST /api/decisions/choose-model
+
+Body `attempt`, `reason` (*risky*), `confirm: true`, `request_id`. 400 for a failed attempt or one of another run; a pick
+worse than the program's is accepted with a warning. Before the report the pick is the chosen bundle; after it, run
+`POST /api/jobs/finalize`. The report says `chosen by the DS` and shows the program's own pick.
+
+### POST /api/decisions/bar-override
+
+Body `scope` (`round` or `cycle`), `round` (the last complete round: a stale address is 409; for a cycle rule the round
+from which it applies), `attempt` (the candidate to accept, for `round`), `reason` (*risky*), `confirm: true`. Accepts the candidate the strict bar rejected; the stored comparison is not
+changed. Label `bar overridden by the DS`. `threshold_k` is never changed here (frozen): use the fork.
+
+### POST /api/decisions/steering
+
+Body `steering` = {`focus`, `pin_features`, `avoid_features`, `try_families`, `avoid_families`,
+`allowed_model_families`, `notes`} or `clear: true`. A contradiction or an unknown focus is 400; a family limit that excludes every
+allowed library is saved with a warning. Passed to the roles as typed guidance; nothing enforces it.
+
+### POST /api/decisions/try-this
+
+Body `request` = {`hypothesis`, optional `constraints`}, optional `from_round` (default: the next round). Bound once to the first proposal of the next round and
+evaluated under the frozen protocol. A stopped cycle is 409; a request never used is shown as `not used`.
+
+### POST /api/jobs/rerun
+
+Body `attempt`, `seed_offset`. Starts a new execution of a closed attempt on the same bundle (a new attempt with
+`round_id` null); the original is untouched. A repeat is refused as a duplicate and names the existing attempt.
+
+### POST /api/jobs/finalize
+
+Persists the bundle the DS chose after the report and makes it the model of reproduce, predict and submission. It reads
+no holdout.
+
+### POST /api/jobs/reproduce
+
+Runs the reproduce command as a background job; the result is `OK` with the reproduced and reported values or the
+exact mismatch lines (`the metrics differ by <x>`, `the persisted code changed: code/<file>`).
+
+### POST /api/jobs/predict
+
+Multipart body, field `file` (a `.csv`). 413 over the size cap, 400 for a non-CSV file, missing columns (named) or too
+many rows; extra columns give a warning. The upload is stored under `cockpit/uploads/` with a generated name and
+removed after the job. 202 with the job; the predictions are at `GET /api/jobs/<id>/predictions.csv`.
+
+### POST /api/run/fork
+
+Body `from_run`, `from_attempt` (optional), `request_id`, `threshold_k` (optional: a different value makes a new,
+labelled protocol, with a *risky* `reason` and `confirm: true`). 404 for an unknown run or attempt, 409 while a run is
+active or the current cycle is not stopped. The new cycle `<slug>-n` starts with the carry-over (descriptions and
+numbers, never code) as typed input of the roles. The same `request_id` never makes a second cycle.
+
+### POST /api/submission/preview
+
+Starts the dry run (the cycle must be STOPPED): file, hash, rows, columns, message and daily limit left. Nothing is sent.
+
+### POST /api/submission/confirm
+
+Body `sha256` (of the previewed file), `confirm: true`, `typed` = `SEND`. The orchestrator refuses (exit 21) when the file
+changed, 22 at the daily limit, 23 while a score is pending, 24 with an unrecorded send marker. Sends exactly once.
+
+### POST /api/submission/recover
+
+Body `action`: `not_sent` with a `reason` (*risky*) reruns the send, or `adopt` with `submission_id` of the Kaggle page
+records the existing submission and sends nothing; `confirm: true`.
+
+### POST /api/notes (competition level)
+
+`target` may also be `{"type": "competition"}`; a note may carry `tags`.
+

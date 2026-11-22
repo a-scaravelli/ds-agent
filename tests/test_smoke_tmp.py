@@ -1,13 +1,18 @@
-from overrides_helpers import *
+from cockpit_finish_helpers import *
 
 def test_smoke(tmp_path):
-    w = stopped_world(tmp_path)
-    ids = attempts(w)
-    print(ids)
-    code, text = fork(w, ids[-1])
-    print(code, text)
-    assert code == 10
-    print(cockpit_json(w, "cycles.json"))
-    print((w.project/"carry"/"toy-2.json").read_text()[:600])
-    assert any('"carry"' in p for p in w.claude.prompts)
-    print(w.run("status")[1])
+    fw = FinishWorld(tmp_path)
+    print(fw.get_json("/api/runs/toy-1/holdout"))
+    t = fw.page("/cycles/toy-1/report")
+    assert "sealed" in t
+    print(fw.get_json("/api/runs/toy-1/bundle")["hashes"])
+    print(fw.client.get("/api/runs/toy-1/report.md").get_data(as_text=True)[:2000])
+    d = fw.ok("/api/holdout/unseal", {"kind": "first", "confirm": True})
+    print(d)
+    print(fw.get_json("/api/runs/toy-1/holdout"))
+    j = fw.ok("/api/jobs/reproduce")["job"]
+    print(fw.wait_job(j))
+    for url in ["/cycles/toy-1/bundle","/cycles/toy-1/predict","/cycles/toy-1/submission","/cycles/toy-1/gap","/history","/learnings","/fork","/cycles/toy-1/report/print","/cycles/toy-1/rounds/toy-1-R1","/attempts/toy-1-R1-c1"]:
+        fw.page(url)
+    j = fw.ok("/api/submission/preview")["job"]
+    print(fw.wait_job(j))

@@ -18,6 +18,7 @@ from cockpit_helpers import (  # noqa: F401  (fixtures)
     html_tags,
     loopback_only,
     page,
+    unseal,
 )
 from registry_helpers import make_attempt, make_cycle, make_execution
 
@@ -115,7 +116,11 @@ def test_runs_list_shows_one_row_per_cycle_with_its_figures(cockpit_client):
     assert "a1-b1" in text_a  # chosen model (the bundle)
     assert "status-succeeded" in a and "status-running" in b
     assert "complete, public 0.68" in text_a and "complete" not in text_b
-    assert "0.69" in text_a and "0.69" not in text_b and "sealed" in text_b  # holdout only if read
+    # ticket 30: the holdout number shows only after the DS unsealed it
+    assert "0.69" not in text_a and "sealed" in text_a and "0.69" not in text_b and "sealed" in text_b
+    unseal(cockpit_client.application.config["PROJECT_DIR"] / "registry.db")
+    unsealed = text_of(row_of(page(cockpit_client, "/"), f'href="/cycles/{RUN_A}"'))
+    assert "0.69" in unsealed
     assert re.search(r'<input type="search"[^>]*data-filter-input', html)
 
 
@@ -195,6 +200,8 @@ def test_attempt_page_shows_every_field_and_no_link_to_files(cockpit_client):
         for key, value in attrs.items():
             if key in ("href", "src", "action", "data-url", "data-chart-url", "hx-get"):
                 assert "/abs/path" not in (value or ""), (name, key)
+                if value == f"/cycles/{RUN_A}/bundle":  # ticket 30: the page of the persisted bundle (no code, no file path)
+                    continue
                 assert not re.search(r"bundles?|/code|diff|/files?\b|workspace", value or "", re.I), (key, value)
     assert "because &lt;script&gt;" in html
     other = text_of(page(cockpit_client, "/attempts/a4"))
@@ -238,10 +245,17 @@ def test_report_page_with_holdout_submissions_suggestions_and_guidance(cockpit_c
     html = page(cockpit_client, f"/cycles/{RUN_A}/report")
     text = text_of(html)
     for expected in ("stagnation", "accuracy", "tune depth", "code_error", "try a *linear* blend",
-                     "sub-1", "0.68", "complete", "0.69", "25 rows", "a3", "Other fields", "Final report"):
+                     "sub-1", "0.68", "complete", "a3", "Other fields", "Final report"):
         assert expected in text or expected in html, expected
-    assert "sealed" not in text_of(html[html.index('id="holdout-h"'): html.index('id="report-h"')])
-    assert text_of(html).count("0.69") >= 1
+    # ticket 30: sealed until the DS unseals it: no score, no row count anywhere on the page
+    panel = text_of(html[html.index('id="holdout-h"'): html.index('id="report-h"')])
+    assert "sealed" in panel and "0.69" not in text and "25 rows" not in text
+    holdout = api(cockpit_client, f"/api/runs/{RUN_A}/holdout")["data"]
+    assert holdout["state"] == "ready" and holdout["status"] == "sealed"
+    assert holdout["score"] is None and holdout["rows"] is None and holdout["reads"] == []
+    unseal(cockpit_client.application.config["PROJECT_DIR"] / "registry.db")
+    html = page(cockpit_client, f"/cycles/{RUN_A}/report")
+    assert "0.69" in text_of(html) and "25" in text_of(html)
     holdout = api(cockpit_client, f"/api/runs/{RUN_A}/holdout")["data"]
     assert holdout["status"] == "succeeded" and holdout["score"] == 0.69 and len(holdout["reads"]) == 1
     assert holdout["reads"][0]["attempt_id"] == "a3"

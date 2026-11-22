@@ -155,7 +155,8 @@ def test_no_ticket_4_item_is_built_and_the_files_keep_a_schema_version(proba_wor
     js = (WEB / "static" / "js" / "analytics.js").read_text(encoding="utf-8")
     assert not banned.search(js) and "holdout" not in js.lower()
     controller = (WEB / "controller.py").read_text(encoding="utf-8")
-    assert 'JOB_COMMANDS = ("validate-config", "profile", "preview", "importance")' in controller
+    # ticket 30 extended the closed list deliberately (bundle jobs and the submission jobs); importance is unchanged
+    assert 'JOB_COMMANDS = ("validate-config", "profile", "preview", "importance", *BUNDLE_JOBS, *SUBMIT_JOBS)' in controller
     assert all(line["v"] == 1 for line in index_lines(proba_world))
     stored = [p for p in (proba_world.project / "analytics" / "describe").glob("*.json")]
     assert stored and json.loads(stored[0].read_text(encoding="utf-8"))["v"] == 1

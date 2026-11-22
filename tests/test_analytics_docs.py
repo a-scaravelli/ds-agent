@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PLAN_CASES = 48
+PLAN_CASES = 58
 
 
 # 46

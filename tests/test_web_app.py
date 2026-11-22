@@ -173,7 +173,10 @@ def test_every_page_route_responds_and_none_is_left_out(web_client):
     }
     # ticket 27: the cockpit pages are covered by the cockpit tests, not by the registry fixture ids
     endpoints -= {"live_page", "audit_page", "setup", "run_control", "decisions_page", "environment_page",
-                  "analytics_attempt", "analytics_compare", "analytics_paired"}
+                  "analytics_attempt", "analytics_compare", "analytics_paired",
+                  # ticket 30: covered by the cockpit finish tests (they need a project folder)
+                  "report_print", "bundle_page", "predict_page", "submission_page", "gap_page", "history_page",
+                  "learnings_page", "fork_page"}
     urls = all_urls()
     assert endpoints == set(urls)
     for name, url in urls.items():

@@ -203,10 +203,10 @@ def _find(entries: list[SubmissionEntry], sha: str) -> SubmissionEntry | None:
 
 def run_submit(config: Config, deps: Dependencies, confirm: bool = False,
                assume_not_sent: bool = False, expect_sha256: str | None = None,
-               adopt_id: str | None = None) -> CommandResult:
+               adopt_id: str | None = None, mask_holdout: bool = False) -> CommandResult:
     """The submit command; ``SubmitRefused`` becomes a result with its exit code (and the data it knew)."""
     try:
-        return _run_submit(config, deps, confirm, assume_not_sent, expect_sha256, adopt_id)
+        return _run_submit(config, deps, confirm, assume_not_sent, expect_sha256, adopt_id, mask_holdout)
     except SubmitRefused as refusal:
         return CommandResult(refusal.code, (f"refused: {refusal}", "nothing was sent."), refusal.data)
 
@@ -228,14 +228,15 @@ def _final_model(config: Config, registry, cycle_id: str, report: FinalReport) -
 
 
 def _preview_data(target: Path, sha: str, rows: int, columns: list[str], message: str, model: dict,
-                  report: FinalReport, left, limit, marker: dict | None) -> dict:
+                  report: FinalReport, left, limit, marker: dict | None, mask: bool = False) -> dict:
     holdout = report.holdout
     return {
         "file": str(target), "sha256": sha, "rows": rows, "columns": columns, "message": message,
         "chosen": {"attempt_id": model["attempt_id"], "bundle_id": model["bundle_id"], "by": model["source"],
                    "program_choice": model["program_choice"]},
         "cv": model["validation_mean"], "metric": report.metric,
-        "holdout": {"status": holdout.get("status"), "score": holdout.get("score"),
+        # a cockpit job never writes the holdout number: the page shows it only after the DS unsealed it
+        "holdout": {"status": holdout.get("status"), "score": None if mask else holdout.get("score"),
                     "of_program_choice": model["attempt_id"] != model["program_choice"]},
         "daily_limit": None if limit is None else {"left": left, "limit": limit.limit,
                                                    "resets_at": limit.resets_at.isoformat()},
@@ -263,7 +264,8 @@ def _adopt(registry, deps: Dependencies, config: Config, cycle_id: str, marker: 
 
 
 def _run_submit(config: Config, deps: Dependencies, confirm: bool, assume_not_sent: bool,
-                expect_sha256: str | None = None, adopt_id: str | None = None) -> CommandResult:
+                expect_sha256: str | None = None, adopt_id: str | None = None,
+                mask_holdout: bool = False) -> CommandResult:
     paths, slug = config.paths, config.competition.slug
     base = read_project(paths)
     if base is None:
@@ -327,15 +329,17 @@ def _run_submit(config: Config, deps: Dependencies, confirm: bool, assume_not_se
         message = (f"kaggle-agent {cycle_id} {model['bundle_id']} "
                    f"validation {report.metric} {model['validation_mean']:.5f}")
         holdout = report.holdout
-        holdout_text = (f"{holdout['score']:.5f}" if holdout.get("status") == "succeeded"
+        holdout_text = ("sealed (unseal it in the cockpit)" if mask_holdout else
+                        f"{holdout['score']:.5f}" if holdout.get("status") == "succeeded"
                         else f"n/a ({holdout.get('status')})")
         try:
             left, limit = check_daily_limit(deps, slug, entries)
         except SubmitRefused as refusal:
             status = deps.kaggle.daily_limit(slug)
-            refusal.data = _preview_data(target, sha, rows, columns, message, model, report, 0, status, marker)
+            refusal.data = _preview_data(target, sha, rows, columns, message, model, report, 0, status, marker,
+                                         mask_holdout)
             raise
-        data = _preview_data(target, sha, rows, columns, message, model, report, left, limit, marker)
+        data = _preview_data(target, sha, rows, columns, message, model, report, left, limit, marker, mask_holdout)
         if not confirm:
             return CommandResult(codes.FINISHED, (
                 "DRY RUN: nothing is sent.", f"file: {target}", f"sha256: {sha}", f"rows: {rows}",

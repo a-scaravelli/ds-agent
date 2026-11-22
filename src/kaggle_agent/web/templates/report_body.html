@@ -2,10 +2,20 @@
 {% from "macros.html" import badge, empty, md, value %}
 {% set c = report.content %}
 <p class="labels">{% for l in labels %}<span class="label-chip" title="{{ l.reason }}">{{ l.label }}</span> {% else %}<span class="muted">no override by the DS: the program's own choices stand</span>{% endfor %}</p>
+{% include "holdout_panel.html" %}
+
+<section class="panel" aria-labelledby="report-h">
+<h2 id="report-h">Final report</h2>
 {% if not report.available %}
 {{ empty("No final report yet", "The report is written when the cycle reaches its end.") }}
 {% else %}
 <p class="note">Created {{ report.created_at }}; stop reason {{ c.stop_reason }}; metric {{ c.metric }} ({{ c.direction }}); protocol hash <code>{{ (c.protocol_hash or '')[:12] }}</code>; baseline {{ c.baseline_score | num }}.</p>
+{% if c.suggestions %}<h3>Suggestions in the report</h3>{{ value(c.suggestions, ('text',)) }}{% endif %}
+{% set known = ['stop_reason', 'metric', 'direction', 'protocol_hash', 'baseline_score', 'persisted_path', 'reproduce_command', 'chosen', 'failures', 'worked', 'rounds', 'suggestions', 'holdout', 'cycle_id', 'created_at'] %}
+{% set other = {} %}
+{% for k, v in c.items() if k not in known %}{% if other.update({k: v}) %}{% endif %}{% endfor %}
+{% if other %}<details><summary>Other fields</summary><pre>{{ other | pretty }}</pre></details>{% endif %}
+</section>
 
 <section class="panel" aria-labelledby="chosen-h">
 <h2 id="chosen-h">Chosen bundle</h2>
@@ -20,8 +30,6 @@
 {% else %}{{ empty("No bundle", "No usable attempt: no bundle was chosen.") }}{% endif %}
 </section>
 
-{% include "holdout_panel.html" %}
-
 <section class="panel" aria-labelledby="rounds-h">
 <h2 id="rounds-h">Rounds</h2>
 {% for r in c.rounds %}
@@ -29,7 +37,7 @@
 <p>Tasks: {{ r.tasks | join('; ') }}</p>
 {% if r.comparison %}<p>Comparison: difference {{ r.comparison.difference | num }} against the bar {{ r.comparison.threshold | num }}: {{ 'real improvement' if r.comparison.is_real else 'not a real improvement' }}</p>{% endif %}
 <p>Reviewer: {{ r.reviewer or 'none' }}</p>
-<ul>{% for cand in r.candidates %}<li>{{ cand.id }}: {{ cand.outcome }}, score {{ cand.score | num }} - {{ cand.hypothesis }}</li>{% endfor %}</ul>
+<ul>{% for cand in r.candidates %}<li>{{ cand.id }}: {{ cand.outcome }}{% if cand.failure_kind %} [{{ cand.failure_kind }}]{% endif %}, score {{ cand.score | num }} - {{ cand.hypothesis }}</li>{% endfor %}</ul>
 {% for g in r.guidance %}<p>Guidance of the lead: {{ g.text }}</p>{% endfor %}
 </details>
 {% else %}{{ empty("No round", "The report lists no round.") }}{% endfor %}
@@ -43,11 +51,6 @@
 <section class="panel" aria-labelledby="failed-h">
 <h2 id="failed-h">What failed</h2>
 <ul>{% for kind, count in c.failures.items() %}<li>{{ kind }}: {{ count }}</li>{% else %}<li>no failed attempt</li>{% endfor %}</ul>
-</section>
-
-<section class="panel" aria-labelledby="sugg-h">
-<h2 id="sugg-h">Suggestions for the next cycle</h2>
-{% for s in suggestions %}<h3>{{ s.id }}</h3>{{ md(s.text) }}{% else %}{{ empty("No suggestion", "This run created no suggestion.") }}{% endfor %}
 </section>
 
 <section class="panel" aria-labelledby="persisted-h">
@@ -64,6 +67,11 @@
 {% else %}{{ empty("No persisted bundle", bundle.reason) }}{% endif %}
 </section>
 {% endif %}
+
+<section class="panel" aria-labelledby="sugg-h">
+<h2 id="sugg-h">Suggestions for the next cycle</h2>
+{% for s in suggestions %}<h3>{{ s.id }}</h3>{{ md(s.text) }}{% else %}{{ empty("No suggestion", "This run created no suggestion.") }}{% endfor %}
+</section>
 
 <section class="panel" aria-labelledby="subs-h">
 <h2 id="subs-h">Submissions</h2>

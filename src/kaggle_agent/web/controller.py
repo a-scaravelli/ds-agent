@@ -241,16 +241,16 @@ class RunController:
 
     def _fork_args(self, fork: dict) -> tuple[str, ...]:
         """The validated argv tail of ``fork``: ids and the number by regex, the reason as ONE element."""
-        run, attempt, request = fork.get("from_run"), fork.get("from_attempt"), fork.get("request_id")
+        run, attempt, request_id = fork.get("from_run"), fork.get("from_attempt"), fork.get("request_id")
         if not (isinstance(run, str) and ATTEMPT_ID.fullmatch(run)) or not (
-                isinstance(request, str) and REQUEST_ID.fullmatch(request)):
+                isinstance(request_id, str) and REQUEST_ID.fullmatch(request_id)):
             raise ValueError("bad fork arguments")
         out = ["--from-run", run]
         if attempt is not None:
             if not (isinstance(attempt, str) and ATTEMPT_ID.fullmatch(attempt)):
                 raise ValueError("bad attempt id")
             out += ["--from-attempt", attempt]
-        out += ["--request-id", request]
+        out += ["--request-id", request_id]
         threshold = fork.get("threshold_k")
         if threshold is not None:
             if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not 0 <= threshold < 1e6:
@@ -418,9 +418,12 @@ class RunController:
         command = "submit" if kind in SUBMIT_JOBS else kind
         try:
             job_id = record["id"]
-            tail = (*args, "--job", job_id) if kind == "importance" else args
-            proc = self._spawn((*self.orchestrator_argv, command, "--config", str(cfg), "--out", str(out_path),
-                                *tail), stdout=subprocess.PIPE)
+            if kind == "importance":  # the shape of ticket 29: --attempt comes before --out
+                proc = self._spawn((*self.orchestrator_argv, command, "--config", str(cfg), *args, "--out",
+                                    str(out_path), "--job", job_id), stdout=subprocess.PIPE)
+            else:
+                proc = self._spawn((*self.orchestrator_argv, command, "--config", str(cfg), "--out", str(out_path),
+                                    *args), stdout=subprocess.PIPE)
             try:
                 proc.communicate(timeout=limit)
             except subprocess.TimeoutExpired:

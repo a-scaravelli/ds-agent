@@ -38,20 +38,23 @@ def cycle_ids(project_dir) -> list[str]:
     return ([first] if first else []) + [e["cycle_id"] for e in entries(project_dir)]
 
 
-def _records(project_dir, name: str, cycle_id: str) -> list[dict]:
-    if not project_dir:
-        return []
-    records, _ = store.read_jsonl(store.cockpit_path(project_dir, name))
+def _of_cycle(project_dir, records: list[dict], cycle_id: str) -> list[dict]:
     return records_for_cycle(records, cycle_id, first_cycle_id(project_dir) or cycle_id)
 
 
 def decisions_of(project_dir, cycle_id: str, kinds=None) -> list[dict]:
-    items = _records(project_dir, "decisions.jsonl", cycle_id)
+    if not project_dir:
+        return []
+    records, _ = store.read_jsonl(store.cockpit_path(project_dir, "decisions.jsonl"))
+    items = _of_cycle(project_dir, records, cycle_id)
     return [r for r in items if kinds is None or r.get("kind") in kinds]
 
 
 def reads_of(project_dir, cycle_id: str) -> list[dict]:
-    return _records(project_dir, "holdout-reads.jsonl", cycle_id)
+    if not project_dir:
+        return []
+    records, _ = store.read_jsonl(store.cockpit_path(project_dir, "holdout-reads.jsonl"))
+    return _of_cycle(project_dir, records, cycle_id)
 
 
 def outcomes(project_dir) -> dict[str, dict]:
