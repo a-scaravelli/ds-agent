@@ -232,6 +232,7 @@ def test_only_llm_real_imports_subprocess_and_llm_uses_no_network_or_third_party
                 "test_writer_manual_claude.py", "test_agents_limits.py",  # ticket 25: fresh-interpreter import check
                     "test_cockpit_assets.py",  # ticket 26: runs markdown.js with node when it is installed
                     "test_cockpit_design.py",  # ticket 28: runs theme.js with node when it is installed
+                    "test_cockpit_finish_guards.py",  # ticket 30: git diff against origin/main for the frozen packages
             } or "sandbox" in path.name, path
 
 
