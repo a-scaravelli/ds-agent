@@ -803,11 +803,34 @@ def guidance(src: Source, run_id: str) -> list[dict]:
              "suggestion_id": i["suggestion"].id} for i in items]
 
 
+HOLDOUT_MASK = "(holdout lesson hidden: the holdout is sealed. Unseal it at the review to read it.)"
+
+
+def _holdout_text(text: str) -> bool:
+    """The pipeline's own holdout suggestions quote the holdout figure: they start with 'The holdout'."""
+    return text.startswith("The holdout")
+
+
+def _sealed(src: Source, cycle_id: str, cache: dict) -> bool:
+    if cycle_id not in cache:
+        try:
+            cache[cycle_id] = _holdout_view(src, _core(src, cycle_id))["state"] != UNSEALED
+        except Exception:  # an unknown origin: nothing to unmask
+            cache[cycle_id] = True
+    return cache[cycle_id]
+
+
 def suggestions(src: Source) -> list[dict]:
     items = src.section("suggestions", lambda: views.suggestions_page(src.registry), [])
-    return [{"id": i["suggestion"].id, "text": i["suggestion"].text,
-             "origin_cycle": i["suggestion"].origin_cycle,
-             "spawned_cycles": [c.id for c in i["cycles"]]} for i in items]
+    cache: dict = {}
+    out = []
+    for i in items:
+        text, origin = i["suggestion"].text, i["suggestion"].origin_cycle
+        if _holdout_text(text) and _sealed(src, origin, cache):
+            text = HOLDOUT_MASK
+        out.append({"id": i["suggestion"].id, "text": text, "origin_cycle": origin,
+                    "spawned_cycles": [c.id for c in i["cycles"]]})
+    return out
 
 
 def submissions(src: Source, run_id: str) -> list[dict]:
@@ -829,6 +852,8 @@ def final_report(src: Source, run_id: str) -> dict:
         # sealed: the report keeps its structure, the holdout number and rows are masked
         content["holdout"] = {**{k: v for k, v in content["holdout"].items() if k not in ("score", "rows")},
                               "score": None, "rows": None, "sealed": True}
+        content["suggestions"] = [{**x, "text": HOLDOUT_MASK} if isinstance(x, dict) and _holdout_text(
+            str(x.get("text", ""))) else x for x in content.get("suggestions") or []]
     return {
         "available": report is not None,
         "created_at": report.created_at if report else None,
