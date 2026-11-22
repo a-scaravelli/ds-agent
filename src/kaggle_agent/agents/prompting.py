@@ -32,6 +32,24 @@ def describe_note() -> str:
     )
 
 
+STEERING_NOTE = (
+    "The DS steers this run (the \"steering\" object of the input): follow the focus, use the pinned features "
+    "and the families to try, and stay away from the avoided features and families. Nothing is checked in "
+    "code: the reviewer reads the result against this steering. Do not mention that you were steered."
+)
+CARRY_NOTE = (
+    "This cycle continues an earlier run (the \"carry\" object of the input): it holds the digest of the "
+    "attempt to start from, the best and failed attempts, the guidance and reviewer texts of that run. "
+    "Re-implement and improve the idea in your own words: no code is carried. If same_protocol is false, "
+    "the carried scores were measured under another protocol and are not comparable with the new ones."
+)
+REQUEST_NOTE = (
+    "The DS wrote the hypothesis of this candidate (the \"request\" object of the input): propose it as "
+    "your attempt, as faithfully as the evidence allows, and respect its constraints. It is evaluated under "
+    "the same frozen protocol as every other candidate."
+)
+
+
 def render_prompt(
     instructions: str, role_input: object, limits_note: str = "", libraries: bool = False,
     describe: bool = False,
@@ -52,5 +70,8 @@ def render_prompt(
             text = f"{text}\n{extra}"
         if describe:
             text = f"{text}\n{describe_note()}"
+    for field, note in (("steering", STEERING_NOTE), ("carry", CARRY_NOTE), ("request", REQUEST_NOTE)):
+        if getattr(role_input, field, None) is not None:
+            text = f"{text}\n\n{note}"
     payload = json.dumps(role_input.to_dict(), sort_keys=True, ensure_ascii=False)
     return f"{text}\n\nInput (JSON):\n{payload}"

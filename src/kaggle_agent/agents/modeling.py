@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import ClassVar
 
 from kaggle_agent.llm import LlmClient, ToolPermissions
-from kaggle_agent.proposals import Attempt, ShortPlan
+from kaggle_agent.proposals import Attempt, CarryOver, ShortPlan, Steering, TryThis
 from kaggle_agent.proposals.errors import check_keys, require_text
 
 from .call import PURPOSES, Registry, CandidateRoleResult, TraceContext, utc_now, invoke_role
@@ -50,9 +50,12 @@ class ModelingInput(JsonObject):
     history: RegistrySummary
     previous_attempt: Attempt
     limits: RunLimits | None = None
+    steering: Steering | None = None
+    carry: CarryOver | None = None
+    request: TryThis | None = None
 
     _FIELDS: ClassVar[tuple[str, ...]] = (
-        "candidate_id", "plan", "findings", "task", "history", "previous_attempt", "limits")
+        "candidate_id", "plan", "findings", "task", "history", "previous_attempt", "limits", "steering", "carry", "request")
 
     def __post_init__(self) -> None:
         require_text("candidate_id", self.candidate_id)
@@ -67,6 +70,9 @@ class ModelingInput(JsonObject):
             raise ValueError("previous_attempt must be an Attempt")
         if self.limits is not None and not isinstance(self.limits, RunLimits):
             raise ValueError("limits must be RunLimits or None")
+        for name, kind in (("steering", Steering), ("carry", CarryOver), ("request", TryThis)):
+            if getattr(self, name) is not None and not isinstance(getattr(self, name), kind):
+                raise ValueError(f"{name} must be {kind.__name__} or None")
 
     def to_dict(self) -> dict:
         data = {
@@ -79,6 +85,9 @@ class ModelingInput(JsonObject):
         }
         if self.limits is not None:
             data["limits"] = self.limits.to_dict()
+        for name in ("steering", "carry", "request"):
+            if getattr(self, name) is not None:
+                data[name] = getattr(self, name).to_dict()
         return data
 
     @classmethod
@@ -92,6 +101,9 @@ class ModelingInput(JsonObject):
             history=object_from("history", data.get("history"), RegistrySummary),
             previous_attempt=object_from("previous_attempt", data.get("previous_attempt"), Attempt),
             limits=None if data.get("limits") is None else object_from("limits", data["limits"], RunLimits),
+            steering=None if data.get("steering") is None else Steering.from_dict(data["steering"]),
+            carry=None if data.get("carry") is None else CarryOver.from_dict(data["carry"]),
+            request=None if data.get("request") is None else TryThis.from_dict(data["request"]),
         )
 
 

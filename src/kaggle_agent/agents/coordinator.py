@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import ClassVar
 
 from kaggle_agent.llm import LlmClient, ToolPermissions
-from kaggle_agent.proposals import GoalCriteria, ReviewerReport, ShortPlan
+from kaggle_agent.proposals import CarryOver, GoalCriteria, ReviewerReport, ShortPlan, Steering
 from kaggle_agent.proposals.errors import check_keys, require_text, require_text_list
 
 from .call import PURPOSES, Registry, TraceContext, utc_now, call_role
@@ -50,8 +50,11 @@ class CoordinatorInput(JsonObject):
     reports: tuple[ReviewerReport, ...] = ()
     guidance: tuple[str, ...] = ()
     limits: RunLimits | None = None
+    steering: Steering | None = None
+    carry: CarryOver | None = None
 
-    _FIELDS: ClassVar[tuple[str, ...]] = ("data", "metric", "history", "reports", "guidance", "limits")
+    _FIELDS: ClassVar[tuple[str, ...]] = (
+        "data", "metric", "history", "reports", "guidance", "limits", "steering", "carry")
 
     def __post_init__(self) -> None:
         if not isinstance(self.data, DataSummary):
@@ -65,6 +68,9 @@ class CoordinatorInput(JsonObject):
         )
         if self.limits is not None and not isinstance(self.limits, RunLimits):
             raise ValueError("limits must be RunLimits or None")
+        for name, kind in (("steering", Steering), ("carry", CarryOver)):
+            if getattr(self, name) is not None and not isinstance(getattr(self, name), kind):
+                raise ValueError(f"{name} must be {kind.__name__} or None")
 
     def to_dict(self) -> dict:
         data = {
@@ -76,6 +82,9 @@ class CoordinatorInput(JsonObject):
         }
         if self.limits is not None:
             data["limits"] = self.limits.to_dict()
+        for name in ("steering", "carry"):
+            if getattr(self, name) is not None:
+                data[name] = getattr(self, name).to_dict()
         return data
 
     @classmethod
@@ -88,6 +97,8 @@ class CoordinatorInput(JsonObject):
             reports=items_from("reports", data.get("reports", []), ReviewerReport),
             guidance=data.get("guidance", ()),
             limits=None if data.get("limits") is None else object_from("limits", data["limits"], RunLimits),
+            steering=None if data.get("steering") is None else Steering.from_dict(data["steering"]),
+            carry=None if data.get("carry") is None else CarryOver.from_dict(data["carry"]),
         )
 
 
