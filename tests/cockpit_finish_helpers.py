@@ -170,3 +170,22 @@ def iterating_world(tmp_path, to_round: int = 1, **kwargs) -> FinishWorld:
         world.lead(PLAN_APPROVE + GUIDE_CONTINUE.format(n=n))
         assert world.run("resume", "--supervised")[0] == 10
     return fw
+
+
+def labelled_world(tmp_path) -> FinishWorld:
+    """A finished cycle with every override of ticket 30 on it: a re-read, a bar override, a steering, a seed re-run
+    and a pick of the DS, all made through the page (the pick is finalized by its job)."""
+    fw = FinishWorld(tmp_path)
+    fw.ok("/api/holdout/unseal", {"kind": "first", "confirm": True})
+    fw.ok("/api/holdout/unseal", {"kind": "second", "confirm": True, "reason": "look again"})
+    fw.ok("/api/decisions/bar-override", {"scope": "round", "round": 2, "attempt": "toy-1-R2-c1",
+                                          "reason": "the gain is small but real", "confirm": True})
+    fw.ok("/api/decisions/steering", {"steering": {"focus": "feature_engineering", "pin_features": ["x1"]}})
+    fw.ok("/api/decisions/choose-model", {"attempt": "toy-1-R1-c1", "reason": "simpler model", "confirm": True})
+    fw.wait_job(fw.ok("/api/jobs/rerun", {"attempt": "toy-1-R1-c1", "seed_offset": 2})["job"])
+    fw.wait_job(fw.ok("/api/jobs/finalize")["job"])
+    return fw
+
+
+LABELS = ("chosen by the DS", "bar overridden by the DS", "holdout re-read", "steered by the DS",
+          "re-run with another seed")
