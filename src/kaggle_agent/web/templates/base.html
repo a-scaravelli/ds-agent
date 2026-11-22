@@ -29,6 +29,9 @@
 <ul>
 <li><a href="{{ url_for('cycles') }}" data-key="r"{% if ep == 'cycles' %} aria-current="page"{% endif %}>Runs <kbd>g r</kbd></a></li>
 <li><a href="{{ url_for('suggestions') }}" data-key="s"{% if ep == 'suggestions' %} aria-current="page"{% endif %}>Suggestions <kbd>g s</kbd></a></li>
+<li><a href="{{ url_for('history_page') }}" data-key="y"{% if ep == 'history_page' %} aria-current="page"{% endif %}>Run history <kbd>g y</kbd></a></li>
+<li><a href="{{ url_for('learnings_page') }}" data-key="k"{% if ep == 'learnings_page' %} aria-current="page"{% endif %}>Learnings <kbd>g k</kbd></a></li>
+<li><a href="{{ url_for('fork_page') }}" data-key="f"{% if ep == 'fork_page' %} aria-current="page"{% endif %}>Start from a run <kbd>g f</kbd></a></li>
 </ul>
 <h2>Cockpit</h2>
 <ul>
@@ -48,6 +51,8 @@
 <li><a href="{{ url_for('attempts', cycle_id=run.id) }}" data-key="a"{% if ep in ('attempts', 'attempt') %} aria-current="page"{% endif %}>Attempts <kbd>g a</kbd></a></li>
 <li><a href="{{ url_for('traces', cycle_id=run.id) }}" data-key="t"{% if ep in ('traces', 'trace_view') %} aria-current="page"{% endif %}>LLM trace <kbd>g t</kbd></a></li>
 <li><a href="{{ url_for('report', cycle_id=run.id) }}" data-key="p"{% if ep == 'report' %} aria-current="page"{% endif %}>Report and submissions <kbd>g p</kbd></a></li>
+<li><a href="{{ url_for('bundle_page', cycle_id=run.id) }}" data-key="b"{% if ep in ('bundle_page', 'predict_page') %} aria-current="page"{% endif %}>Bundle and predict <kbd>g b</kbd></a></li>
+<li><a href="{{ url_for('submission_page', cycle_id=run.id) }}" data-key="x"{% if ep in ('submission_page', 'gap_page') %} aria-current="page"{% endif %}>Submission and gap <kbd>g x</kbd></a></li>
 <li><a href="{{ url_for('guidance', cycle_id=run.id) }}" data-key="u"{% if ep == 'guidance' %} aria-current="page"{% endif %}>Guidance <kbd>g u</kbd></a></li>
 </ul>
 {% endif %}

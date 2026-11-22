@@ -27,3 +27,4 @@ class CommandResult:
 
     code: int
     lines: tuple[str, ...]
+    data: dict | None = None  # structured details of a job (a submission preview, ...)

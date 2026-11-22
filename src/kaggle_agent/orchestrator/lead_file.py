@@ -55,9 +55,11 @@ from kaggle_agent.proposals import ShortPlan
 from kaggle_agent.loop import ids, role_limits
 from kaggle_agent.loop.states import AWAITING_GUIDANCE, AWAITING_PLAN_APPROVAL, AWAITING_REVIEW
 from kaggle_agent.registry import Registry
+from kaggle_agent.overrides import records_for_cycle
 from kaggle_agent.review import Accept, Approve, LeadContext, LeadInput, LeadResponse, Revise
 
-from .cockpit import append_jsonl, read_jsonl, utc_text
+from .applied import applied_outcomes, mark
+from .cockpit import read_jsonl
 from .errors import LeadFileError
 from .project import LEDGER_FILE, NOTICES_FILE, write_atomic
 
@@ -266,10 +268,12 @@ class FileLeadInput(LeadInput):
     """
 
     def __init__(self, path: Path, project_dir: Path, registry: Registry, cycle_id: str,
-                 clock: Callable[[], datetime] = _now, cockpit=None, emitter=None) -> None:
+                 clock: Callable[[], datetime] = _now, cockpit=None, emitter=None,
+                 first_cycle: str | None = None, ledger_name: str = LEDGER_FILE) -> None:
         self.path = Path(path)
         self.notices_path = Path(project_dir) / NOTICES_FILE
-        self.ledger = Ledger(Path(project_dir) / LEDGER_FILE)
+        self.ledger = Ledger(Path(project_dir) / ledger_name)
+        self.first_cycle = first_cycle or cycle_id
         self.registry = registry
         self.cycle_id = cycle_id
         self._clock = clock
@@ -303,26 +307,16 @@ class FileLeadInput(LeadInput):
     # -- the web source ---------------------------------------------------------
 
     def _web(self) -> list[dict]:
-        return [] if self.cockpit is None else read_web_decisions(self.cockpit.decisions)
+        if self.cockpit is None:
+            return []
+        return records_for_cycle(read_web_decisions(self.cockpit.decisions), self.cycle_id, self.first_cycle)
 
     def _applied_ids(self) -> dict[str, str]:
-        if self.cockpit is None:
-            return {}
-        records, _ = read_jsonl(self.cockpit.applied)
-        return {r.get("decision"): r.get("outcome") for r in records}
+        return applied_outcomes(self.cockpit)
 
     def _mark(self, record: dict, outcome: str, reason: str = "") -> None:
-        """Once per decision: ``decisions-applied.jsonl`` and the event."""
-        if self.cockpit is None or record["id"] in self._applied_ids():
-            return
-        append_jsonl(self.cockpit.applied, {"decision": record["id"], "kind": record["kind"],
-                                            "outcome": outcome, "reason": reason, "at": utc_text()})
-        if self.emitter is not None:
-            if outcome == "applied":
-                self.emitter.emit("decision_applied", decision=record["id"], kind=record["kind"], source="web")
-            else:
-                self.emitter.emit("decision_stale", decision=record["id"], kind=record["kind"],
-                                  reason=reason, source="web")
+        """Once per decision: ``decisions-applied.jsonl`` and the event (see ``applied.mark``)."""
+        mark(self.cockpit, self.emitter, record, outcome, reason)
 
     def _conflict(self, what: str, record: dict, toml_entry: dict | None, web_entry_: dict | None) -> None:
         if toml_entry is None or web_entry_ is None:

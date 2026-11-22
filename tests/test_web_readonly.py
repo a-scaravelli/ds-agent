@@ -50,7 +50,15 @@ def test_other_methods_answer_405_on_every_rule_and_leave_the_file_unchanged(coc
     before = sha256_of(cockpit_db)
     cockpit_urls = ["/live", "/run", "/decisions", "/setup", "/environment", "/audit", "/api/events",
                     "/api/events/stream", "/api/console", "/api/run", "/api/decisions/pending", "/api/audit",
-                    "/api/environment", "/api/jobs/x", "/api/config"]
+                    "/api/environment", "/api/jobs/x", "/api/config",
+                    # ticket 30: the routes of the final steps, memory and overrides
+                    "/fork", "/learnings", "/history", "/api/history", "/api/learnings", "/api/overrides/pending",
+                    f"/api/runs/{RUN_A}/labels", f"/api/runs/{RUN_A}/origin", f"/api/runs/{RUN_A}/bundle",
+                    f"/api/runs/{RUN_A}/bundle/files/persisted.json", f"/api/runs/{RUN_A}/report.md",
+                    f"/api/runs/{RUN_A}/gap", f"/api/runs/{RUN_A}/bar-override",
+                    f"/api/runs/{RUN_A}/submissions/preview", "/api/jobs/" + "a" * 16 + "/predictions.csv",
+                    f"/cycles/{RUN_A}/bundle", f"/cycles/{RUN_A}/predict", f"/cycles/{RUN_A}/submission",
+                    f"/cycles/{RUN_A}/gap", f"/cycles/{RUN_A}/report/print"]
     cockpit_urls.remove("/api/events/stream")  # a held stream is covered by test_cockpit_sse
     urls = all_page_urls() + all_api_urls() + cockpit_urls
     covered = {"api.event_stream", "api.notes"}
@@ -153,7 +161,7 @@ def test_code_inspection_finds_no_write_call_and_no_request_body_use():
         for node in ast.walk(tree):
             if isinstance(node, ast.Attribute) and node.attr != "add_argument":  # argparse
                 assert not node.attr.startswith(WRITE_PREFIXES), f"{path.name}: {node.attr}"
-                if path.name not in ("security.py", "writes.py"):  # the CSRF guard and the write endpoints read the body
+                if path.name not in ("security.py", "writes.py", "override_writes.py"):  # the CSRF guard and the write endpoints read the body
                     assert node.attr not in {"form", "json", "files", "get_json"}, path.name
             if isinstance(node, ast.ImportFrom) and node.module:
                 imports_sqlite = node.module.endswith("registry.sqlite")

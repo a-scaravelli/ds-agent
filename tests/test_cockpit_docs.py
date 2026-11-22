@@ -9,11 +9,11 @@ from cockpit_helpers import cockpit_client, cockpit_db, loopback_only  # noqa: F
 
 ROOT = Path(__file__).resolve().parent.parent
 README = (ROOT / "README.md").read_text(encoding="utf-8")
-PLAN_CASES = 48
+PLAN_CASES = 58
 
 
 def normal(rule: str) -> str:
-    names = {"run_id": "<id>", "attempt_id": "<id>", "round_id": "<round>", "n": "<n>", "job_id": "<id>"}
+    names = {"run_id": "<id>", "attempt_id": "<id>", "round_id": "<round>", "n": "<n>", "job_id": "<id>", "name": "<name>"}
     return re.sub(r"<(?:path:|int:)?(\w+)>", lambda m: names[m.group(1)], rule)
 
 

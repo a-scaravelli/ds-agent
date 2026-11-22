@@ -48,6 +48,12 @@ def test_every_page_and_endpoint_answers_over_a_registry_from_a_fake_end_to_end_
     assert run["stop_reason"] == report.content["stop_reason"]
     assert run["chosen"]["attempt_id"] == report.content["chosen"]["attempt_id"]
     holdout = api(client, base + "/holdout")["data"]
+    assert holdout["state"] == "ready" and holdout["status"] == "sealed" and holdout["score"] is None  # ticket 30
+    cockpit = world.project / "cockpit"
+    cockpit.mkdir(exist_ok=True)
+    (cockpit / "holdout-reads.jsonl").write_text(json.dumps({"id": "u1", "cycle": cycle.id, "kind": "first"}) + "\n",
+                                                 encoding="utf-8")
+    holdout = api(client, base + "/holdout")["data"]
     assert holdout["status"] == outcome.status and holdout["score"] == outcome.score
     chart = api(client, base + "/chart")["data"]
     assert len(chart["points"]) == len(scores) and chart["baseline"] is not None

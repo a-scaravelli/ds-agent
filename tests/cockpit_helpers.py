@@ -357,3 +357,13 @@ class SpyRegistry:
         if callable(target):
             calls.add(name)
         return target
+
+
+def unseal(db_path, cycle=RUN_A, kind="first", reason="") -> None:
+    """The DS unsealed the holdout of ``cycle`` (ticket 30): one record in ``cockpit/holdout-reads.jsonl``."""
+    folder = Path(db_path).parent / "cockpit"
+    folder.mkdir(parents=True, exist_ok=True)
+    record = {"id": "unseal-1", "request_id": "unseal-request-1", "cycle": cycle, "kind": kind, "reason": reason,
+              "who": "tester", "at": T0}
+    with open(folder / "holdout-reads.jsonl", "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record) + "\n")

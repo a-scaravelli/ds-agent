@@ -6,9 +6,17 @@ is a CLOSED ALLOWLIST, checked on this source by a test:
 
 1. every ``subprocess.Popen`` / ``subprocess.run`` call is inside the single function ``_spawn`` and
    none passes ``shell`` (the argv is always a list or tuple);
-2. ``_spawn`` is only ever given one of three argv shapes:
-   ``orchestrator_argv`` + (``start`` | ``resume`` | ``validate-config`` | ``profile`` | ``preview`` | ``importance``,
-   ``--config``, <path>, ``--supervised`` or ``--out``, <path> [``--attempt``, <validated id>, ``--job``, <job id>]); ``("ps", "-o", "lstart=", "-p", str(int(pid)))``;
+2. ``_spawn`` is only ever given one of three kinds of argv, and the orchestrator ones have a CLOSED set of shapes
+   (``orchestrator_argv`` + ...):
+   ``start`` | ``resume`` + ``--config <path> --supervised``; ``fork`` + ``--config <path> --from-run <id>
+   [--from-attempt <id>] --request-id <id> [--threshold-k <number> --reason <text>] --supervised``;
+   the jobs ``validate-config`` | ``profile`` | ``preview`` + ``--config <path> --out <path>``, ``importance`` +
+   ``--config --attempt <id> --out --job <id>``, ``reproduce`` + ``--config --out [--bundle <id>]``, ``predict`` +
+   ``--config --out --input <upload path made by store> [--bundle <id>]``, ``finalize`` + ``--config --out``,
+   ``rerun`` + ``--config --out --attempt <id> --seed-offset <int> --decision <id>``, ``submit`` + ``--config --out``
+   (the dry run) and ``submit --config --out --confirm-submit [--expect-sha256 <64 hex>] [--assume-not-sent |
+   --adopt-id <id>]``; every id, hash and number is validated by a regular expression or ``int`` BEFORE the spawn, a
+   free text (the reason of a fork) is only ever one argv element; ``("ps", "-o", "lstart=", "-p", str(int(pid)))``;
    ``(claude_executable, "auth", "status")``;
 3. ``DEFAULT_ORCHESTRATOR_ARGV`` is exactly ``(sys.executable, "-m", "kaggle_agent.orchestrator")``;
 4. ``orchestrator_argv`` and ``claude_executable`` are constructor parameters only: this file reads no
@@ -39,8 +47,17 @@ from .codes_text import describe_code
 
 DEFAULT_ORCHESTRATOR_ARGV = (sys.executable, "-m", "kaggle_agent.orchestrator")
 RUN_COMMANDS = ("start", "resume")
-JOB_COMMANDS = ("validate-config", "profile", "preview", "importance")
+BUNDLE_JOBS = ("reproduce", "predict", "finalize", "rerun")
+SUBMIT_JOBS = ("submit-preview", "submit-confirm")
+JOB_COMMANDS = ("validate-config", "profile", "preview", "importance", *BUNDLE_JOBS, *SUBMIT_JOBS)
+HEAVY_JOBS = ("importance", *BUNDLE_JOBS, *SUBMIT_JOBS)
+WRITE_JOBS = ("finalize", "rerun", "submit-confirm")  # the registry is written: refused while a run is active
 ATTEMPT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+SHA256 = re.compile(r"[a-f0-9]{64}")
+HEX_ID = re.compile(r"[a-f0-9]{12,64}")
+SUBMISSION_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")
+REQUEST_ID = re.compile(r"[A-Za-z0-9._-]{8,64}")
+MAX_REASON = 2000
 KEEP_JOBS = 20
 
 WAITING_TEXT = {
@@ -222,10 +239,33 @@ class RunController:
 
     # -- start, pause, stop -------------------------------------------------------------------------
 
-    def launch(self, command: str) -> dict:
-        """Start ``start`` or ``resume`` as a detached child; a second request gets ``Conflict``."""
-        if command not in RUN_COMMANDS:
+    def _fork_args(self, fork: dict) -> tuple[str, ...]:
+        """The validated argv tail of ``fork``: ids and the number by regex, the reason as ONE element."""
+        run, attempt, request_id = fork.get("from_run"), fork.get("from_attempt"), fork.get("request_id")
+        if not (isinstance(run, str) and ATTEMPT_ID.fullmatch(run)) or not (
+                isinstance(request_id, str) and REQUEST_ID.fullmatch(request_id)):
+            raise ValueError("bad fork arguments")
+        out = ["--from-run", run]
+        if attempt is not None:
+            if not (isinstance(attempt, str) and ATTEMPT_ID.fullmatch(attempt)):
+                raise ValueError("bad attempt id")
+            out += ["--from-attempt", attempt]
+        out += ["--request-id", request_id]
+        threshold = fork.get("threshold_k")
+        if threshold is not None:
+            if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not 0 <= threshold < 1e6:
+                raise ValueError("bad threshold_k")
+            reason = fork.get("reason")
+            if not isinstance(reason, str) or not reason.strip() or len(reason) > MAX_REASON or "\0" in reason:
+                raise ValueError("bad reason")
+            out += ["--threshold-k", repr(float(threshold)), "--reason", reason.strip()]
+        return tuple(out)
+
+    def launch(self, command: str, fork: dict | None = None) -> dict:
+        """Start ``start``, ``resume`` or (with ``fork``) a new cycle as a detached child; a second request gets ``Conflict``."""
+        if command not in (*RUN_COMMANDS, "fork") or (command == "fork") != (fork is not None):
             raise ValueError(command)
+        extra = self._fork_args(fork) if fork is not None else ()
         with self._lock, store.FileLock(store.cockpit_path(self.project_dir, "controller.lock")):
             if self.active():
                 raise Conflict("a run is already active in this project; no second run is started")
@@ -233,7 +273,7 @@ class RunController:
             console = store.console_handle(store.cockpit_path(self.project_dir, "console.log"))
             try:
                 proc = self._spawn((*self.orchestrator_argv, command, "--config", str(self.config_path),
-                                    "--supervised"), stdout=console, new_session=True)
+                                    *extra, "--supervised"), stdout=console, new_session=True)
             finally:
                 console.close()
             start_time = None
@@ -303,39 +343,87 @@ class RunController:
 
     # -- background jobs ---------------------------------------------------------------------------
 
-    def start_job(self, kind: str, config_path=None, attempt: str | None = None) -> dict:
-        """Run ``validate-config``, ``profile``, ``preview`` or ``importance`` in the background.
+    def start_job(self, kind: str, config_path=None, attempt: str | None = None, **params) -> dict:
+        """Run a short or heavy job in the background; every argument is validated before anything is spawned.
 
-        ``importance`` needs a validated ``attempt`` id and uses the longer heavy-job timeout.
+        ``importance`` and ``rerun`` need an ``attempt`` id; ``reproduce``/``predict`` may name a ``bundle``; ``predict``
+        needs the ``upload`` id of a stored upload; ``rerun`` takes ``seed_offset`` and ``decision``; ``submit-confirm`` takes
+        ``sha256`` and either ``assume_not_sent`` or ``adopt_id``. The jobs of ``WRITE_JOBS`` write the registry (in the
+        orchestrator process, under its run lock) and are refused while a run is active.
         """
         if kind not in JOB_COMMANDS:
             raise ValueError(kind)
-        if kind == "importance" and not (isinstance(attempt, str) and ATTEMPT_ID.fullmatch(attempt)):
-            raise ValueError("bad attempt id")
+        args = self._job_args(kind, attempt, params)
+        if kind in WRITE_JOBS and self.active():
+            raise Conflict("a run is active in this project: wait until it has stopped")
         job_id = store.new_id()[:16]
         record_path, out_path = store.job_paths(self.project_dir, job_id)
         record = {"id": job_id, "kind": kind, "status": "running", "started_at": store.utc_text(),
                   "finished_at": None, "error": None}
-        if kind == "importance":
+        if attempt is not None:
             record["attempt"] = attempt
+        for name in ("bundle",):
+            if params.get(name):
+                record[name] = params[name]
         store.write_json(record_path, record)
         self._trim_jobs()
         cfg = Path(config_path) if config_path else self.config_path
-        threading.Thread(target=self._job, args=(kind, cfg, record, record_path, out_path, attempt),
+        threading.Thread(target=self._job, args=(kind, cfg, record, record_path, out_path, args, params.get("upload")),
                          daemon=True, name=f"job-{kind}").start()
         return record
 
-    def _job(self, kind, cfg, record, record_path, out_path, attempt=None) -> None:
+    def _job_args(self, kind: str, attempt, params: dict) -> tuple[str, ...]:
+        """The validated argv tail of a job (after ``--config <path> --out <path>``)."""
+        if kind == "importance":
+            if not (isinstance(attempt, str) and ATTEMPT_ID.fullmatch(attempt)):
+                raise ValueError("bad attempt id")
+            return ("--attempt", attempt)
+        out: list[str] = []
+        bundle = params.get("bundle")
+        if bundle is not None:
+            if not (isinstance(bundle, str) and ATTEMPT_ID.fullmatch(bundle)):
+                raise ValueError("bad bundle id")
+        if kind == "reproduce":
+            out += ["--bundle", bundle] if bundle else []
+        elif kind == "predict":
+            upload = params.get("upload")
+            if not (isinstance(upload, str) and store.UPLOAD_ID.fullmatch(upload)):
+                raise ValueError("bad upload id")
+            out += ["--input", str(store.upload_path(self.project_dir, upload))]
+            out += ["--bundle", bundle] if bundle else []
+        elif kind == "rerun":
+            offset, decision = params.get("seed_offset"), params.get("decision")
+            if not (isinstance(attempt, str) and ATTEMPT_ID.fullmatch(attempt)) or isinstance(offset, bool) \
+                    or not isinstance(offset, int) or not 0 <= offset <= 1000 \
+                    or not (isinstance(decision, str) and HEX_ID.fullmatch(decision)):
+                raise ValueError("bad rerun arguments")
+            out += ["--attempt", attempt, "--seed-offset", str(int(offset)), "--decision", decision]
+        elif kind == "submit-confirm":
+            sha, adopt = params.get("sha256"), params.get("adopt_id")
+            out.append("--confirm-submit")
+            if not (isinstance(sha, str) and SHA256.fullmatch(sha)):
+                raise ValueError("bad sha256")
+            out += ["--expect-sha256", sha]
+            if params.get("assume_not_sent") is True:
+                out.append("--assume-not-sent")
+            elif adopt is not None:
+                if not (isinstance(adopt, str) and SUBMISSION_ID.fullmatch(adopt)):
+                    raise ValueError("bad submission id")
+                out += ["--adopt-id", adopt]
+        return tuple(out)
+
+    def _job(self, kind, cfg, record, record_path, out_path, args=(), upload=None) -> None:
         status, error = "done", None
-        limit = self.heavy_job_timeout if kind == "importance" else self.job_timeout
+        limit = self.heavy_job_timeout if kind in HEAVY_JOBS else self.job_timeout
+        command = "submit" if kind in SUBMIT_JOBS else kind
         try:
             job_id = record["id"]
-            if kind == "importance":  # attempt and job_id were validated by regex before this thread started
-                proc = self._spawn((*self.orchestrator_argv, kind, "--config", str(cfg), "--attempt", attempt,
-                                    "--out", str(out_path), "--job", job_id), stdout=subprocess.PIPE)
+            if kind == "importance":  # the shape of ticket 29: --attempt comes before --out
+                proc = self._spawn((*self.orchestrator_argv, command, "--config", str(cfg), *args, "--out",
+                                    str(out_path), "--job", job_id), stdout=subprocess.PIPE)
             else:
-                proc = self._spawn((*self.orchestrator_argv, kind, "--config", str(cfg), "--out", str(out_path)),
-                                   stdout=subprocess.PIPE)
+                proc = self._spawn((*self.orchestrator_argv, command, "--config", str(cfg), "--out", str(out_path),
+                                    *args), stdout=subprocess.PIPE)
             try:
                 proc.communicate(timeout=limit)
             except subprocess.TimeoutExpired:
@@ -345,11 +433,14 @@ class RunController:
             else:
                 if not store.exists(out_path):
                     status, error = "failed", f"the job exited with code {proc.returncode} and no result"
-                elif proc.returncode not in (0, None):
+                elif proc.returncode not in (0, None) and kind not in SUBMIT_JOBS:
                     result = store.read_json(out_path, {}) or {}
                     status, error = "failed", result.get("error") or f"the job exited with code {proc.returncode}"
         except OSError as exc:
             status, error = "failed", f"cannot start the job: {exc}"
+        finally:
+            if upload:  # the upload of a predict job never outlives it
+                store.remove_upload(self.project_dir, upload)
         store.write_json(record_path, {**record, "status": status, "error": error,
                                        "finished_at": store.utc_text()})
 

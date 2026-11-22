@@ -71,6 +71,7 @@ def create_app(source, project_dir=None, journal_mode=None, controller=None, sse
     app.jinja_env.lstrip_blocks = True
     app.config["PROJECT_DIR"] = None if project_dir is None else Path(project_dir)
     app.config["JOURNAL_MODE"] = journal_mode
+    app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024  # every write body is small; the predict upload raises it for itself
     if controller is None and project_dir is not None:
         controller = RunController(project_dir)
     app.config["CONTROLLER"] = controller

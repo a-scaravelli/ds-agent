@@ -79,6 +79,11 @@ def cycle_id_for(slug: str) -> str:
     return f"{slug}-1"
 
 
+def ledger_name_for(cycle_id: str, first_cycle: str) -> str:
+    """The first cycle keeps ``lead-ledger.json``; a fork has its own ledger (its plan numbers start at 1)."""
+    return LEDGER_FILE if cycle_id == first_cycle else f"lead-ledger-{cycle_id}.json"
+
+
 def project_file(paths: ProjectPaths) -> Path:
     return paths.folder / PROJECT_FILE
 

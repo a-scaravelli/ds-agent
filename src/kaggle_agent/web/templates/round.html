@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% from "macros.html" import badge, empty, md, value, candidate_table %}
+{% from "override_panels.html" import bar_panel, steering_panel, override_list %}
 {% block title %}Round {{ round.id }}{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/overrides.js') }}" defer></script>{% endblock %}
 {% block body %}
 <h1>Round {{ round.position }}: {{ round.id }}</h1>
 <p class="subtitle">Run <a href="{{ url_for('cycle', cycle_id=run.id) }}">{{ run.id }}</a>{% if round.is_setup %}, setup round (baseline){% endif %}</p>
@@ -14,6 +16,10 @@
 {% if round.candidates %}{{ candidate_table(round.candidates) }}
 <p class="note">"vs bar" is the difference against the reference minus the significance threshold: above zero means the improvement is beyond the bar.</p>
 {% else %}{{ empty("No candidates", "No candidate was created in this round.") }}{% endif %}
+
+{{ bar_panel(bar, round.id) }}
+{{ steering_panel(steering_now, focuses, families, is_active) }}
+{{ override_list(overrides) }}
 
 {% set titles = {'data': 'Data findings', 'feature_engineering': 'Feature engineering plan', 'modeling': 'Modeling plan', 'coordinator': 'Coordinator direction'} %}
 {% for role, title in titles.items() %}

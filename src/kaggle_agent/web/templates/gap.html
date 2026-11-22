@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "macros.html" import empty %}
+{% block title %}Gap {{ run.id }}{% endblock %}
+{% block body %}
+<h1>Leaderboard gap of {{ run.id }}</h1>
+<p class="subtitle">Public score against CV and holdout, per submission.</p>
+<section class="panel" aria-labelledby="why-h">
+<h2 id="why-h">Why they differ</h2>
+<p>{{ gap.explanation }}</p>
+</section>
+<section class="panel" aria-labelledby="gap-h">
+<h2 id="gap-h">Submissions</h2>
+{% if gap.rows %}
+<div class="table-wrap"><table>
+<thead><tr><th>Submission</th><th>State</th><th class="num">Public</th><th class="num">CV</th><th class="num">Holdout</th><th class="num">Public - CV</th><th class="num">Public - holdout</th></tr></thead>
+<tbody>{% for r in gap.rows %}
+<tr><td>{{ r.submission_id }}</td><td>{{ r.state }}</td><td class="num">{{ r.public | num }}</td><td class="num">{{ r.cv | num }}</td>
+<td class="num">{% if r.holdout is string %}<span class="muted">{{ r.holdout }}</span>{% else %}{{ r.holdout | num }}{% endif %}</td>
+<td class="num">{{ r.gap_cv | num(4) }}</td><td class="num">{{ r.gap_holdout | num(4) }}</td></tr>
+{% endfor %}</tbody></table></div>
+{% endif %}
+{% if gap.state_text %}{{ empty("Nothing to compare yet", gap.state_text) }}{% endif %}
+</section>
+{% endblock %}

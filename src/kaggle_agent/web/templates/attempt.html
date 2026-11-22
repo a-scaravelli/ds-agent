@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% from "macros.html" import annotations, badge, score, hash, empty, value %}
+{% from "override_panels.html" import attempt_panel %}
 {% block title %}Attempt {{ a.id }}{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/overrides.js') }}" defer></script>{% endblock %}
 {% block body %}
 <h1>Attempt {{ a.id }}{% if a.chosen %} <span class="chosen-mark">chosen</span>{% endif %}</h1>
 <p class="subtitle">Run <a href="{{ url_for('cycle', cycle_id=a.run_id) }}">{{ a.run_id }}</a>;
@@ -75,4 +77,5 @@ iteration {{ a.iteration }}; phase {{ a.phase }}; {% if a.closed %}closed{% else
 </details>
 {% endfor %}
 {% else %}{{ empty("No runs yet", "This attempt has not been executed.") }}{% endif %}
+{{ attempt_panel(a, choice, labels, is_active) }}
 {% endblock %}

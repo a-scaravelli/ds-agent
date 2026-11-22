@@ -1,0 +1,91 @@
+{# the override panels of the round and attempt pages: macros; the forms are wired by overrides.js #}
+{% macro bar_panel(bar, round_id) %}
+{% if bar.available and bar.round_id == round_id %}
+<section class="panel" aria-labelledby="bar-h" id="bar-panel" data-round="{{ bar.round }}" data-candidate="{{ bar.candidate }}" data-url="{{ url_for('writes.decide_bar_override') }}">
+<h2 id="bar-h">Accept despite the bar</h2>
+<dl class="facts">
+<dt>The bar</dt><dd>{{ bar.bar | num }}</dd>
+<dt>Mean paired difference</dt><dd>{{ bar.difference | num }} ({{ 'above' if bar.is_real else 'not above' }} the bar)</dd>
+{% if bar.wins is defined %}<dt>Folds won</dt><dd>{{ bar.wins }} of {{ bar.folds }} (lost {{ bar.losses }}, tied {{ bar.ties }})</dd>{% endif %}
+<dt>Candidate</dt><dd><a href="{{ url_for('attempt', attempt_id=bar.candidate) }}">{{ bar.candidate }}</a> against {{ bar.reference }}</dd>
+</dl>
+<p class="note">{{ bar.text }}</p>
+{% if not bar.is_real %}
+<form id="bar-form" class="stack">
+<label>Scope<select name="scope"><option value="round">This round only</option><option value="cycle">This round and every later round of the cycle</option></select></label>
+<label>Reason<textarea name="reason" rows="2"></textarea></label>
+<label class="check"><input type="checkbox" name="confirm"> I accept this candidate although the strict bar rejected it</label>
+<div class="toolbar"><button type="submit">Accept it</button></div>
+</form>
+<p id="bar-message" class="note" role="status"></p>
+{% endif %}
+</section>
+{% endif %}
+{% endmacro %}
+
+{% macro steering_panel(steering_now, focuses, families, is_active) %}
+{% if is_active %}
+<section class="panel" aria-labelledby="steer-h">
+<h2 id="steer-h">Steer the roles</h2>
+<p class="note">The roles are told this as typed guidance. Nothing checks the code: the reviewer report is the check. Frozen settings cannot be changed here.</p>
+{% if steering_now %}<p>In force: focus {{ steering_now.focus or 'none' }}; pinned {{ steering_now.pin_features | join(', ') or '-' }}; avoided {{ steering_now.avoid_features | join(', ') or '-' }}.</p>{% endif %}
+<form id="steering-form" class="stack" data-url="{{ url_for('writes.decide_steering') }}">
+<label>Focus<select name="focus"><option value="">(none)</option>{% for f in focuses %}<option value="{{ f }}">{{ f }}</option>{% endfor %}</select></label>
+<label>Features to pin (comma separated)<input name="pin_features"></label>
+<label>Features to avoid<input name="avoid_features"></label>
+<fieldset><legend>Model families</legend>
+{% for f in families %}<label class="check"><input type="checkbox" name="try_families" value="{{ f }}"> try {{ f }}</label>
+<label class="check"><input type="checkbox" name="avoid_families" value="{{ f }}"> avoid {{ f }}</label>
+<label class="check"><input type="checkbox" name="allowed_model_families" value="{{ f }}"> only {{ f }}</label>
+{% endfor %}</fieldset>
+<label>Notes<textarea name="notes" rows="2"></textarea></label>
+<div class="toolbar"><button type="submit">Steer</button><button type="button" id="steering-clear">Clear the steering</button></div>
+</form>
+<p id="steering-message" class="note" role="status"></p>
+</section>
+
+<section class="panel" aria-labelledby="try-h">
+<h2 id="try-h">Try this</h2>
+<p class="note">Write a hypothesis: the agent builds it and evaluates it under the frozen protocol as a candidate of the next round.</p>
+<form id="try-form" class="stack" data-url="{{ url_for('writes.decide_try_this') }}">
+<label>Hypothesis<textarea name="hypothesis" rows="3"></textarea></label>
+<label>Constraints (one per line, optional)<textarea name="constraints" rows="2"></textarea></label>
+<div class="toolbar"><button type="submit">Try this</button></div>
+</form>
+<p id="try-message" class="note" role="status"></p>
+</section>
+{% endif %}
+{% endmacro %}
+
+{% macro attempt_panel(a, choice, labels, is_active) %}
+<section class="panel" aria-labelledby="ds-h">
+<h2 id="ds-h">Your choices</h2>
+<p>{% for l in labels %}<span class="label-chip">{{ l.label }}</span> {% endfor %}</p>
+{% if choice.ds %}<p>Chosen by the DS: attempt {{ choice.ds.attempt }}. The program's own choice: {{ choice.program or 'none' }}.</p>{% endif %}
+{% if is_active and a.outcome == 'succeeded' %}
+<form id="choose-form" class="stack" data-url="{{ url_for('writes.decide_choose_model') }}" data-attempt="{{ a.id }}">
+<label>Reason for choosing this attempt as the final model<textarea name="reason" rows="2"></textarea></label>
+<label class="check"><input type="checkbox" name="confirm"> I choose this attempt; the program's own choice stays visible</label>
+<div class="toolbar"><button type="submit">Choose this model</button></div>
+</form>
+<p id="choose-message" class="note" role="status"></p>
+{% endif %}
+{% if is_active and a.closed %}
+<form id="rerun-form" class="stack" data-url="{{ url_for('writes.job_rerun') }}" data-job-url="{{ url_for('api.job', job_id='JOB') }}" data-attempt="{{ a.id }}" data-outcome="{{ a.outcome }}">
+<label>Seed offset{% if a.outcome != 'succeeded' %} (0 retries with the same seed){% endif %}<input name="seed_offset" type="number" min="{{ 0 if a.outcome != 'succeeded' else 1 }}" value="{{ 0 if a.outcome != 'succeeded' else 1 }}"></label>
+<div class="toolbar"><button type="submit">{{ 'Retry this attempt' if a.outcome != 'succeeded' else 'Re-run with another seed' }}</button></div>
+</form>
+<p id="rerun-message" class="note" role="status"></p>
+<div id="rerun-result" role="status" aria-live="polite"></div>
+{% endif %}
+</section>
+{% endmacro %}
+
+{% macro override_list(items) %}
+{% if items %}
+<section class="panel" aria-labelledby="ovl-h" id="override-list">
+<h2 id="ovl-h">Your overrides</h2>
+<ul>{% for o in items %}<li>{{ o.summary }}: <span class="badge status-{{ 'succeeded' if o.status == 'applied' else 'waiting' if o.status == 'pending' else 'unknown' }}">{{ o.status }}</span>{% if o.reason %} <span class="muted">{{ o.reason }}</span>{% endif %}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+{% endmacro %}

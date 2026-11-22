@@ -21,6 +21,7 @@ REVIEW = SRC / "review"
 PIPELINE = SRC / "pipeline"
 WRITER = SRC / "writer"
 ORCHESTRATOR = SRC / "orchestrator"
+OVERRIDES = SRC / "overrides"  # ticket 30: neutral, stdlib-only, shared by web and orchestrator
 ANALYTICS = SRC / "analytics"  # ticket 29: pure functions over pandas, numpy and sklearn.metrics
 SANDBOX_RUNNER = SANDBOX / "subprocess_sandbox.py"
 WEB_CONTROLLER = WEB / "controller.py"
@@ -78,7 +79,7 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
 def test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle_llm_sandbox():
     for path in _modules():
         if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM, AGENTS, SANDBOX, WEB, BUNDLE,
-                                       LOOP, BUDGET, REVIEW, PIPELINE, WRITER, ORCHESTRATOR, ANALYTICS)):
+                                       LOOP, BUDGET, REVIEW, PIPELINE, WRITER, ORCHESTRATOR, ANALYTICS, OVERRIDES)):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -231,6 +232,7 @@ def test_only_llm_real_imports_subprocess_and_llm_uses_no_network_or_third_party
                 "test_writer_manual_claude.py", "test_agents_limits.py",  # ticket 25: fresh-interpreter import check
                     "test_cockpit_assets.py",  # ticket 26: runs markdown.js with node when it is installed
                     "test_cockpit_design.py",  # ticket 28: runs theme.js with node when it is installed
+                    "test_cockpit_finish_guards.py",  # ticket 30: git diff against origin/main for the frozen packages
             } or "sandbox" in path.name, path
 
 
@@ -327,7 +329,7 @@ def test_web_imports_only_stdlib_flask_proposals_registry_and_itself():
             assert top not in NETWORK_MODULES, f"{path}: {full}"
             if top == "kaggle_agent":
                 parts = full.split(".")
-                assert len(parts) > 1 and parts[1] in {"proposals", "registry", "web", "analytics"}, full  # ticket 29: web may import analytics
+                assert len(parts) > 1 and parts[1] in {"proposals", "registry", "web", "analytics", "overrides"}, full  # tickets 29 and 30
                 assert parts[1] not in forbidden, full
             if top == "<relative>":
                 assert full.lstrip(".").split(".")[0] not in forbidden, f"{path}: {full}"
@@ -521,6 +523,9 @@ def test_bundle_imports_only_stdlib_pandas_numpy_and_allowed_packages():
 # ticket 29: ``importance`` and its two extra options (the attempt id and the job id are validated by regex)
 ORCHESTRATOR_LITERALS = {"start", "resume", "validate-config", "profile", "preview", "importance", "--config",
                          "--supervised", "--out", "--attempt", "--job"}
+# ticket 30: the bundle, submit and fork shapes; every value after them is a validated ``*args`` / ``*extra`` tail
+ORCHESTRATOR_LITERALS |= {"fork", "reproduce", "predict", "finalize", "rerun", "submit"}
+ORCHESTRATOR_STARRED = {"args", "extra"}  # the argv tails built by ``_job_args`` and ``_fork_args`` (regex-validated)
 
 
 def _spawn_violations(source: str) -> list[str]:
@@ -574,6 +579,9 @@ def _check_argv(arg: ast.AST, line: int) -> list[str]:
         for element in items[1:]:
             if isinstance(element, ast.Constant) and element.value in ORCHESTRATOR_LITERALS:
                 continue
+            if isinstance(element, ast.Starred) and isinstance(element.value, ast.Name) \
+                    and element.value.id in ORCHESTRATOR_STARRED:
+                continue  # a tail validated against the closed shapes by ``_job_args`` / ``_fork_args``
             if isinstance(element, ast.Name) and element.id in ("command", "kind", "attempt", "job_id"):
                 continue  # validated against the closed tuples RUN_COMMANDS / JOB_COMMANDS at the top of the function
             if isinstance(element, ast.Call) and getattr(element.func, "id", "") == "str" and \
@@ -590,14 +598,21 @@ def test_the_web_controller_spawns_only_the_closed_list_of_commands():
     tree = ast.parse(source)
     spawns = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
               and n.func.attr == "_spawn"]
-    assert len(spawns) == 5  # ps, the run, the jobs (plain and importance) and the claude check: nothing else
+    assert len(spawns) == 5  # ps, the run (and the fork), the jobs (importance and the others) and the claude check
     # (c) the default command is exactly (sys.executable, -m, kaggle_agent.orchestrator)
     default = next(n for n in tree.body if isinstance(n, ast.Assign) and n.targets[0].id == "DEFAULT_ORCHESTRATOR_ARGV")
     assert ast.unparse(default.value) == "(sys.executable, '-m', 'kaggle_agent.orchestrator')"
     # the commands are the closed tuples
-    values = {n.targets[0].id: ast.literal_eval(n.value) for n in tree.body
-              if isinstance(n, ast.Assign) and n.targets[0].id in ("RUN_COMMANDS", "JOB_COMMANDS")}
-    assert values == {"RUN_COMMANDS": ("start", "resume"), "JOB_COMMANDS": ("validate-config", "profile", "preview", "importance")}
+    names = ("RUN_COMMANDS", "BUNDLE_JOBS", "SUBMIT_JOBS", "JOB_COMMANDS")  # tuples of literals and earlier tuples
+    values: dict = {}
+    for n in tree.body:
+        if isinstance(n, ast.Assign) and n.targets[0].id in names:
+            values[n.targets[0].id] = eval(compile(ast.Expression(n.value), "controller", "eval"), {}, dict(values))
+    assert values == {"RUN_COMMANDS": ("start", "resume"),
+                      "BUNDLE_JOBS": ("reproduce", "predict", "finalize", "rerun"),
+                      "SUBMIT_JOBS": ("submit-preview", "submit-confirm"),
+                      "JOB_COMMANDS": ("validate-config", "profile", "preview", "importance", "reproduce", "predict",
+                                       "finalize", "rerun", "submit-preview", "submit-confirm")}
     # (d) the two seams are constructor parameters, and nothing else passes them
     init = next(n for c in tree.body if isinstance(c, ast.ClassDef) and c.name == "RunController"
                 for n in c.body if isinstance(n, ast.FunctionDef) and n.name == "__init__")
@@ -626,7 +641,7 @@ def test_the_allowlist_guard_detects_a_violation():
 
 
 def test_only_wrappers_build_and_service_touch_the_event_log():
-    allowed = {"events.py", "wrappers.py", "build.py", "service.py", "cockpit.py"}
+    allowed = {"events.py", "wrappers.py", "build.py", "service.py", "cockpit.py", "__main__.py"}  # __main__: the NULL emitter
     for path in _modules():
         if ORCHESTRATOR not in path.parents or path.name in allowed:
             continue

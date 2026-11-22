@@ -9,6 +9,7 @@ from .libraries import ALLOWED_LIBRARIES, LIBRARY_APIS, LIBRARY_RULES
 from .plan import MAX_PLAN_WORDS, ShortPlan
 from .roles import ROLES, validate_role
 from .round import ReviewerReport, Round
+from .steering import FOCUSES, MODEL_FAMILIES, CarryOver, Steering, TryThis
 from .suggestion import Suggestion
 
 __all__ = [
@@ -19,6 +20,11 @@ __all__ = [
     "LIBRARY_APIS",
     "LIBRARY_RULES",
     "Attempt",
+    "CarryOver",
+    "FOCUSES",
+    "MODEL_FAMILIES",
+    "Steering",
+    "TryThis",
     "DIRECTIONS",
     "GoalCriteria",
     "GoalCriterion",

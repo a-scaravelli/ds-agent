@@ -9,7 +9,7 @@ from kaggle_agent.orchestrator import codes
 from kaggle_agent.orchestrator.config import baseline_text
 
 ROOT = Path(__file__).resolve().parent.parent
-PLAN_CASES = 48
+PLAN_CASES = 58
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 
 

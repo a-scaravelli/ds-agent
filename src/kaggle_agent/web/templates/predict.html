@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "macros.html" import empty %}
+{% block title %}Predict {{ run.id }}{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/overrides.js') }}" defer></script>{% endblock %}
+{% block body %}
+<h1>Predict on new data ({{ run.id }})</h1>
+<p class="subtitle">Upload a CSV; the stored model predicts it in the sandbox. The file must have the columns of the training data; it is deleted after the job.</p>
+{% if not bundle.available %}
+{{ empty("No persisted model", bundle.reason) }}
+{% else %}
+<section class="panel" aria-labelledby="up-h">
+<h2 id="up-h">Upload</h2>
+<p>Columns needed: {% for c in bundle.predict.columns or [] %}<code>{{ c }}</code> {% else %}<span class="muted">unknown</span>{% endfor %}</p>
+<form id="predict-form" class="stack" data-url="{{ url_for('writes.job_predict') }}" data-job-url="{{ url_for('api.job', job_id='JOB') }}" data-csv-url="{{ url_for('api.predictions_csv', job_id='JOB') }}">
+<label>CSV file<input type="file" name="file" accept=".csv,text/csv" required></label>
+<div class="toolbar"><button type="submit">Predict</button></div>
+</form>
+<p id="predict-message" class="note" role="status"></p>
+<div id="predict-result" role="status" aria-live="polite"></div>
+</section>
+{% endif %}
+{% endblock %}

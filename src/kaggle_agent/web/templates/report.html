@@ -1,73 +1,15 @@
 {% extends "base.html" %}
-{% from "macros.html" import badge, score, empty, md, value %}
 {% block title %}Report {{ run.id }}{% endblock %}
 {% block body %}
 <h1>Report and submissions of {{ run.id }}</h1>
-<p class="subtitle">{{ badge(run.status, run.state) }} What the registry stored; nothing on this page computes or fetches a score.</p>
-
-<section class="panel" aria-labelledby="holdout-h">
-<h2 id="holdout-h">Holdout</h2>
-{% if holdout.status == 'sealed' %}
-<p><span class="badge status-waiting">sealed</span> The holdout has not been read for this run. No number is shown.</p>
-{% else %}
-<dl class="facts">
-<dt>Status</dt><dd>{{ holdout.status }}</dd>
-<dt>Score</dt><dd>{{ holdout.score | num }}{% if holdout.metric %} <span class="muted">({{ holdout.metric }})</span>{% endif %}</dd>
-<dt>Rows</dt><dd>{{ holdout.rows if holdout.rows is not none else '-' }}</dd>
-<dt>Attempt</dt><dd>{% if holdout.attempt_id %}<a href="{{ url_for('attempt', attempt_id=holdout.attempt_id) }}">{{ holdout.attempt_id }}</a>{% else %}-{% endif %}</dd>
-<dt>Reason</dt><dd>{{ holdout.reason or '-' }}</dd>
-<dt>Recorded at</dt><dd>{{ holdout.recorded_at or '-' }}</dd>
-<dt>Recorded reads</dt><dd>{% for r in holdout.reads %}attempt {{ r.attempt_id }}, {{ r.rows }} rows, {{ r.read_at }}<br>{% else %}-{% endfor %}</dd>
-</dl>
-{% endif %}
-</section>
-
-<section class="panel" aria-labelledby="report-h">
-<h2 id="report-h">Final report</h2>
-{% if not report.available %}
-{{ empty("No final report yet", "The report is written when the cycle reaches its end.") }}
-{% else %}
-{% set c = report.content %}
-<p class="note">Created {{ report.created_at }}</p>
-<dl class="facts">
-{% for k in ('stop_reason', 'metric', 'direction', 'protocol_hash', 'baseline_score', 'persisted_path', 'reproduce_command') %}{% if k in c %}
-<dt>{{ k }}</dt><dd>{{ value(c[k]) }}</dd>
-{% endif %}{% endfor %}
-</dl>
-{% if c.chosen %}<h3>Chosen</h3>{{ value(c.chosen) }}{% endif %}
-{% if c.failures %}<h3>Failures by kind</h3>{{ value(c.failures) }}{% endif %}
-{% if c.worked %}<h3>What worked</h3>{{ value(c.worked) }}{% endif %}
-{% if c.rounds %}<h3>Rounds</h3>
-{% for r in c.rounds %}
-<details open><summary>{{ r.round_id or 'round' }}{% if r.improved %} (improved){% endif %}</summary>
-{{ value(r, ('reviewer', 'text')) }}
-</details>
-{% endfor %}{% endif %}
-{% if c.suggestions %}<h3>Suggestions in the report</h3>{{ value(c.suggestions, ('text',)) }}{% endif %}
-{% set known = ['stop_reason', 'metric', 'direction', 'protocol_hash', 'baseline_score', 'persisted_path', 'reproduce_command', 'chosen', 'failures', 'worked', 'rounds', 'suggestions', 'holdout', 'cycle_id', 'created_at'] %}
-{% set other = {} %}
-{% for k, v in c.items() if k not in known %}{% if other.update({k: v}) %}{% endif %}{% endfor %}
-{% if other %}<details><summary>Other fields</summary><pre>{{ other | pretty }}</pre></details>{% endif %}
-{% endif %}
-</section>
-
-<section class="panel" aria-labelledby="subs-h">
-<h2 id="subs-h">Submissions</h2>
-{% if submissions %}
-<div class="table-wrap"><table>
-<thead><tr><th>Submission</th><th>Competition</th><th>Status</th><th class="num">Public score</th><th>Submitted at</th><th>Completed at</th><th>Message</th></tr></thead>
-<tbody>{% for s in submissions %}
-<tr><td>{{ s.submission_id }}</td><td>{{ s.competition }}</td><td>{{ s.status }}</td>
-<td class="num">{{ s.public_score | num }}</td><td>{{ s.submitted_at }}</td><td>{{ s.completed_at or '-' }}</td><td class="wrap">{{ s.message }}</td></tr>
-{% endfor %}</tbody></table></div>
-{% else %}{{ empty("No submission", "Nothing was submitted for this run.") }}{% endif %}
-</section>
-
-<section class="panel" aria-labelledby="sugg-h">
-<h2 id="sugg-h">Suggestions of this run</h2>
-{% for s in suggestions %}
-<h3>{{ s.id }}</h3>
-{{ md(s.text) }}
-{% else %}{{ empty("No suggestion", "This run created no suggestion.") }}{% endfor %}
-</section>
+<p class="subtitle"><span class="badge status-{{ run.status }}">{{ run.state }}</span> What the registry stored; nothing on this page computes or fetches a score.</p>
+<p class="toolbar">
+<a class="button" href="{{ url_for('api.report_markdown', run_id=run.id) }}" download>Export to Markdown</a>
+<a class="button" href="{{ url_for('report_print', cycle_id=run.id) }}">Print view (PDF)</a>
+<a class="button" href="{{ url_for('bundle_page', cycle_id=run.id) }}">Bundle and reproduce</a>
+<a class="button" href="{{ url_for('predict_page', cycle_id=run.id) }}">Predict on new data</a>
+<a class="button" href="{{ url_for('submission_page', cycle_id=run.id) }}">Submission</a>
+<a class="button" href="{{ url_for('gap_page', cycle_id=run.id) }}">Leaderboard gap</a>
+</p>
+{% include "report_body.html" %}
 {% endblock %}

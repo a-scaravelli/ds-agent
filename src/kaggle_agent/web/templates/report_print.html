@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Report {{ run.id }} - print view</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}">
+</head>
+<body class="print-view">
+<main id="main">
+<h1>Final report of {{ run.id }}</h1>
+<p class="note">Print this page (Ctrl/Cmd + P) and choose "Save as PDF". It uses no script and no external file.</p>
+{% include "report_body.html" %}
+</main>
+</body>
+</html>

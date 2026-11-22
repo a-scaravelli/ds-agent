@@ -2,7 +2,7 @@
 
 Each file has ONE writer process (see ``web/store.py`` for the full contract). The orchestrator
 writes ``events.jsonl``, ``heartbeat.json``, ``exit.json`` and ``decisions-applied.jsonl`` and holds
-``run.lock``; it only READS ``pause-request.json``, ``decisions.jsonl`` and ``limit-changes.jsonl``.
+``run.lock``; it only READS ``pause-request.json``, ``decisions.jsonl``, ``limit-changes.jsonl`` and ``holdout-reads.jsonl``.
 
 JSONL rules: one JSON object per line, at most 32 KB; an append is one ``os.write`` on an
 ``O_APPEND`` descriptor under an exclusive ``flock``; readers accept only lines that end in a newline
@@ -52,6 +52,7 @@ class CockpitFiles:
         self.pause_request = self.folder / "pause-request.json"
         self.decisions = self.folder / "decisions.jsonl"
         self.limit_changes = self.folder / "limit-changes.jsonl"
+        self.holdout_reads = self.folder / "holdout-reads.jsonl"
 
     def ensure(self) -> None:
         self.folder.mkdir(parents=True, exist_ok=True)

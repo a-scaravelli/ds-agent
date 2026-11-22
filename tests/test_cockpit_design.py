@@ -343,11 +343,11 @@ def test_the_theme_toggle_is_one_accessible_native_button_on_every_page(cockpit_
 # 15
 def test_the_test_map_holds_exactly_the_cases_of_this_ticket():
     cases = json.loads((ROOT / ".asl" / "test-map.json").read_text(encoding="utf-8"))["cases"]
-    assert sorted(int(k) for k in cases) == list(range(1, 49))
+    assert sorted(int(k) for k in cases) == list(range(1, 59))
     for key, entries in cases.items():
         assert entries, key
         for entry in entries:
             tree = ast.parse((ROOT / entry["file"]).read_text(encoding="utf-8"))
             assert entry["name"] in {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}, (key, entry)
     for name in ("test_cockpit_docs.py", "test_orchestrator_docs.py"):
-        assert "PLAN_CASES = 48" in (ROOT / "tests" / name).read_text(encoding="utf-8")
+        assert "PLAN_CASES = 58" in (ROOT / "tests" / name).read_text(encoding="utf-8")

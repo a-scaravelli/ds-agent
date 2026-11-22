@@ -14,6 +14,7 @@ Resume: a project that already has a ``project.json`` makes NO Kaggle call; the 
 folder is checked against the hashes recorded at start.
 """
 
+import dataclasses
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -37,11 +38,16 @@ from .cockpit import CockpitFiles
 from .config import FROM_INFO, FROM_METRIC, FROM_SPEC, Config
 from .errors import ConfigError, ProjectError
 from .analytics_record import RecordingCandidate
+from .cycles import active_state, entry_for, read_carry, read_cycles
 from .events import NULL, Emitter
+from .finalize import make_ds_report_hook
 from .lead_file import FileLeadInput, Ledger, make_plan_hook
+from .overrides_registry import OverridingRegistry
+from .steering import steering_roles
 from .metric import infer_metric
 from .project import (
     LEDGER_FILE,
+    ledger_name_for,
     ProjectState,
     check_config,
     cycle_id_for,
@@ -186,6 +192,9 @@ def build_context(config: Config, deps: Dependencies, cockpit: CockpitFiles | No
     else:
         check_config(state, config)
         verify_data(paths, state)
+    first_cycle = state.cycle_id
+    state = active_state(paths, state)  # a fork is the active cycle of the same project (cycles.json)
+    fork_entry = entry_for(read_cycles(paths.folder), state.cycle_id)
     for folder in (paths.workspace, paths.out):
         folder.mkdir(parents=True, exist_ok=True)
 
@@ -196,13 +205,19 @@ def build_context(config: Config, deps: Dependencies, cockpit: CockpitFiles | No
     raw_registry = registry
     try:
         if state.cycle_id not in {c.id for c in registry.list_cycles()}:
-            start_cycle(registry, state.cycle_id, config.seed_plan(state.metric, state.target),
-                        config.limits, project_id=state.competition)
+            plan = config.seed_plan(state.metric, state.target)
+            if fork_entry is not None:  # the fork starts from the plan of its origin
+                plan = registry.get_cycle(fork_entry["origin"]["cycle_id"]).plan
+            start_cycle(registry, state.cycle_id, plan, config.limits, project_id=state.competition)
         eventing = None
+        files = cockpit or CockpitFiles(paths.folder)
         if cockpit is not None:
             emitter.cycle_id = state.cycle_id
             eventing = EventingRegistry(raw_registry, emitter, cockpit)
             registry = eventing
+        # ticket 30: the DS overrides are honoured by EVERY run, supervised or not
+        registry = OverridingRegistry(registry, files, emitter if cockpit is not None else None,
+                                      state.cycle_id, first_cycle)
         engine = EvaluationEngine(registry, state.cycle_id, protocol)
         client = deps.llm()
         if client.on_call is not None:
@@ -214,6 +229,9 @@ def build_context(config: Config, deps: Dependencies, cockpit: CockpitFiles | No
         roles = RoleSet(**{role: getattr(sets[role], role) for role in ROLES})
         if eventing is not None:
             roles = eventing_roles(roles, emitter, eventing)
+        carry = read_carry(paths.folder, state.cycle_id) if fork_entry is not None else None
+        roles = steering_roles(roles, files, emitter if cockpit is not None else None, state.cycle_id,
+                               first_cycle, carry)
         task = WriterTask(state.target, state.metric, state.direction, state.input_kind, summary)
         writer = ClaudeBundleWriter(
             client, registry, state.cycle_id, paths.workspace / "staging", task,
@@ -234,9 +252,11 @@ def build_context(config: Config, deps: Dependencies, cockpit: CockpitFiles | No
                 return runner
             return EventingCandidate(runner, emitter, frame, protocol, loaded.bundle_id)
 
+        ledger_name = ledger_name_for(state.cycle_id, first_cycle)
         lead = FileLeadInput(config.lead_path, paths.folder, registry, state.cycle_id, deps.clock,
-                             cockpit=cockpit, emitter=emitter if cockpit is not None else None)
-        ledger = Ledger(paths.folder / LEDGER_FILE)
+                             cockpit=cockpit, emitter=emitter if cockpit is not None else None,
+                             first_cycle=first_cycle, ledger_name=ledger_name)
+        ledger = Ledger(paths.folder / ledger_name)
         ctx = CycleContext(
             registry=registry, cycle_id=state.cycle_id, engine=engine, frame=frame,
             data_hash=state.data_hash, data_summary=summary, roles=roles, writer=writer,
@@ -249,6 +269,9 @@ def build_context(config: Config, deps: Dependencies, cockpit: CockpitFiles | No
                                                   input_kind=kind),
             clock=deps.clock, db_path=str(paths.registry), data_path=str(paths.data / state.train_file),
         )
+        ctx = dataclasses.replace(ctx, hooks=dataclasses.replace(
+            ctx.hooks, report=make_ds_report_hook(pctx, files, emitter if cockpit is not None else None,
+                                                  first_cycle, paths.folder)))
     except BaseException:
         raw_registry.close()
         raise

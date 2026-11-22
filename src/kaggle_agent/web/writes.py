@@ -13,7 +13,7 @@ import json
 from flask import Blueprint, current_app, jsonify, request
 from kaggle_agent.proposals import ValidationError
 
-from . import audit, data, decisions, store
+from . import audit, cycles_data, data, decisions, store
 from .controller import Conflict
 from .security import write_guard
 
@@ -261,17 +261,25 @@ def job_importance():
 # -- decisions ----------------------------------------------------------------------------------------
 
 
-def _save_decision(project, body: dict, kind: str, address, extra: dict, why: str | None, request_id: str):
-    """Audit first, then the decision record; the same ``request_id`` returns the first answer."""
+def _save_decision(project, body: dict, kind: str, address, extra: dict, why: str | None, request_id: str,
+                   resume: bool = True):
+    """Audit first, then the decision record; the same ``request_id`` returns the first answer.
+
+    The record names the ``cycle`` it is for (the active one), so a fork never inherits the answers of the cycle
+    before it; a record without ``cycle`` (an older file) belongs to the first cycle.
+    """
     existing = decisions.find_by_request(project, request_id)
     if existing is not None:
         return {"decision": existing["id"], "duplicate": True, "resumed": False}
     record = {"id": store.new_id(), "request_id": request_id, "kind": kind, "address": address,
               "who": store.os_user(), "at": store.utc_text(), **extra}
+    cycle = cycles_data.active_cycle_id(project)
+    if cycle is not None:
+        record["cycle"] = cycle
     audit.record(project, f"decision.{kind}", why, {"decision": record["id"], "address": address})
     store.append_jsonl(store.cockpit_path(project, "decisions.jsonl"), record, sync=True)
     resumed = False
-    if _auto_resume(project):
+    if resume and _auto_resume(project):
         controller = current_app.config.get("CONTROLLER")
         resumed = bool(controller and controller.resume_if_idle())
     return {"decision": record["id"], "duplicate": False, "resumed": resumed}
@@ -331,6 +339,15 @@ def decide_review():
 # -- limits ---------------------------------------------------------------------------------------------
 
 
+def append_limit_change(project, values: dict, reason: str, request_id: str, what: str = "limits.extend") -> dict:
+    """Audit first, then the limit-change record (shared by the limits endpoint and an early holdout read)."""
+    record = {"id": store.new_id(), "request_id": request_id, "values": values, "reason": reason,
+              "who": store.os_user(), "at": store.utc_text()}
+    audit.record(project, what, reason, {"values": values, "change": record["id"]})
+    store.append_jsonl(store.cockpit_path(project, "limit-changes.jsonl"), record, sync=True)
+    return record
+
+
 @post("/limits")
 def limits():
     project, body = _project(), _body()
@@ -371,10 +388,7 @@ def limits():
                                 "does not apply to it (start a new cycle from a suggestion)")
             if cycle.parameters is None:
                 warnings.append("the cycle has not stored its limits yet: the change applies once it has")
-    record = {"id": store.new_id(), "request_id": request_id, "values": clean, "reason": reason,
-              "who": store.os_user(), "at": store.utc_text()}
-    audit.record(project, "limits.extend", reason, {"values": clean, "change": record["id"]})
-    store.append_jsonl(store.cockpit_path(project, "limit-changes.jsonl"), record, sync=True)
+    record = append_limit_change(project, clean, reason, request_id)
     return _ok({"change": record["id"], "duplicate": False, "warnings": warnings})
 
 
@@ -383,15 +397,19 @@ def limits():
 
 def _target(body: dict) -> tuple[str, str]:
     target = body.get("target")
-    if not isinstance(target, dict) or target.get("type") not in ("run", "attempt") \
+    if not isinstance(target, dict) or target.get("type") not in ("run", "attempt", "competition") \
             or not isinstance(target.get("id"), str) or not target["id"]:
-        raise ValidationError("target", "must be {type: run|attempt, id}")
+        raise ValidationError("target", "must be {type: run|attempt|competition, id}")
     kind, ident = target["type"], target["id"]
     registry = _source().registry
     if kind == "run":
         registry.get_cycle(ident)
-    else:
+    elif kind == "attempt":
         registry.get_attempt(ident)
+    else:  # the notebook of the competition: the id is the slug of the project
+        info = store.read_json(store.project_path(_project(), "project.json")) or {}
+        if ident != info.get("competition"):
+            raise ValidationError("target.id", "must be the competition slug of this project")
     return kind, ident
 
 
@@ -448,3 +466,6 @@ def settings():
     audit.record(project, "settings.change", None, {"auto_resume": body["auto_resume"]})
     store.write_json(store.cockpit_path(project, "settings.json"), {"auto_resume": body["auto_resume"]})
     return _ok({"auto_resume": body["auto_resume"]})
+
+
+from . import override_writes  # noqa: E402,F401  (registers the write endpoints of ticket 30; needs the helpers above)

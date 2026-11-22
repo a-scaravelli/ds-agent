@@ -16,7 +16,9 @@ read-only registry connections. Everything the web writes lives in ``<project>/c
 ``audit.jsonl``             web: every DS action (who, when, what, why), written BEFORE it acts
 ``decisions.jsonl``         web: decisions addressed to a question (plan, round)
 ``limit-changes.jsonl``     web: append-only limit extensions, overlaid by the orchestrator
-``notes.jsonl``            web: notes and tags on a run or an attempt (add, edit, delete, tags)
+``notes.jsonl``            web: notes and tags on a run, an attempt or the competition (add, edit, delete, tags)
+``holdout-reads.jsonl``     web: the DS's unseal records of the holdout panel (kind first, early or second)
+``uploads/<id>.csv``        web: an uploaded CSV of the predict page (size-capped, generated name, deleted after the job)
 ``settings.json``           web: user settings (auto resume)
 ``pause-request.json``      web: asks the orchestrator to pause at a safe checkpoint
 ``jobs/<id>.json``          web: state of a background job (the child writes ``jobs/<id>.out.json``)
@@ -63,7 +65,7 @@ MAX_LINE = 32 * 1024
 NAMES = frozenset({
     "events.jsonl", "heartbeat.json", "exit.json", "decisions-applied.jsonl", "run.lock", "run.json",
     "console.log", "controller.lock", "audit.jsonl", "decisions.jsonl", "limit-changes.jsonl",
-    "notes.jsonl", "settings.json", "pause-request.json",
+    "notes.jsonl", "settings.json", "pause-request.json", "holdout-reads.jsonl",
 })
 PROJECT_NAMES = frozenset({"lead.toml", "lead-ledger.json", "NOTICES.txt", "last-run.json", "project.json",
                            "config.toml", "config.candidate.toml"})
@@ -451,3 +453,148 @@ def job_progress(project_dir, job_id: str) -> dict:
     percent = 100.0 if finished and last.get("status") == "done" else (
         round(100.0 * done / total, 1) if isinstance(total, int) and total > 0 and isinstance(done, int) else None)
     return {"last": last, "events": len(records), "percent": percent}
+
+
+# -- the files of the final steps (ticket 30): written by the orchestrator, READ here; uploads written here -----
+
+CYCLE_ID = BUNDLE_ID  # the same strict pattern for a cycle id and a bundle id
+UPLOAD_ID = JOB_ID
+MAX_FILE = 200 * 1024 * 1024
+MAX_UPLOAD = 20 * 1024 * 1024
+OUT_DIR = "out"
+
+
+def _piece(value: str, pattern: re.Pattern, what: str) -> str:
+    if not isinstance(value, str) or not pattern.fullmatch(value):
+        raise ValueError(f"bad {what}")
+    return value
+
+
+def project_json_file(project_dir, name: str, cycle_id: str | None = None):
+    """``cycles.json`` or ``carry/<cycle>.json``: the cycles of the project and the carry-over snapshots."""
+    if name == "cycles.json":
+        return Path(project_dir) / "cycles.json"
+    if name == "carry":
+        return Path(project_dir) / "carry" / f"{_piece(cycle_id, CYCLE_ID, 'cycle id')}.json"
+    raise ValueError(f"not a project file: {name!r}")
+
+
+def out_file(project_dir, kind: str, name: str, extra: str | None = None) -> Path:
+    """A file below ``<project>/out`` from a fixed kind and a validated id; never from a request string."""
+    base = Path(project_dir) / OUT_DIR
+    if kind == "report":
+        return base / "reports" / f"{_piece(name, CYCLE_ID, 'cycle id')}.md"
+    if kind == "chosen":
+        return base / "chosen" / f"{_piece(name, CYCLE_ID, 'cycle id')}.json"
+    if kind == "marker":
+        return base / "submissions" / f"{_piece(name, CYCLE_ID, 'cycle id')}.pending.json"
+    if kind == "submission":
+        return base / "submissions" / f"{_piece(name, CYCLE_ID, 'cycle id')}.csv"
+    if kind == "persisted":
+        return base / "persisted" / _piece(name, BUNDLE_ID, "bundle id") / "persisted.json"
+    if kind == "model":  # a model file named by persisted.json; the code folder is never served
+        rel = _piece(extra, re.compile(r"[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*"), "file name")
+        if ".." in rel.split("/"):
+            raise ValueError("bad file name")
+        return base / "persisted" / _piece(name, BUNDLE_ID, "bundle id") / "model" / rel
+    raise ValueError(f"not an output file: {kind!r}")
+
+
+def read_capped(path, cap: int = MAX_FILE) -> bytes | None:
+    """The bytes of a file (None when missing, or over the cap)."""
+    try:
+        with open(path, "rb") as handle:
+            blob = handle.read(cap + 1)
+    except OSError:
+        return None
+    return None if len(blob) > cap else blob
+
+
+def read_text_file(path, cap: int = 2 * 1024 * 1024) -> str | None:
+    blob = read_capped(path, cap)
+    return None if blob is None else blob.decode("utf-8", "replace")
+
+
+def sha256_bytes(blob: bytes) -> str:
+    return hashlib.sha256(blob).hexdigest()
+
+
+def upload_path(project_dir, upload_id: str) -> Path:
+    return Path(project_dir) / COCKPIT_DIR / "uploads" / f"{_piece(upload_id, UPLOAD_ID, 'upload id')}.csv"
+
+
+def write_upload(project_dir, upload_id: str, blob: bytes) -> Path:
+    """Store an upload under a generated name; the caller checked the size (``MAX_UPLOAD``)."""
+    if len(blob) > MAX_UPLOAD:
+        raise ValueError("the upload is over the size cap")
+    path = upload_path(project_dir, upload_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle, name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    try:
+        with os.fdopen(handle, "wb") as stream:
+            stream.write(blob)
+        os.replace(name, path)
+    except BaseException:
+        Path(name).unlink(missing_ok=True)
+        raise
+    return path
+
+
+def remove_upload(project_dir, upload_id: str) -> None:
+    upload_path(project_dir, upload_id).unlink(missing_ok=True)
+
+
+def list_uploads(project_dir) -> list[str]:
+    try:
+        return sorted(p.name for p in (Path(project_dir) / COCKPIT_DIR / "uploads").iterdir())
+    except OSError:
+        return []
+
+
+def csv_header(path_or_bytes) -> list[str] | None:
+    """The first line of a CSV as a list of column names (None when it is not readable text)."""
+    import csv
+    import io
+
+    try:
+        if isinstance(path_or_bytes, (bytes, bytearray)):
+            text = bytes(path_or_bytes[:65536]).decode("utf-8")
+        else:
+            with open(path_or_bytes, "rb") as handle:
+                text = handle.read(65536).decode("utf-8")
+        first = next(csv.reader(io.StringIO(text)), None)
+    except (OSError, UnicodeDecodeError, csv.Error):
+        return None
+    return [c.strip() for c in first] if first else None
+
+
+def count_csv_rows(blob: bytes) -> int:
+    """Rows of a CSV without the header (lines that are not empty)."""
+    lines = [l for l in blob.splitlines() if l.strip()]
+    return max(0, len(lines) - 1)
+
+
+def ledger_file_name(cycle_id: str, first_cycle: str) -> str:
+    return "lead-ledger.json" if cycle_id == first_cycle else f"lead-ledger-{_piece(cycle_id, CYCLE_ID, 'cycle id')}.json"
+
+
+def read_ledger_of(project_dir, cycle_id: str, first_cycle: str) -> list[dict]:
+    name = ledger_file_name(cycle_id, first_cycle)
+    data = read_json(Path(project_dir) / name, {})
+    items = data.get("revisions") if isinstance(data, dict) else None
+    return [i for i in items if isinstance(i, dict)] if isinstance(items, list) else []
+
+
+def latest_job(project_dir, kinds) -> dict | None:
+    """The newest job record of one of ``kinds`` with its result (read only; the controller writes them)."""
+    best = None
+    for path in list_jobs(project_dir):
+        record = read_json(path)
+        if isinstance(record, dict) and record.get("kind") in kinds and isinstance(record.get("id"), str) \
+                and JOB_ID.fullmatch(record["id"]):
+            if best is None or (record.get("started_at") or "") >= (best.get("started_at") or ""):
+                best = record
+    if best is None:
+        return None
+    result = read_json(job_paths(project_dir, best["id"])[1]) if best.get("status") in ("done", "failed") else None
+    return {**best, "result": result}

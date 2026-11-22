@@ -1,368 +1,572 @@
 {
-  "cases": {
-    "1": [
-      {
-        "file": "tests/test_analytics_guards.py",
-        "name": "test_no_analytics_code_imports_or_calls_a_holdout_name_or_evaluation_split"
-      }
-    ],
-    "2": [
-      {
-        "file": "tests/test_analytics_recording.py",
-        "name": "test_the_holdout_is_never_read_at_runtime_and_never_appears_in_a_file_or_an_answer"
-      }
-    ],
-    "3": [
-      {
-        "file": "tests/test_analytics_recording.py",
-        "name": "test_a_partition_with_a_holdout_row_is_refused_and_nothing_is_written"
-      }
-    ],
-    "4": [
-      {
-        "file": "tests/test_analytics_guards.py",
-        "name": "test_frozen_packages_keep_their_pins_and_the_engine_verifies_after_a_recorded_run"
-      }
-    ],
-    "5": [
-      {
-        "file": "tests/test_analytics_recording.py",
-        "name": "test_wrapping_changes_neither_scores_nor_executions_nor_sandbox_calls"
-      }
-    ],
-    "6": [
-      {
-        "file": "tests/test_analytics_guards.py",
-        "name": "test_the_registry_is_not_written_by_pages_apis_or_by_the_analytics_code"
-      }
-    ],
-    "7": [
-      {
-        "file": "tests/test_analytics_api.py",
-        "name": "test_an_old_project_opens_everywhere_and_says_not_recorded"
-      }
-    ],
-    "8": [
-      {
-        "file": "tests/test_analytics_recording.py",
-        "name": "test_every_attempt_has_all_partition_scores_equal_to_the_registry"
-      }
-    ],
-    "9": [
-      {
-        "file": "tests/test_analytics_formats.py",
-        "name": "test_a_labels_table_has_a_prediction_column_and_no_probability_columns"
-      },
-      {
-        "file": "tests/test_analytics_recording.py",
-        "name": "test_the_oof_file_is_hashed_complete_and_has_probabilities_only_when_the_metric_has_them"
-      }
-    ],
-    "10": [
-      {
-        "file": "tests/test_analytics_formats.py",
-        "name": "test_equal_input_gives_equal_bytes_and_the_table_round_trips"
-      },
-      {
-        "file": "tests/test_analytics_formats.py",
-        "name": "test_the_row_cap_and_the_byte_cap_refuse_a_table"
-      },
-      {
-        "file": "tests/test_analytics_formats.py",
-        "name": "test_a_gzip_bomb_and_bad_columns_are_refused_with_a_clear_error"
-      },
-      {
-        "file": "tests/test_analytics_recording.py",
-        "name": "test_a_table_over_the_row_cap_is_recorded_as_too_large_without_a_file"
-      }
-    ],
-    "11": [
-      {
-        "file": "tests/test_analytics_concurrency.py",
-        "name": "test_sixteen_readers_never_see_a_partial_file_or_a_tmp_file_while_a_writer_records"
-      }
-    ],
-    "12": [
-      {
-        "file": "tests/test_analytics_recording.py",
-        "name": "test_a_recorder_problem_never_changes_the_predictions_or_fails_the_attempt"
-      },
-      {
-        "file": "tests/test_analytics_recording.py",
-        "name": "test_a_bundle_run_error_of_the_inner_runner_propagates_unchanged"
-      }
-    ],
-    "13": [
-      {
-        "file": "tests/test_analytics_recording.py",
-        "name": "test_a_crashed_bundle_writes_no_file_and_the_fix_bundle_is_recorded_under_its_own_id"
-      }
-    ],
-    "14": [
-      {
-        "file": "tests/test_analytics_api.py",
-        "name": "test_the_folds_endpoint_returns_every_partition_with_spread_and_worst"
-      },
-      {
-        "file": "tests/test_analytics_scores.py",
-        "name": "test_fold_view_gives_every_point_the_sample_spread_and_the_worst_fold"
-      }
-    ],
-    "15": [
-      {
-        "file": "tests/test_analytics_scores.py",
-        "name": "test_stability_warns_when_a_gain_is_within_the_noise"
-      }
-    ],
-    "16": [
-      {
-        "file": "tests/test_analytics_scores.py",
-        "name": "test_the_paired_comparison_is_exact_and_agrees_with_the_program_rule"
-      }
-    ],
-    "17": [
-      {
-        "file": "tests/test_analytics_scores.py",
-        "name": "test_comparison_edge_cases_common_partitions_ties_and_missing_sides"
-      }
-    ],
-    "18": [
-      {
-        "file": "tests/test_analytics_panels.py",
-        "name": "test_binary_panels_equal_the_hand_computed_values"
-      },
-      {
-        "file": "tests/test_analytics_panels.py",
-        "name": "test_multiclass_gives_one_vs_rest_curves_and_says_what_is_not_available"
-      },
-      {
-        "file": "tests/test_analytics_panels.py",
-        "name": "test_labels_only_gives_the_confusion_matrix_and_the_reason_for_the_rest"
-      }
-    ],
-    "19": [
-      {
-        "file": "tests/test_analytics_panels.py",
-        "name": "test_regression_panels_equal_the_known_residuals"
-      },
-      {
-        "file": "tests/test_analytics_panels.py",
-        "name": "test_the_scatter_is_deterministically_downsampled_above_the_cap"
-      }
-    ],
-    "20": [
-      {
-        "file": "tests/test_analytics_panels.py",
-        "name": "test_the_analytics_package_is_pure_by_scan_and_by_repeated_calls"
-      }
-    ],
-    "21": [
-      {
-        "file": "tests/test_analytics_errors.py",
-        "name": "test_segments_are_exact_per_category_bin_and_missing_and_ranked_by_lift"
-      }
-    ],
-    "22": [
-      {
-        "file": "tests/test_analytics_api.py",
-        "name": "test_the_segment_endpoint_filters_by_min_size_without_changing_the_ranking"
-      },
-      {
-        "file": "tests/test_analytics_errors.py",
-        "name": "test_an_interaction_that_only_the_pair_shows_is_ranked_first_and_min_size_filters"
-      }
-    ],
-    "23": [
-      {
-        "file": "tests/test_analytics_api.py",
-        "name": "test_the_hardest_endpoint_sorts_caps_and_stays_in_the_development_rows"
-      },
-      {
-        "file": "tests/test_analytics_errors.py",
-        "name": "test_hardest_rows_come_with_features_sorted_and_capped"
-      }
-    ],
-    "24": [
-      {
-        "file": "tests/test_analytics_errors.py",
-        "name": "test_column_flags_find_ids_and_target_copies_and_leave_a_clean_column_alone"
-      }
-    ],
-    "25": [
-      {
-        "file": "tests/test_analytics_scores.py",
-        "name": "test_prediction_correlation_is_exact_and_flags_non_overlapping_rows"
-      }
-    ],
-    "26": [
-      {
-        "file": "tests/test_analytics_describe.py",
-        "name": "test_a_valid_describe_is_stored_normalised_and_shown"
-      }
-    ],
-    "27": [
-      {
-        "file": "tests/test_analytics_describe.py",
-        "name": "test_a_missing_describe_leaves_the_run_alone_and_the_page_says_not_provided"
-      }
-    ],
-    "28": [
-      {
-        "file": "tests/test_analytics_describe.py",
-        "name": "test_an_invalid_describe_is_stored_as_invalid_with_a_reason_and_no_content"
-      },
-      {
-        "file": "tests/test_analytics_describe.py",
-        "name": "test_the_attempt_page_says_provided_but_invalid"
-      }
-    ],
-    "29": [
-      {
-        "file": "tests/test_analytics_describe.py",
-        "name": "test_the_prompts_carry_the_paragraph_and_describe_is_never_required"
-      }
-    ],
-    "30": [
-      {
-        "file": "tests/test_analytics_api.py",
-        "name": "test_native_importance_is_grouped_by_family_and_no_permutation_job_runs_by_itself"
-      }
-    ],
-    "31": [
-      {
-        "file": "tests/test_analytics_importance_job.py",
-        "name": "test_the_importance_job_runs_through_the_controller_and_the_sandbox_with_progress_events"
-      }
-    ],
-    "32": [
-      {
-        "file": "tests/test_analytics_importance_job.py",
-        "name": "test_a_running_job_never_blocks_the_pages_and_shows_its_progress"
-      }
-    ],
-    "33": [
-      {
-        "file": "tests/test_analytics_importance_job.py",
-        "name": "test_bad_requests_start_no_process_and_a_missing_token_changes_nothing"
-      },
-      {
-        "file": "tests/test_analytics_importance_job.py",
-        "name": "test_a_job_over_its_timeout_ends_as_timeout_and_the_argv_is_the_closed_list"
-      }
-    ],
-    "34": [
-      {
-        "file": "tests/test_analytics_api.py",
-        "name": "test_the_ablation_table_groups_by_family_counts_missing_describes_and_starts_nothing"
-      }
-    ],
-    "35": [
-      {
-        "file": "tests/test_analytics_api.py",
-        "name": "test_the_compare_table_sorts_filters_and_shows_the_status_of_failed_attempts"
-      },
-      {
-        "file": "tests/test_analytics_scores.py",
-        "name": "test_all_attempts_sort_filter_and_failed_rows_last"
-      }
-    ],
-    "36": [
-      {
-        "file": "tests/test_analytics_api.py",
-        "name": "test_the_history_has_points_in_order_best_so_far_baseline_and_direction"
-      },
-      {
-        "file": "tests/test_analytics_scores.py",
-        "name": "test_all_attempts_sort_filter_and_failed_rows_last"
-      }
-    ],
-    "37": [
-      {
-        "file": "tests/test_analytics_api.py",
-        "name": "test_the_side_by_side_shows_hypothesis_features_hyperparameters_and_folds_without_code"
-      },
-      {
-        "file": "tests/test_analytics_scores.py",
-        "name": "test_all_attempts_sort_filter_and_failed_rows_last"
-      }
-    ],
-    "38": [
-      {
-        "file": "tests/test_analytics_pages.py",
-        "name": "test_every_new_page_answers_200_for_recorded_unrecorded_and_old_projects"
-      },
-      {
-        "file": "tests/test_analytics_pages.py",
-        "name": "test_the_new_templates_use_tokens_only_no_inline_script_or_style_and_the_theme_toggle"
-      }
-    ],
-    "39": [
-      {
-        "file": "tests/test_analytics_pages.py",
-        "name": "test_new_components_sit_in_the_scroll_container_and_collapse_under_the_breakpoint"
-      }
-    ],
-    "40": [
-      {
-        "file": "tests/test_analytics_pages.py",
-        "name": "test_every_panel_has_an_explanation_and_each_missing_input_a_distinct_reason"
-      }
-    ],
-    "41": [
-      {
-        "file": "tests/test_analytics_api.py",
-        "name": "test_every_new_data_route_is_get_only_and_the_only_new_write_is_the_importance_job"
-      }
-    ],
-    "42": [
-      {
-        "file": "tests/test_analytics_guards.py",
-        "name": "test_no_new_dependency_no_new_vendored_file_and_no_secret_or_code_in_the_answers"
-      }
-    ],
-    "43": [
-      {
-        "file": "tests/test_analytics_recording.py",
-        "name": "test_the_real_flow_records_every_successful_bundle_and_results_equal_the_unwrapped_run"
-      },
-      {
-        "file": "tests/test_analytics_recording.py",
-        "name": "test_a_second_recording_of_the_same_bundle_does_not_duplicate_files_and_the_latest_line_wins"
-      }
-    ],
-    "44": [
-      {
-        "file": "tests/test_cockpit_analytics_manual.py",
-        "name": "test_the_new_tests_are_portable_between_macos_and_linux"
-      }
-    ],
-    "45": [
-      {
-        "file": "tests/test_analytics_guards.py",
-        "name": "test_no_ticket_4_item_is_built_and_the_files_keep_a_schema_version"
-      }
-    ],
-    "46": [
-      {
-        "file": "tests/test_analytics_docs.py",
-        "name": "test_the_test_map_holds_exactly_the_cases_of_this_plan_and_every_test_exists"
-      }
-    ],
-    "47": [
-      {
-        "file": "tests/test_cockpit_analytics_manual.py",
-        "name": "test_manual_every_analytics_page_and_api_answers_200_over_a_real_run_folder"
-      },
-      {
-        "file": "tests/test_cockpit_analytics_manual.py",
-        "name": "test_the_manual_test_is_skipped_without_the_variable_and_the_checklist_is_complete"
-      }
-    ],
-    "48": [
-      {
-        "file": "tests/test_analytics_docs.py",
-        "name": "test_readme_api_doc_design_note_and_memory_describe_the_analytics"
-      }
-    ]
-  }
+ "cases": {
+  "1": [
+   {
+    "file": "tests/test_overrides_package.py",
+    "name": "test_the_holdout_seal_states_and_the_kind_of_a_read"
+   },
+   {
+    "file": "tests/test_cockpit_holdout_seal.py",
+    "name": "test_a_sealed_holdout_shows_a_plain_status_and_no_number_anywhere"
+   }
+  ],
+  "2": [
+   {
+    "file": "tests/test_cockpit_holdout_seal.py",
+    "name": "test_unseal_and_read_at_the_review_needs_no_reason_and_shows_the_number"
+   }
+  ],
+  "3": [
+   {
+    "file": "tests/test_overrides_package.py",
+    "name": "test_the_holdout_seal_states_and_the_kind_of_a_read"
+   },
+   {
+    "file": "tests/test_cockpit_holdout_seal.py",
+    "name": "test_an_early_read_warns_wants_a_reason_is_logged_finishes_the_run_and_labels_it"
+   }
+  ],
+  "4": [
+   {
+    "file": "tests/test_overrides_package.py",
+    "name": "test_the_labels_come_from_the_records_and_stale_ones_are_not_labelled"
+   },
+   {
+    "file": "tests/test_overrides_package.py",
+    "name": "test_the_holdout_seal_states_and_the_kind_of_a_read"
+   },
+   {
+    "file": "tests/test_cockpit_holdout_seal.py",
+    "name": "test_a_second_read_is_labelled_and_logged_and_the_registry_file_is_identical"
+   }
+  ],
+  "5": [
+   {
+    "file": "tests/test_cockpit_holdout_seal.py",
+    "name": "test_unseal_is_a_guarded_write_without_a_token_or_with_a_foreign_origin"
+   }
+  ],
+  "6": [
+   {
+    "file": "tests/test_overrides_package.py",
+    "name": "test_the_labels_come_from_the_records_and_stale_ones_are_not_labelled"
+   },
+   {
+    "file": "tests/test_overrides_package.py",
+    "name": "test_a_fork_is_labelled_by_its_protocol_and_the_repeated_look"
+   },
+   {
+    "file": "tests/test_orchestrator_cycles_fork.py",
+    "name": "test_the_labels_of_a_same_protocol_fork_and_of_a_new_protocol_fork_differ"
+   }
+  ],
+  "7": [
+   {
+    "file": "tests/test_cockpit_report_export.py",
+    "name": "test_the_report_page_has_every_section_and_escapes_what_it_shows"
+   }
+  ],
+  "8": [
+   {
+    "file": "tests/test_cockpit_report_export.py",
+    "name": "test_the_markdown_export_is_masked_while_sealed_and_the_print_view_has_no_external_assets"
+   }
+  ],
+  "9": [
+   {
+    "file": "tests/test_cockpit_report_export.py",
+    "name": "test_the_bundle_page_shows_the_hashes_and_the_library_versions"
+   }
+  ],
+  "10": [
+   {
+    "file": "tests/test_orchestrator_bundle_jobs.py",
+    "name": "test_reproduce_of_an_intact_bundle_is_ok_with_both_values_and_leaves_the_registry_alone"
+   },
+   {
+    "file": "tests/test_cockpit_bundle_predict.py",
+    "name": "test_reproduce_runs_as_a_job_and_shows_the_ok_line_with_both_values"
+   }
+  ],
+  "11": [
+   {
+    "file": "tests/test_orchestrator_bundle_jobs.py",
+    "name": "test_reproduce_shows_the_exact_text_when_the_reported_metric_changed"
+   },
+   {
+    "file": "tests/test_orchestrator_bundle_jobs.py",
+    "name": "test_reproduce_names_the_persisted_file_that_was_tampered_with"
+   },
+   {
+    "file": "tests/test_cockpit_bundle_predict.py",
+    "name": "test_reproduce_shows_the_exact_mismatch_text_for_a_changed_metric_and_a_tampered_file"
+   }
+  ],
+  "12": [
+   {
+    "file": "tests/test_cockpit_bundle_predict.py",
+    "name": "test_only_the_allowed_bundle_files_download_and_the_code_never_does"
+   }
+  ],
+  "13": [
+   {
+    "file": "tests/test_cockpit_bundle_predict.py",
+    "name": "test_the_upload_is_validated_by_size_name_columns_and_rows_and_nothing_is_kept_after_a_rejection"
+   }
+  ],
+  "14": [
+   {
+    "file": "tests/test_orchestrator_bundle_jobs.py",
+    "name": "test_predict_returns_one_prediction_per_row_with_the_id_column_and_checks_the_columns"
+   },
+   {
+    "file": "tests/test_cockpit_bundle_predict.py",
+    "name": "test_predict_runs_the_orchestrator_command_and_returns_a_prediction_per_row_and_a_csv"
+   }
+  ],
+  "15": [
+   {
+    "file": "tests/test_orchestrator_submit_cockpit.py",
+    "name": "test_the_dry_run_result_has_the_structured_preview_and_sends_nothing"
+   },
+   {
+    "file": "tests/test_cockpit_submission.py",
+    "name": "test_the_dry_run_preview_shows_the_file_hash_rows_columns_message_and_the_daily_limit"
+   }
+  ],
+  "16": [
+   {
+    "file": "tests/test_orchestrator_submit_cockpit.py",
+    "name": "test_a_confirmed_send_needs_the_hash_of_the_preview_and_sends_exactly_once"
+   },
+   {
+    "file": "tests/test_orchestrator_submit_cockpit.py",
+    "name": "test_a_confirmed_send_takes_the_run_lock_and_is_refused_while_a_run_is_active"
+   },
+   {
+    "file": "tests/test_cockpit_submission.py",
+    "name": "test_the_confirm_needs_the_word_the_hash_and_sends_exactly_once"
+   }
+  ],
+  "17": [
+   {
+    "file": "tests/test_orchestrator_submit_cockpit.py",
+    "name": "test_the_daily_limit_shows_zero_left_with_the_reset_and_refuses_with_22"
+   },
+   {
+    "file": "tests/test_cockpit_submission.py",
+    "name": "test_a_daily_limit_of_zero_is_shown_with_the_reset_and_the_confirm_is_refused_with_22"
+   }
+  ],
+  "18": [
+   {
+    "file": "tests/test_orchestrator_submit_cockpit.py",
+    "name": "test_a_pending_score_is_reported_with_23_and_a_later_call_records_the_score_without_a_second_send"
+   },
+   {
+    "file": "tests/test_cockpit_submission.py",
+    "name": "test_a_pending_score_is_followed_by_a_refresh_and_the_same_file_is_never_sent_twice"
+   }
+  ],
+  "19": [
+   {
+    "file": "tests/test_orchestrator_submit_cockpit.py",
+    "name": "test_marker_recovery_by_not_sent_sends_once_and_by_adopt_sends_nothing"
+   },
+   {
+    "file": "tests/test_cockpit_submission.py",
+    "name": "test_a_pending_marker_shows_both_recovery_options_and_each_is_audited"
+   }
+  ],
+  "20": [
+   {
+    "file": "tests/test_cockpit_submission.py",
+    "name": "test_the_token_is_never_read_or_shown_by_the_web"
+   }
+  ],
+  "21": [
+   {
+    "file": "tests/test_cockpit_submission.py",
+    "name": "test_the_history_shows_cv_and_the_holdout_sealed_until_it_is_unsealed"
+   }
+  ],
+  "22": [
+   {
+    "file": "tests/test_cockpit_gap_history_learnings.py",
+    "name": "test_the_gap_view_compares_public_cv_and_holdout_and_explains_empty_and_pending_states"
+   }
+  ],
+  "23": [
+   {
+    "file": "tests/test_cockpit_gap_history_learnings.py",
+    "name": "test_the_history_lists_what_each_run_tried_and_learned_with_origin_protocol_and_labels"
+   }
+  ],
+  "24": [
+   {
+    "file": "tests/test_steering_types.py",
+    "name": "test_carry_over_is_capped_typed_and_never_holds_code"
+   },
+   {
+    "file": "tests/test_orchestrator_cycles_fork.py",
+    "name": "test_the_carry_over_reaches_the_three_roles_and_the_first_task_starts_from_the_attempt"
+   }
+  ],
+  "25": [
+   {
+    "file": "tests/test_orchestrator_cycles_fork.py",
+    "name": "test_a_fork_with_the_same_protocol_is_the_next_cycle_with_the_same_hash_and_is_idempotent"
+   }
+  ],
+  "26": [
+   {
+    "file": "tests/test_orchestrator_cycles_fork.py",
+    "name": "test_a_fork_with_a_new_threshold_k_freezes_a_new_labelled_protocol"
+   },
+   {
+    "file": "tests/test_cockpit_fork_web.py",
+    "name": "test_a_fork_with_a_new_threshold_is_labelled_and_needs_a_reason"
+   }
+  ],
+  "27": [
+   {
+    "file": "tests/test_orchestrator_cycles_fork.py",
+    "name": "test_a_fork_is_refused_for_technical_reasons_only_and_creates_nothing"
+   },
+   {
+    "file": "tests/test_cockpit_fork_web.py",
+    "name": "test_a_fork_is_refused_only_for_technical_reasons"
+   }
+  ],
+  "28": [
+   {
+    "file": "tests/test_orchestrator_cycles_fork.py",
+    "name": "test_a_project_without_cycles_json_opens_and_resumes_as_the_legacy_single_cycle"
+   },
+   {
+    "file": "tests/test_cockpit_fork_web.py",
+    "name": "test_old_projects_open_everywhere_with_empty_new_sections"
+   }
+  ],
+  "29": [
+   {
+    "file": "tests/test_overrides_package.py",
+    "name": "test_the_search_is_case_insensitive_over_text_title_and_tags_and_an_empty_query_lists_all"
+   },
+   {
+    "file": "tests/test_cockpit_gap_history_learnings.py",
+    "name": "test_the_notebook_searches_notes_tags_and_suggestions_case_insensitively_and_escapes"
+   }
+  ],
+  "30": [
+   {
+    "file": "tests/test_cockpit_gap_history_learnings.py",
+    "name": "test_competition_notes_are_guarded_and_audited_and_the_notebook_shows_the_change"
+   }
+  ],
+  "31": [
+   {
+    "file": "tests/test_overrides_package.py",
+    "name": "test_the_ds_choice_wins_when_it_is_usable_and_the_program_pick_is_kept"
+   },
+   {
+    "file": "tests/test_orchestrator_finalize.py",
+    "name": "test_a_pick_made_before_the_report_is_the_chosen_bundle_persisted_and_read_once"
+   },
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_a_pick_made_while_iterating_is_one_decision_applied_once_and_labelled"
+   }
+  ],
+  "32": [
+   {
+    "file": "tests/test_orchestrator_finalize.py",
+    "name": "test_a_pick_made_after_the_report_is_persisted_by_the_finalize_job_and_becomes_the_model"
+   },
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_a_pick_after_the_report_asks_for_finalize_and_keeps_both_choices_visible"
+   }
+  ],
+  "33": [
+   {
+    "file": "tests/test_orchestrator_finalize.py",
+    "name": "test_a_finalize_without_a_valid_pick_says_so_and_changes_nothing"
+   },
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_choose_model_is_validated_warns_and_is_audited"
+   }
+  ],
+  "34": [
+   {
+    "file": "tests/test_overrides_package.py",
+    "name": "test_a_round_override_sets_is_real_and_keeps_the_raw_numbers"
+   },
+   {
+    "file": "tests/test_orchestrator_bar_override.py",
+    "name": "test_a_round_override_moves_the_derived_reference_and_leaves_the_stored_row_alone"
+   },
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_the_bar_panel_shows_the_numbers_and_the_override_is_applied_without_changing_the_stored_row"
+   }
+  ],
+  "35": [
+   {
+    "file": "tests/test_overrides_package.py",
+    "name": "test_a_stale_override_is_split_off_and_a_pending_one_waits"
+   },
+   {
+    "file": "tests/test_orchestrator_bar_override.py",
+    "name": "test_a_hand_made_override_for_an_old_round_is_marked_stale_once_and_ignored"
+   },
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_a_stale_override_is_409_and_nothing_is_saved"
+   }
+  ],
+  "36": [
+   {
+    "file": "tests/test_overrides_package.py",
+    "name": "test_a_cycle_override_counts_positive_sub_bar_rounds_from_round_k_only"
+   },
+   {
+    "file": "tests/test_orchestrator_bar_override.py",
+    "name": "test_a_cycle_rule_counts_positive_sub_bar_rounds_from_round_k_and_ends_with_the_cycle"
+   },
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_a_cycle_scope_override_is_a_standing_rule_from_a_round"
+   }
+  ],
+  "37": [
+   {
+    "file": "tests/test_cockpit_fork_web.py",
+    "name": "test_threshold_k_is_not_changed_in_place_and_the_fork_flow_is_the_way"
+   }
+  ],
+  "38": [
+   {
+    "file": "tests/test_steering_types.py",
+    "name": "test_steering_round_trips_and_an_empty_one_is_empty"
+   },
+   {
+    "file": "tests/test_agents_steering.py",
+    "name": "test_an_input_without_the_new_fields_renders_exactly_as_before"
+   },
+   {
+    "file": "tests/test_agents_steering.py",
+    "name": "test_steering_and_carry_are_typed_fields_with_a_note_in_every_role_prompt"
+   },
+   {
+    "file": "tests/test_orchestrator_steering_try_this.py",
+    "name": "test_steering_reaches_the_three_roles_as_typed_input_and_a_clear_removes_it"
+   },
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_steering_reaches_the_roles_and_is_labelled_and_a_clear_removes_it"
+   }
+  ],
+  "39": [
+   {
+    "file": "tests/test_steering_types.py",
+    "name": "test_steering_rejects_a_contradiction_an_unknown_focus_and_an_unknown_family"
+   },
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_steering_is_validated_and_never_blocked_for_a_soft_reason"
+   }
+  ],
+  "40": [
+   {
+    "file": "tests/test_steering_types.py",
+    "name": "test_try_this_needs_a_hypothesis_and_keeps_its_constraints"
+   },
+   {
+    "file": "tests/test_agents_steering.py",
+    "name": "test_the_try_this_request_is_a_typed_field_of_the_two_candidate_roles_only"
+   },
+   {
+    "file": "tests/test_orchestrator_steering_try_this.py",
+    "name": "test_try_this_binds_to_the_first_proposal_of_the_round_and_the_next_round_has_none"
+   },
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_try_this_is_bound_once_to_the_next_round_and_reaches_the_two_candidate_roles"
+   }
+  ],
+  "41": [
+   {
+    "file": "tests/test_cockpit_gap_history_learnings.py",
+    "name": "test_a_try_this_that_never_ran_shows_not_used_and_nothing_was_applied"
+   }
+  ],
+  "42": [
+   {
+    "file": "tests/test_orchestrator_rerun.py",
+    "name": "test_a_retry_marks_its_decision_once_and_a_run_lock_refuses_it"
+   },
+   {
+    "file": "tests/test_orchestrator_rerun.py",
+    "name": "test_the_rerun_writes_only_new_rows_and_never_touches_the_origin_rows"
+   },
+   {
+    "file": "tests/test_orchestrator_rerun.py",
+    "name": "test_a_failed_attempt_is_retried_as_a_new_attempt_and_the_failed_one_stays_failed"
+   },
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_a_failed_attempt_is_retried_as_a_new_attempt_and_a_run_blocks_it"
+   }
+  ],
+  "43": [
+   {
+    "file": "tests/test_orchestrator_rerun.py",
+    "name": "test_a_seed_variant_is_a_new_attempt_on_the_same_bundle_and_a_repeat_is_refused"
+   },
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_a_seed_rerun_is_labelled_and_the_repeat_names_the_existing_attempt"
+   }
+  ],
+  "44": [
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_every_new_write_endpoint_needs_the_token_and_the_origin_and_is_post_only"
+   }
+  ],
+  "45": [
+   {
+    "file": "tests/test_overrides_package.py",
+    "name": "test_the_risky_kinds_need_a_reason_and_steering_try_this_and_rerun_do_not"
+   },
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_a_reason_is_required_where_risky_and_nowhere_else"
+   }
+  ],
+  "46": [
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_the_audit_line_comes_first_and_when_it_cannot_be_written_nothing_is_saved"
+   }
+  ],
+  "47": [
+   {
+    "file": "tests/test_orchestrator_bar_override.py",
+    "name": "test_a_decision_is_marked_once_and_a_resume_does_not_apply_it_again"
+   },
+   {
+    "file": "tests/test_orchestrator_steering_try_this.py",
+    "name": "test_a_crash_between_the_binding_and_the_effect_reuses_the_same_candidate_on_resume"
+   },
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_a_duplicate_request_id_returns_the_first_answer_and_one_record"
+   }
+  ],
+  "48": [
+   {
+    "file": "tests/test_orchestrator_bar_override.py",
+    "name": "test_a_hand_made_override_for_an_old_round_is_marked_stale_once_and_ignored"
+   },
+   {
+    "file": "tests/test_orchestrator_steering_try_this.py",
+    "name": "test_a_request_for_a_later_round_waits_and_is_not_applied_early"
+   },
+   {
+    "file": "tests/test_orchestrator_steering_try_this.py",
+    "name": "test_a_steering_that_a_later_one_replaced_before_any_role_read_it_is_marked_stale"
+   },
+   {
+    "file": "tests/test_cockpit_overrides_web.py",
+    "name": "test_a_stale_decision_is_shown_as_stale_and_not_labelled"
+   }
+  ],
+  "49": [
+   {
+    "file": "tests/test_overrides_package.py",
+    "name": "test_the_labels_come_from_the_records_and_stale_ones_are_not_labelled"
+   },
+   {
+    "file": "tests/test_cockpit_report_export.py",
+    "name": "test_every_surface_shows_the_same_labels_reasons_and_the_program_choice"
+   }
+  ],
+  "50": [
+   {
+    "file": "tests/test_cockpit_finish_guards.py",
+    "name": "test_the_frozen_packages_are_byte_identical_and_the_registry_schema_is_unchanged"
+   }
+  ],
+  "51": [
+   {
+    "file": "tests/test_cockpit_finish_guards.py",
+    "name": "test_the_registry_is_not_written_by_any_web_call_and_the_web_has_no_writable_registry"
+   }
+  ],
+  "52": [
+   {
+    "file": "tests/test_orchestrator_bar_override.py",
+    "name": "test_a_run_without_supervised_honours_the_override_and_writes_the_marker"
+   },
+   {
+    "file": "tests/test_orchestrator_steering_try_this.py",
+    "name": "test_steering_applies_to_a_run_that_is_not_supervised"
+   }
+  ],
+  "53": [
+   {
+    "file": "tests/test_steering_types.py",
+    "name": "test_the_family_vocabulary_is_built_from_the_allowed_libraries"
+   },
+   {
+    "file": "tests/test_overrides_package.py",
+    "name": "test_the_package_imports_only_the_standard_library_and_the_proposals"
+   },
+   {
+    "file": "tests/test_cockpit_finish_guards.py",
+    "name": "test_no_new_dependency_and_the_new_modules_import_only_the_standard_library_and_pinned_packages"
+   }
+  ],
+  "54": [
+   {
+    "file": "tests/test_cockpit_finish_manual.py",
+    "name": "test_the_manual_test_is_skipped_without_the_variable_and_the_checklist_is_complete"
+   }
+  ],
+  "55": [
+   {
+    "file": "tests/test_cockpit_finish_docs.py",
+    "name": "test_the_readme_the_api_document_and_the_design_note_cover_the_new_cockpit"
+   },
+   {
+    "file": "tests/test_cockpit_finish_docs.py",
+    "name": "test_the_test_map_holds_exactly_the_cases_of_the_plan_and_every_name_exists"
+   }
+  ],
+  "56": [
+   {
+    "file": "tests/test_cockpit_finish_guards.py",
+    "name": "test_the_new_templates_and_stylesheets_use_tokens_only_and_the_dialogs_are_rounded"
+   }
+  ],
+  "57": [
+   {
+    "file": "tests/test_cockpit_finish_guards.py",
+    "name": "test_a_bad_id_or_hash_is_refused_before_anything_is_spawned"
+   },
+   {
+    "file": "tests/test_cockpit_finish_guards.py",
+    "name": "test_the_controller_keeps_a_closed_list_and_unknown_commands_never_spawn"
+   }
+  ],
+  "58": [
+   {
+    "file": "tests/test_cockpit_bundle_predict.py",
+    "name": "test_an_upload_is_stored_under_a_generated_name_inside_the_cap_and_removed_after_the_job"
+   }
+  ]
+ }
 }

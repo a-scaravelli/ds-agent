@@ -25,10 +25,24 @@ from .build import Built, Dependencies, build_context
 from .cockpit import CockpitFiles, PauseRequested
 from .codes import CommandResult
 from .config import Config
-from .errors import ConfigError, LeadFileError, OrchestratorError, ProjectError
+from .cycles import (
+    CHANGED,
+    SAME,
+    active_state,
+    add_entry,
+    build_carry,
+    entry_by_request,
+    entry_for,
+    fold_notes,
+    new_cycle_id,
+    read_cycles,
+    write_carry,
+)
+from .errors import ConfigError, ForkRefused, LeadFileError, OrchestratorError, ProjectError
 from .events import NULL, Emitter, EventLog
+from .cockpit import read_jsonl, utc_text
 from .lead_file import Ledger, describe_pending
-from .project import EXAMPLE_FILE, LEDGER_FILE, NOTICES_FILE, read_project, write_atomic
+from .project import EXAMPLE_FILE, LEDGER_FILE, NOTICES_FILE, ledger_name_for, read_project, write_atomic
 from .submission import marker_path, read_marker
 
 def make_emitter(cockpit: CockpitFiles) -> Emitter:
@@ -89,8 +103,9 @@ def _waiting_lines(built: Built, state: str) -> list[str]:
         lines += _plan_lines(ctx.registry, ctx.cycle_id) + [""]
     elif state == "AWAITING_REVIEW":
         lines += [f"Final report: {report_path(config.paths.out, ctx.cycle_id)}", ""]
+    first = read_project(config.paths).cycle_id
     return lines + describe_pending(state, ctx.registry, ctx.cycle_id, config.lead_path,
-                                    Ledger(config.paths.folder / LEDGER_FILE))
+                                    Ledger(config.paths.folder / ledger_name_for(ctx.cycle_id, first)))
 
 
 def run_cycle(config: Config, deps: Dependencies, cockpit: CockpitFiles | None = None,
@@ -180,11 +195,16 @@ def _existing_cycle(config: Config, cycle_id: str) -> bool:
 def start(config: Config, deps: Dependencies, cockpit: CockpitFiles | None = None,
           emitter: Emitter = NULL) -> CommandResult:
     """Create the project and the cycle and run; a second start changes nothing and calls nothing."""
-    state = read_project(config.paths) if config.paths.folder.exists() else None
+    base = read_project(config.paths) if config.paths.folder.exists() else None
+    state = None if base is None else active_state(config.paths, base)
     if state is not None:
         shown = status(config)
+        entry = entry_for(read_cycles(config.paths.folder), state.cycle_id)
+        origin = "" if entry is None else (f", forked from {entry['origin']['cycle_id']}"
+                                           + (f" attempt {entry['origin']['attempt_id']}"
+                                              if entry["origin"].get("attempt_id") else ""))
         return CommandResult(codes.FINISHED, (
-            f"The project is already started (cycle {state.cycle_id}): no second cycle is created.",
+            f"The project is already started (active cycle {state.cycle_id}{origin}): no second cycle is created.",
             "Use resume to continue it, status to see where it stands.", "", *shown.lines))
     config.paths.folder.mkdir(parents=True, exist_ok=True)
     example = config.paths.folder / EXAMPLE_FILE
@@ -216,8 +236,15 @@ def status(config: Config) -> CommandResult:
         return CommandResult(codes.USAGE, (f"error: {error}",))
     if state is None:
         return CommandResult(codes.USAGE, (f"error: no project in {paths.folder}: run start first",))
+    first_cycle = state.cycle_id
+    state = active_state(paths, state)
+    entry = entry_for(read_cycles(paths.folder), state.cycle_id)
     lines = [f"competition: {state.competition}; target {state.target}; metric {state.metric} "
              f"({state.direction})", f"cycle: {state.cycle_id}"]
+    if entry is not None:
+        lines.append(f"origin: forked from {entry['origin']['cycle_id']}"
+                     + (f" attempt {entry['origin']['attempt_id']}" if entry["origin"].get("attempt_id") else "")
+                     + f"; protocol: {entry['protocol_label']}")
     if not paths.registry.is_file():
         return CommandResult(codes.FINISHED, (*lines, "state: no cycle yet (the first run did not reach "
                                                        "the registry); run resume"))
@@ -242,7 +269,7 @@ def status(config: Config) -> CommandResult:
             if info.get("outcome") == "suspended":
                 lines.append(f"last run: SUSPENDED in {info['state']}: {info['reason']} -> run resume")
         pending = describe_pending(cycle.state, registry, state.cycle_id, config.lead_path,
-                                   Ledger(paths.folder / LEDGER_FILE))
+                                   Ledger(paths.folder / ledger_name_for(state.cycle_id, first_cycle)))
         if cycle.state == AWAITING_PLAN_APPROVAL:
             lines += ["", *_plan_lines(registry, state.cycle_id)]
         if pending:
@@ -269,3 +296,80 @@ def status(config: Config) -> CommandResult:
         return CommandResult(codes.FINISHED, tuple(lines))
     finally:
         registry.close()
+
+
+def _protocol_of(paths, base, entries: list[dict], cycle_id: str) -> tuple[dict, dict]:
+    """(protocol, protocol_config) of a cycle of the project."""
+    entry = entry_for(entries, cycle_id)
+    return (base.protocol, base.protocol_config) if entry is None else (entry["protocol"], entry["protocol_config"])
+
+
+def fork(config: Config, deps: Dependencies, from_run: str, from_attempt: str | None, request_id: str,
+         threshold_k: float | None, reason: str | None, files: CockpitFiles, cockpit: CockpitFiles | None = None,
+         emitter: Emitter = NULL) -> CommandResult:
+    """Start a NEW cycle of the same project from an earlier run (the caller holds the run lock).
+
+    Refused, for technical reasons only, unless the active cycle is STOPPED, the origin run and attempt exist and
+    a protocol change comes with a reason. The carry snapshot and the ``cycles.json`` entry are written BEFORE
+    the cycle runs and are idempotent by ``request_id``: the same launch again makes no second cycle and just
+    continues the one that exists.
+    """
+    base = read_project(config.paths)
+    if base is None:
+        return CommandResult(codes.USAGE, (f"error: no project in {config.paths.folder}: run start first",))
+    paths = config.paths
+    entries = read_cycles(paths.folder)
+    known = entry_by_request(entries, request_id)
+    if known is None:
+        try:
+            _prepare_fork(config, base, entries, from_run, from_attempt, request_id, threshold_k, reason, files)
+        except ForkRefused as refusal:
+            return CommandResult(codes.ERROR, (f"refused: {refusal}", "no cycle was created."))
+    return run_cycle(config, deps, cockpit, emitter)
+
+
+def _prepare_fork(config, base, entries, from_run, from_attempt, request_id, threshold_k, reason, files) -> None:
+    paths = config.paths
+    active = active_state(paths, base)
+    try:
+        registry = SqliteRegistry(str(paths.registry), read_only=True)
+    except RegistryError as error:
+        raise ForkRefused(str(error)) from None
+    try:
+        known = {c.id for c in registry.list_cycles()}
+        if active.cycle_id not in known or registry.get_cycle(active.cycle_id).state != STOPPED:
+            raise ForkRefused(f"the current cycle {active.cycle_id} is not stopped yet: a fork starts "
+                              "only after the review of the last run was accepted")
+        if from_run not in known:
+            raise ForkRefused(f"there is no run {from_run}")
+        protocol, protocol_config = _protocol_of(paths, base, entries, from_run)
+        changes = {}
+        if threshold_k is not None and threshold_k != protocol["threshold_k"]:
+            if not reason or not reason.strip():
+                raise ForkRefused("a new protocol needs a reason: say why threshold_k changes")
+            changes = {"threshold_k": [protocol["threshold_k"], threshold_k]}
+            protocol = {**protocol, "threshold_k": threshold_k}
+            protocol_config = {**protocol_config, "threshold_k": threshold_k}
+            try:  # the evaluation package validates it again
+                Protocol.from_dict(protocol)
+            except Exception as error:
+                raise ForkRefused(f"the new protocol is not valid: {error}") from None
+        if from_attempt is not None:
+            attempts = {s.attempt_id for s in registry.list_attempts(from_run)}
+            if from_attempt not in attempts:
+                raise ForkRefused(f"there is no attempt {from_attempt} in run {from_run}")
+        same = not changes
+        note = "" if same else (f"this run uses a new protocol (threshold_k {changes['threshold_k'][0]:g} to "
+                                f"{changes['threshold_k'][1]:g}): the scores of the origin were measured under another "
+                                "protocol and are not comparable")
+        notes = fold_notes(read_jsonl(files.folder / "notes.jsonl")[0], from_run, from_attempt, base.competition)
+        carry = build_carry(registry, from_run, from_attempt, base.direction, same, note, notes)
+    finally:
+        registry.close()
+    new_id = new_cycle_id(base.competition, entries)
+    write_carry(paths.folder, new_id, carry)
+    add_entry(paths.folder, {
+        "cycle_id": new_id, "request_id": request_id, "origin": {"cycle_id": from_run, "attempt_id": from_attempt},
+        "protocol": protocol, "protocol_config": protocol_config,
+        "protocol_label": SAME if same else CHANGED, "changes": changes, "reason": (reason or "").strip(),
+        "who": "the DS", "created_at": utc_text()})
