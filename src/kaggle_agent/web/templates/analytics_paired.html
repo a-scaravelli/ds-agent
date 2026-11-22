@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "macros.html" import not_recorded, explain %}
+{% block title %}Paired comparison {{ run_id }}{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/analytics.js') }}" defer></script>{% endblock %}
+{% block body %}
+<h1>Paired comparison</h1>
+<p class="subtitle">Run <a href="{{ url_for('cycle', cycle_id=run_id) }}">{{ run_id }}</a>; <a href="{{ url_for('analytics_compare', run_id=run_id) }}">all attempts</a>. Validation folds only.</p>
+<form class="toolbar" method="get" action="{{ url_for('analytics_paired', run_id=run_id) }}">
+<label>A (reference)<select name="a">{% for i in attempts %}<option value="{{ i }}"{% if i == a %} selected{% endif %}>{{ i }}</option>{% endfor %}</select></label>
+<label>B (candidate)<select name="b">{% for i in attempts %}<option value="{{ i }}"{% if i == b %} selected{% endif %}>{{ i }}</option>{% endfor %}</select></label>
+<button type="submit">Compare</button></form>
+{% if not result %}<div class="empty" role="status"><strong>Pick two attempts</strong>Choose A and B above.</div>{% else %}
+<section class="panel" aria-labelledby="pair-h">
+<h2 id="pair-h">{{ result.a }} against {{ result.b }}, fold by fold</h2>
+{{ explain("Each fold is scored for both attempts and the difference is oriented so that positive means B is better. The interval and the win count describe how consistent the difference is across folds.") }}
+{% set c = result.comparison %}
+{% if c.not_recorded %}{{ not_recorded(c.reason) }}
+{% elif c.not_comparable %}{{ not_recorded(c.reason) }}
+{% else %}
+<div class="kpis">
+<div class="kpi"><div class="label">Common folds</div><div class="value">{{ c.common }}</div></div>
+<div class="kpi"><div class="label">Mean difference</div><div class="value">{{ c.mean_difference | num }}</div></div>
+<div class="kpi"><div class="label">95% interval</div><div class="value">{% if c.interval %}{{ c.interval[0] | num(3) }} to {{ c.interval[1] | num(3) }}{% else %}-{% endif %}</div></div>
+<div class="kpi"><div class="label">B wins / ties / A wins</div><div class="value">{{ c.wins }} / {{ c.ties }} / {{ c.losses }}</div></div>
+</div>
+<p class="big">{{ c.verdict }}</p>
+<div class="table-wrap"><table><thead><tr><th>Partition</th><th class="num">Difference (B better if positive)</th></tr></thead>
+<tbody>{% for p, d in c.differences.items() %}<tr><td>{{ p }}</td><td class="num">{{ d | num }}</td></tr>{% endfor %}</tbody></table></div>
+{% if c.only_common_used %}<p class="note">The two attempts have different partitions: only the {{ c.common }} common ones are used.</p>{% endif %}
+<h3>The program's own improvement rule</h3>
+{% if c.rule %}<p>{{ c.rule.text }}</p>
+<p class="note">Bar = threshold_k ({{ c.rule.threshold_k }}) x baseline dispersion ({{ c.rule.baseline_dispersion | num(4) }}) = {{ c.rule.bar | num(4) }}.</p>
+{% else %}{{ not_recorded("the baseline scores or threshold_k are not available, so the program's rule cannot be shown") }}{% endif %}
+<h3>Why they may disagree</h3>
+{% if c.disagree %}<div class="warnings" role="status">Here they do disagree: the interval and the program's rule point different ways.</div>{% endif %}
+<p>{{ c.why_they_may_disagree }}</p>
+{% endif %}
+</section>
+<section class="panel" aria-labelledby="corr-h">
+<h2 id="corr-h">Prediction correlation</h2>
+{{ explain("How alike the out-of-fold predictions of the two attempts are, on the rows both have.") }}
+<div data-analytics-section="correlation" data-url="{{ url_for('api.r_paired', run_id=run_id) }}" data-query="?a={{ a | urlencode }}&amp;b={{ b | urlencode }}" aria-live="polite"><p class="muted">Loading the correlation...</p></div>
+</section>
+{% endif %}
+{% endblock %}

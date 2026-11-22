@@ -288,6 +288,12 @@ The old `/cycles/<id>/metrics` and `/cycles/<id>/reports` URLs answer 301 to `/c
 **Manual checklist for a real run folder.** Not run by the automatic tests (they cannot execute JavaScript). With a real project folder: (1) `python -m kaggle_agent.web --db <folder>/registry.db --project <folder>` while the orchestrator runs; (2) open the runs list and the overview, and check that the chart shows the points with error bars, the baseline, the bar and the chosen attempt, in light and in dark mode; (3) open a round, an attempt, the LLM trace (open a stored trace) and the report; (4) check that the keyboard shortcuts work and that the layout holds at 1280 px and at a narrow width; (5) run `KAGGLE_AGENT_RUN_COCKPIT_DIR=<folder> .venv/bin/pytest tests/test_cockpit_manual.py` to check that every page answers 200. It was not run on macOS here: run the tests once on a Mac before relying on it.
 
 
+**Analytics endpoints** (all GET, envelope as the rest of `/api`; shapes in `docs/api.md`): `/api/attempts/<id>/analytics`
+(what is recorded), `/api/attempts/<id>/folds`, `/api/attempts/<id>/panels`, `/api/attempts/<id>/segments`,
+`/api/attempts/<id>/hardest`, `/api/attempts/<id>/flags`, `/api/attempts/<id>/features`, `/api/runs/<id>/paired`,
+`/api/runs/<id>/history`, `/api/runs/<id>/compare`, `/api/runs/<id>/side-by-side`, `/api/runs/<id>/ablation`. The only write is
+`/api/jobs/importance` (POST, CSRF token, Origin check, audit line first), polled with `/api/jobs/<id>`.
+
 ### Run control, live progress, decisions and files (ticket 27)
 
 The page now also starts and controls the run and answers its questions. Principles: the DS is in control and can overwrite what they want, so the system warns, asks for a reason where risky, records the action and labels the result, and blocks only for a technical reason; the DS never sees or writes code; frozen things (metric, validation scheme, seed, threshold, holdout) are never edited in place: a change means a new plan version or a new run. Open the pages `/live` (timeline, per-attempt fold progress bars with partial scores, call log with tokens, console), `/run` (state, buttons, limits), `/decisions` (plan, guidance, review, limits, lead.toml conflicts), `/setup` (open or create the project), `/environment` and `/audit`. Start without a registry: `python -m kaggle_agent.web --project <folder>` (`--db` defaults to `<folder>/registry.db`; a missing registry means setup mode).
@@ -331,6 +337,54 @@ Check in every cell: no clipped content and no horizontal page scroll (wide tabl
 To switch dark on, click the *Dark theme* toggle in the status bar (or `localStorage.setItem('cockpit-theme','dark')` in the console, then reload); to switch it off, click it again (or `localStorage.removeItem('cockpit-theme')`). The theme is chosen per browser and never follows the operating system.
 
 **Manual test.** `tests/MANUAL_COCKPIT_RUN.md` is the checklist for a real run through the page; `KAGGLE_AGENT_RUN_COCKPIT_DIR=<folder> .venv/bin/pytest tests/test_cockpit_manual.py` runs the marked manual tests. Notifications and sound in a real browser are covered only by the checklist.
+
+### Performance analytics (ticket 29)
+
+The cockpit gives the data scientist the performance views from the browser, never code. All of them use the DEVELOPMENT
+(validation) data only: the holdout is never an input. Pages: **Performance analytics** of an attempt
+(`/attempts/<id>/analytics`: folds and stability, metric panels, errors by segment with a minimum-size slider, hardest rows,
+leakage and sanity flags, features with an optional *Compute permutation importance* button), **Compare and history**
+(`/runs/<id>/compare`: score history chart, all-attempts table with sort and filter, ablation table, side by side of 2 or 3
+attempts) and **paired comparison** (`/runs/<id>/paired?a=ID&b=ID`: fold by fold, the program's own rule beside it,
+prediction correlation). The page shell and the registry data render at once; heavy sections fill in from the GET API
+(`docs/api.md`) so a slow section never blocks the page. A section whose input is missing says "Not recorded for this
+attempt" with the reason (run failed, too large, project older than this version, describe.json not provided or invalid,
+label-only metric).
+
+**What is recorded, and where.** The orchestrator build wraps the runner: `BundleRunner` -> `RecordingCandidate` ->
+`EventingCandidate` (the last one only for a supervised run); nothing in `evaluation/`, `loop/` or `registry/` changed.
+For every attempt that ran, under `<project>/analytics/` (additive files, written only by the orchestrator process):
+
+| File | Content |
+|------|---------|
+| `oof/<bundle>-<sha12>.csv.gz` | out-of-fold predictions: `row` (position in the training frame), `rep`, `fold`, `truth`, then `prediction` or `p0..pk-1` (sorted class order); gzip with mtime 0 so equal input gives equal bytes |
+| `describe/<bundle>-<sha12>.json` | the validated, normalised copy of the bundle's `describe.json` |
+| `development-<sha12>.csv.gz` | once per project: the development features (no target, no holdout row) |
+| `importance/<bundle>.json` | result of the permutation-importance job |
+| `index.jsonl` | one line per recorded file (`v` = 1, kind, bundle id, file, sha256, bytes, rows, status, per-partition scores); the line is the commit point |
+
+Limits: OOF at most 200,000 rows and 25 MB compressed, snapshot at most 100 MB and 500 columns, `describe.json` at most 64 KB, the
+analytics folder at most 1 GB; over a limit the index line says `too_large` or `budget_exhausted` and no file is written. A
+recorder problem is reported on stderr and never changes a prediction or fails an attempt. Files are content-addressed and
+never rewritten, and readers open only a file named by an index line, check its sha256 and read with a byte cap, so a
+reader never sees a half-written file while the orchestrator writes. A project from before this version has no
+`analytics/` folder and opens normally ("not recorded"); a GET never creates it.
+
+**`describe.json` (optional).** `fit` may write `describe.json` next to the model in `BUNDLE_MODEL_DIR`: `features_used`,
+`derived_features` (`name`, `sources`, `description`), `hyperparameters`, `native_importances`, `model_family`, `notes`
+(contract in `kaggle_agent/proposals/describe.py`; the writer and role prompts are generated from it). The platform
+validates it (unknown keys dropped, key-like strings refused, 64 KB) and keeps a normalised copy; missing or invalid files
+never fail a run and the page says "not provided".
+
+**Permutation importance** runs only on demand as a background job (`python -m kaggle_agent.orchestrator importance --config F
+--attempt ID --out F --job ID`, started by the button through the run controller): it fits the bundle once per validation
+partition of repetition 0 in the sandbox and shuffles one column at a time (at most 50 features, 3 shuffles), with progress
+events in `cockpit/jobs/<id>.progress.jsonl`. It shares the machine with a live run and can slow it a little.
+
+**Manual checklist.** `tests/MANUAL_COCKPIT_ANALYTICS.md` (pages at 1280 px and at a narrow width, light and dark theme, a real
+importance job, a macOS run); `KAGGLE_AGENT_RUN_COCKPIT_DIR=<folder> .venv/bin/pytest -q tests/test_cockpit_analytics_manual.py`
+checks that every analytics page answers 200 over a real folder. Statistics with 3 to 5 folds are small-sample: the interval
+is wide and folds share training rows, so it is optimistic; the program's rule decides, not the interval.
 
 ## Light sandbox (`kaggle_agent.sandbox`)
 

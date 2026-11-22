@@ -7,8 +7,8 @@ is a CLOSED ALLOWLIST, checked on this source by a test:
 1. every ``subprocess.Popen`` / ``subprocess.run`` call is inside the single function ``_spawn`` and
    none passes ``shell`` (the argv is always a list or tuple);
 2. ``_spawn`` is only ever given one of three argv shapes:
-   ``orchestrator_argv`` + (``start`` | ``resume`` | ``validate-config`` | ``profile`` | ``preview``,
-   ``--config``, <path>, ``--supervised`` or ``--out``, <path>); ``("ps", "-o", "lstart=", "-p", str(int(pid)))``;
+   ``orchestrator_argv`` + (``start`` | ``resume`` | ``validate-config`` | ``profile`` | ``preview`` | ``importance``,
+   ``--config``, <path>, ``--supervised`` or ``--out``, <path> [``--attempt``, <validated id>, ``--job``, <job id>]); ``("ps", "-o", "lstart=", "-p", str(int(pid)))``;
    ``(claude_executable, "auth", "status")``;
 3. ``DEFAULT_ORCHESTRATOR_ARGV`` is exactly ``(sys.executable, "-m", "kaggle_agent.orchestrator")``;
 4. ``orchestrator_argv`` and ``claude_executable`` are constructor parameters only: this file reads no
@@ -25,6 +25,7 @@ cleanup.
 
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -38,7 +39,8 @@ from .codes_text import describe_code
 
 DEFAULT_ORCHESTRATOR_ARGV = (sys.executable, "-m", "kaggle_agent.orchestrator")
 RUN_COMMANDS = ("start", "resume")
-JOB_COMMANDS = ("validate-config", "profile", "preview")
+JOB_COMMANDS = ("validate-config", "profile", "preview", "importance")
+ATTEMPT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 KEEP_JOBS = 20
 
 WAITING_TEXT = {
@@ -65,7 +67,8 @@ class RunController:
     def __init__(self, project_dir, *, orchestrator_argv=DEFAULT_ORCHESTRATOR_ARGV,
                  claude_executable="claude", grace_seconds: float = 20.0, config_path=None,
                  heartbeat_stale_seconds: float = 60.0, spawn_wait: float = 15.0,
-                 job_timeout: float = 120.0, claude_timeout: float = 15.0) -> None:
+                 job_timeout: float = 120.0, claude_timeout: float = 15.0,
+                 heavy_job_timeout: float = 3600.0) -> None:
         self.project_dir = Path(project_dir)
         self.orchestrator_argv = tuple(orchestrator_argv)
         self.claude_executable = str(claude_executable)
@@ -74,6 +77,7 @@ class RunController:
         self.heartbeat_stale_seconds = heartbeat_stale_seconds
         self.spawn_wait = spawn_wait
         self.job_timeout = job_timeout
+        self.heavy_job_timeout = heavy_job_timeout
         self.claude_timeout = claude_timeout
         self._lock = threading.RLock()
         self._children: dict[int, subprocess.Popen] = {}
@@ -232,7 +236,12 @@ class RunController:
                                     "--supervised"), stdout=console, new_session=True)
             finally:
                 console.close()
-            start_time = self.process_start_time(proc.pid)
+            start_time = None
+            for _ in range(5):  # `ps` can fail or come back empty under load: ask again
+                start_time = self.process_start_time(proc.pid)
+                if start_time is not None or not self.is_alive(proc.pid):
+                    break
+                time.sleep(0.1)
             store.write_json(store.cockpit_path(self.project_dir, "run.json"), {
                 "pid": proc.pid, "pgid": proc.pid, "start_time": start_time, "command": command,
                 "config": str(self.config_path), "started_at": store.utc_text(), "stop_requested": False,
@@ -274,10 +283,11 @@ class RunController:
     def _kill_later(self, info: dict) -> None:
         deadline = time.monotonic() + self.grace_seconds
         while time.monotonic() < deadline:
-            if not self._verified(info):
+            if not self.is_alive(info["pid"]):  # a failed `ps` under load must not cancel the kill
                 return
             time.sleep(0.05)
-        if self._verified(info):
+        # still alive after the grace period: confirm it is the same process (ps can fail under load, so ask again)
+        if any(self._verified(info) for _ in range(5)):
             try:
                 os.killpg(int(info["pgid"]), signal.SIGKILL)
             except ProcessLookupError:
@@ -293,32 +303,45 @@ class RunController:
 
     # -- background jobs ---------------------------------------------------------------------------
 
-    def start_job(self, kind: str, config_path=None) -> dict:
-        """Run ``validate-config``, ``profile`` or ``preview`` in the background; returns the job record."""
+    def start_job(self, kind: str, config_path=None, attempt: str | None = None) -> dict:
+        """Run ``validate-config``, ``profile``, ``preview`` or ``importance`` in the background.
+
+        ``importance`` needs a validated ``attempt`` id and uses the longer heavy-job timeout.
+        """
         if kind not in JOB_COMMANDS:
             raise ValueError(kind)
+        if kind == "importance" and not (isinstance(attempt, str) and ATTEMPT_ID.fullmatch(attempt)):
+            raise ValueError("bad attempt id")
         job_id = store.new_id()[:16]
         record_path, out_path = store.job_paths(self.project_dir, job_id)
         record = {"id": job_id, "kind": kind, "status": "running", "started_at": store.utc_text(),
                   "finished_at": None, "error": None}
+        if kind == "importance":
+            record["attempt"] = attempt
         store.write_json(record_path, record)
         self._trim_jobs()
         cfg = Path(config_path) if config_path else self.config_path
-        threading.Thread(target=self._job, args=(kind, cfg, record, record_path, out_path),
+        threading.Thread(target=self._job, args=(kind, cfg, record, record_path, out_path, attempt),
                          daemon=True, name=f"job-{kind}").start()
         return record
 
-    def _job(self, kind, cfg, record, record_path, out_path) -> None:
+    def _job(self, kind, cfg, record, record_path, out_path, attempt=None) -> None:
         status, error = "done", None
+        limit = self.heavy_job_timeout if kind == "importance" else self.job_timeout
         try:
-            proc = self._spawn((*self.orchestrator_argv, kind, "--config", str(cfg), "--out", str(out_path)),
-                               stdout=subprocess.PIPE)
+            job_id = record["id"]
+            if kind == "importance":  # attempt and job_id were validated by regex before this thread started
+                proc = self._spawn((*self.orchestrator_argv, kind, "--config", str(cfg), "--attempt", attempt,
+                                    "--out", str(out_path), "--job", job_id), stdout=subprocess.PIPE)
+            else:
+                proc = self._spawn((*self.orchestrator_argv, kind, "--config", str(cfg), "--out", str(out_path)),
+                                   stdout=subprocess.PIPE)
             try:
-                proc.communicate(timeout=self.job_timeout)
+                proc.communicate(timeout=limit)
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.communicate()
-                status, error = "timeout", f"the job did not finish within {self.job_timeout:g} seconds"
+                status, error = "timeout", f"the job did not finish within {limit:g} seconds"
             else:
                 if not store.exists(out_path):
                     status, error = "failed", f"the job exited with code {proc.returncode} and no result"
@@ -339,10 +362,13 @@ class RunController:
         if not isinstance(record, dict):
             return None
         result = store.read_json(out_path) if record.get("status") in ("done", "failed") else None
-        return {**record, "result": result}
+        out = {**record, "result": result}
+        if record.get("kind") == "importance":
+            out["progress"] = store.job_progress(self.project_dir, job_id)
+        return out
 
     def wait_job(self, job_id: str, timeout: float | None = None) -> dict | None:
-        deadline = time.monotonic() + (self.job_timeout + 5 if timeout is None else timeout)
+        deadline = time.monotonic() + (max(self.job_timeout, self.heavy_job_timeout) + 5 if timeout is None else timeout)
         while time.monotonic() < deadline:
             record = self.job(job_id)
             if record is not None and record["status"] != "running":

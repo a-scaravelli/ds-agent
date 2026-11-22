@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% from "macros.html" import not_recorded, explain, badge %}
+{% block title %}Analytics {{ a_id }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='vendor/uplot.min.css') }}">{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='vendor/uplot.iife.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/analytics.js') }}" defer></script>{% endblock %}
+{% block body %}
+<h1>Performance analytics of attempt {{ a_id }}</h1>
+<p class="subtitle"><a href="{{ url_for('attempt', attempt_id=a_id) }}">Attempt page</a>;
+run <a href="{{ url_for('cycle', cycle_id=ov.run_id) }}">{{ ov.run_id }}</a>;
+<a href="{{ url_for('analytics_compare', run_id=ov.run_id) }}">compare attempts</a>.
+These views use the DEVELOPMENT data only (validation folds): the holdout is never read here.
+{% if task %}Task: {{ task.task }} ({{ task.metric }}, predictions are {{ task.input_kind }}).{% endif %}</p>
+
+<section class="panel" aria-labelledby="rec-h">
+<h2 id="rec-h">What is recorded</h2>
+{{ explain("Every attempt that ran successfully has its out-of-fold predictions (what the model predicted for rows it had not seen), per-fold scores and, if the bundle wrote it, a description of itself. Older projects have none of this and show 'not recorded'.") }}
+{% if ov.not_recorded %}{{ not_recorded(ov.not_recorded.reason) }}{% else %}
+<dl class="facts">
+{% for kind, label in (('oof', 'Out-of-fold predictions'), ('describe', 'Description of the bundle'), ('development', 'Development features'), ('importance', 'Permutation importance')) %}
+{% set item = ov.recorded.get(kind) %}
+<dt>{{ label }}</dt><dd>{% if item and item.not_recorded %}not recorded: {{ item.reason }}{% elif item %}{{ item.status }}{% if item.sha256 %}, hash <code title="{{ item.sha256 }}">{{ item.sha256[:12] }}</code>{% endif %}{% if item.bytes %}, {{ item.bytes }} bytes{% endif %}{% if item.rows %}, {{ item.rows }} rows{% endif %}{% endif %}</dd>
+{% endfor %}
+</dl>
+{% endif %}
+</section>
+
+<section class="panel" id="sec-folds" aria-labelledby="folds-h">
+<h2 id="folds-h">Folds and stability</h2>
+{{ explain("One dot per validation fold and repetition. A wide spread means the score depends on which rows were held out; the worst fold shows how bad it can get.") }}
+{% if folds.not_recorded %}{{ not_recorded(folds.reason) }}{% else %}
+<div class="kpis">
+<div class="kpi"><div class="label">Mean</div><div class="value">{{ folds.mean | num }}</div></div>
+<div class="kpi"><div class="label">Spread (std)</div><div class="value">{{ folds.spread | num(4) }}</div></div>
+<div class="kpi"><div class="label">Worst fold</div><div class="value">{{ folds.worst.id }}: {{ folds.worst.score | num }}</div></div>
+<div class="kpi"><div class="label">Best fold</div><div class="value">{{ folds.best.id }}: {{ folds.best.score | num }}</div></div>
+</div>
+<div class="table-wrap"><table>
+<thead><tr><th>Partition</th><th class="num">Repetition</th><th class="num">Fold</th><th class="num">Score</th></tr></thead>
+<tbody>{% for p in folds.points %}<tr><td>{{ p.id }}</td><td class="num">{{ p.rep }}</td><td class="num">{{ p.fold }}</td><td class="num">{{ p.score | num }}</td></tr>{% endfor %}</tbody></table></div>
+<h3>Stability by repetition</h3>
+{{ explain(folds.stability.note or '') }}
+<ul>{% for r in folds.stability.repetitions %}<li>Repetition {{ r.rep }} (seed derived from the protocol): mean {{ r.mean | num }} over {{ r.folds }} folds</li>{% endfor %}</ul>
+{% if folds.stability.repeat_range is not none %}<p>Range between repetitions: {{ folds.stability.repeat_range | num(4) }}</p>{% endif %}
+{% if folds.stability.warning %}<div class="warnings" role="status">{{ folds.stability.warning }}</div>{% endif %}
+{% if folds.warning %}<div class="warnings" role="status">{{ folds.warning }}</div>{% endif %}
+<div data-analytics-section="folds" data-url="{{ url_for('api.a_folds', attempt_id=a_id) }}" aria-live="polite"><p class="muted">Loading the dot plot...</p></div>
+{% endif %}
+</section>
+
+<section class="panel" id="sec-panels" aria-labelledby="panels-h">
+<h2 id="panels-h">Metric panels</h2>
+{{ explain("Standard views of the predictions for this kind of task. They use one repetition, so no row is counted twice.") }}
+{% if oof_bad %}{{ not_recorded(oof_bad.reason) }}{% else %}
+{% if label_only %}{{ not_recorded("ROC, precision-recall, calibration and log loss are not available: the metric of this run scores labels only (no probabilities or scores). Only the confusion matrix is shown.") }}{% endif %}
+<div data-analytics-section="panels" data-url="{{ url_for('api.a_panels', attempt_id=a_id) }}" aria-live="polite"><p class="muted">Loading the panels...</p></div>
+{% endif %}
+</section>
+
+<section class="panel" id="sec-segments" aria-labelledby="seg-h">
+<h2 id="seg-h">Errors by segment</h2>
+{{ explain("The data is cut by one feature (or two together) and the error is compared with the overall error. Lift above 1 means the model does worse there. Tiny segments are noisy: raise the minimum size.") }}
+{% if oof_bad %}{{ not_recorded(oof_bad.reason) }}{% elif dev_bad %}{{ not_recorded(dev_bad.reason) }}{% else %}
+<div class="toolbar"><label>Minimum segment size: <output id="segment-min-size-value">1</output>
+<input type="range" id="segment-min-size" min="1" max="500" value="1"></label></div>
+<div data-analytics-section="segments" data-url="{{ url_for('api.a_segments', attempt_id=a_id) }}" aria-live="polite"><p class="muted">Loading the segments...</p></div>
+{% endif %}
+</section>
+
+<section class="panel" id="sec-hardest" aria-labelledby="hard-h">
+<h2 id="hard-h">Hardest rows</h2>
+{{ explain("The rows the model got most wrong out of fold, with their features (development data only). Look for what they have in common.") }}
+{% if oof_bad %}{{ not_recorded(oof_bad.reason) }}{% elif dev_bad %}{{ not_recorded(dev_bad.reason) }}{% else %}
+<div class="toolbar">
+<label>Sort by<select id="hardest-sort"><option value="error">error</option><option value="row">row</option><option value="truth">truth</option><option value="prediction">prediction</option></select></label>
+<label>Order<select id="hardest-order"><option value="desc">worst first</option><option value="asc">best first</option></select></label></div>
+<div data-analytics-section="hardest" data-url="{{ url_for('api.a_hardest', attempt_id=a_id) }}" aria-live="polite"><p class="muted">Loading the rows...</p></div>
+{% endif %}
+</section>
+
+<section class="panel" id="sec-flags" aria-labelledby="flags-h">
+<h2 id="flags-h">Leakage and sanity flags</h2>
+{{ explain("Quick automatic checks: columns that look like identifiers, features almost identical to the target, suspiciously large jumps. They are heuristics, not proof.") }}
+{% if ov.not_recorded %}{{ not_recorded(ov.not_recorded.reason) }}{% else %}
+<div data-analytics-section="flags" data-url="{{ url_for('api.a_flags', attempt_id=a_id) }}" aria-live="polite"><p class="muted">Loading the checks...</p></div>
+{% endif %}
+</section>
+
+<section class="panel" id="sec-features" aria-labelledby="feat-h">
+<h2 id="feat-h">Features</h2>
+{{ explain("What the model uses and how much each feature (or family of features) matters. The bundle may describe itself; otherwise permutation importance shuffles one column at a time on the validation folds and measures how much the score drops.") }}
+{% if describe.not_recorded %}{{ not_recorded(describe.reason) }}
+{% elif describe.status == 'missing' %}<div class="empty not-recorded" role="status"><strong>Not provided</strong>The bundle of this attempt did not write a describe.json: {{ describe.reason }}.</div>
+{% elif describe.status == 'invalid' %}<div class="empty not-recorded" role="status"><strong>Not recorded for this attempt</strong>{{ describe.reason }}</div>{% endif %}
+{% if can_importance %}
+<div class="toolbar"><button type="button" id="importance-start" data-attempt="{{ a_id }}" data-url="{{ url_for('writes.job_importance') }}" data-job-url="{{ url_for('api.job', job_id='0')[:-1] }}">{{ 'Recompute permutation importance' if importance_done else 'Compute permutation importance' }}</button>
+<span id="importance-progress" class="note" aria-live="polite"></span></div>
+<p class="hint">Optional. It runs in the background and can take minutes; it slows a live run a little because it shares the machine.</p>
+{% endif %}
+<div data-analytics-section="features" data-url="{{ url_for('api.a_features', attempt_id=a_id) }}" aria-live="polite"><p class="muted">Loading the features...</p></div>
+</section>
+{% endblock %}

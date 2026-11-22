@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from kaggle_agent.agents import DataSummary
 from kaggle_agent.bundle import ENTRY_POINT_NAMES, MANIFEST_NAME, MODEL_DIR_ENV, MODEL_FOLDER
 from kaggle_agent.loop.writer import BundleRequest
-from kaggle_agent.proposals import LIBRARY_APIS, LIBRARY_RULES
+from kaggle_agent.proposals import LIBRARY_APIS, LIBRARY_RULES, describe_paragraph
 
 from .workspace import BUNDLE_SUBFOLDER
 
@@ -119,7 +119,8 @@ def build_prompt(request: BundleRequest, task: WriterTask, allowed_dependencies:
         f"{', '.join(allowed_dependencies)}. List every third-party library you import in "
         "dependencies. Import nothing else, use no network and no subprocess."
         + _libraries(allowed_dependencies) + "\n"
-        "- Only the bundle folder is checked: do not read or write other files.",
+        "- Only the bundle folder is checked: do not read or write other files.\n"
+        f"- {describe_paragraph()}",
         "## Task\n"
         f"Target column: {task.target}. Metric: {task.metric} ({task.direction}). "
         f"Prediction kind: {task.input_kind}.",

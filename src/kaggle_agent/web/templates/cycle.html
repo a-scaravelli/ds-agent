@@ -24,6 +24,8 @@
 {% set rule = summary.improvement_rule %}
 <p class="note" id="improvement-rule">{{ rule.text }}{% if rule.threshold_k is not none and rule.baseline_noise is not none %} Numbers: threshold_k {{ rule.threshold_k | num }} &times; baseline noise {{ rule.baseline_noise | num(4) }} = bar {{ rule.bar | num(4) }}{% if rule.difference is not none %}; mean paired difference of the chosen attempt {{ rule.difference | num(4) }} ({{ 'above' if rule.is_real else 'not above' }} the bar){% endif %}.{% endif %}</p>
 
+<p class="note"><a href="{{ url_for('analytics_compare', run_id=summary.id) }}">Compare attempts, score history and ablation</a>: performance analytics from the validation folds.</p>
+
 <section class="panel" aria-labelledby="chart-h">
 <h2 id="chart-h">Score by attempt</h2>
 <p class="note">Mean with error bars (dispersion), the baseline (dashed), the improvement bar (dotted) and the chosen attempt (ring). Failed attempts have no score.</p>

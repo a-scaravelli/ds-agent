@@ -97,7 +97,7 @@ class ModelingInput(JsonObject):
 
 def build_modeling_prompt(role_input: ModelingInput) -> str:
     """The prompt of the modeling role: instructions and the serialized input."""
-    return render_prompt(INSTRUCTIONS, role_input, LIMITS_NOTE, libraries=True)
+    return render_prompt(INSTRUCTIONS, role_input, LIMITS_NOTE, libraries=True, describe=True)
 
 
 def run_modeling(

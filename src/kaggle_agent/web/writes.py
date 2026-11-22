@@ -237,6 +237,27 @@ def job_profile():
     return _job("profile")
 
 
+@post("/jobs/importance")
+def job_importance():
+    """Start permutation importance of one attempt as a background job (heavy; progress in /api/jobs/<id>)."""
+    from . import analytics_api, analytics_data
+
+    project, controller = _project(), _controller()
+    body = _body()
+    attempt = body.get("attempt")
+    if not isinstance(attempt, str) or not analytics_api.ID.fullmatch(attempt):
+        raise ValidationError("attempt", "must be the id of an attempt")
+    src = _source()
+    detail = src.registry.get_attempt(attempt)  # NotFoundError: 404
+    bundle, _, bad = analytics_data._bundle_of(detail)
+    if bad:
+        raise ValidationError("attempt", bad["reason"])
+    if not store.exists(controller.config_path):
+        raise Conflict("there is no config.toml yet: save the settings first")
+    audit.record(project, "job.importance", None, {"attempt": attempt})
+    return _ok(controller.start_job("importance", attempt=attempt), 202)
+
+
 # -- decisions ----------------------------------------------------------------------------------------
 
 

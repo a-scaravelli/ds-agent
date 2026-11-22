@@ -558,7 +558,7 @@ checked_at: number
 
 ### GET /api/jobs/<id>
 
-A background job (`validate-config`, `preview`, `profile`): `status` is `running`, `done`, `failed` or `timeout`;
+A background job (`validate-config`, `preview`, `profile`, `importance`): `status` is `running`, `done`, `failed` or `timeout`;
 `result` is the JSON the job wrote.
 
 ```shape
@@ -584,6 +584,213 @@ config: object|null
 started: boolean
 frozen: array
 allowed_libraries: array
+```
+
+## Performance analytics (ticket 29)
+
+Everything here is GET only, uses the DEVELOPMENT (validation) data only and never touches the holdout. The data comes
+from the registry (read-only) and from the files the orchestrator records in `<project>/analytics/` (see
+`docs/design.md`, "Performance analytics"). Ids are validated (`[A-Za-z0-9][A-Za-z0-9._-]{0,127}`): a malformed or unknown
+id answers 404; a bad parameter answers 400. A section whose input was not recorded answers 200 with the
+**not_recorded object** instead of its data:
+
+```json
+{"not_recorded": true, "code": "older_project", "reason": "this project was run before analytics were recorded ..."}
+```
+
+`code` is one of `run_failed`, `no_bundle`, `older_project`, `not_in_index`, `too_large`, `budget_exhausted`,
+`recording_error`, `not_readable`, `describe_missing`, `describe_invalid`, `label_only`, `no_snapshot`,
+`not_comparable`, `no_scores`, `one_class`, `too_many_classes`, `no_importance`. The shapes below are those of the
+answer WITH data; a nested section (`describe`, `permutation`, `correlation`, `comparison`) may be a not_recorded object
+on its own. Every file carries a schema version `v` = 1 in `analytics/index.jsonl`.
+
+### GET /api/attempts/<id>/analytics
+
+What is recorded for the attempt (through its last succeeded execution and `config.bundle_id`): the out-of-fold file,
+the describe.json copy, the development features and the permutation importance, each with status, hash, size.
+
+```shape
+data: object
+attempt_id: string
+bundle_id: string
+development_only: boolean
+recorded: object
+run_id: string
+skipped_index_lines: integer
+task: object
+```
+
+### GET /api/attempts/<id>/folds
+
+Every partition score (from the registry metrics `validation/<partition>`), mean, sample spread, worst and best fold,
+the stability by repetition with the "within noise" warning, and the check against the recorded copy.
+
+```shape
+data: object
+best: object
+count: integer
+direction: string
+mean: number
+points: array
+recorded_check: object|null
+source: string
+spread: number|null
+stability: object
+worst: object
+```
+
+### GET /api/attempts/<id>/panels
+
+Metric panels of one repetition (`?rep=0`): confusion matrix, ROC, precision-recall, calibration, log loss and
+threshold sweep for classification; residuals, error by quantile of the truth and bias for regression. A panel that
+cannot be shown is `{"available": false, "reason": "not available because ..."}`. The shape is the classification one.
+
+```shape
+data: object
+available: boolean
+calibration: object
+classes: array
+confusion: object
+input_kind: string
+log_loss: object
+positive_class: string|null
+pr: object
+repetition: integer
+roc: object
+rows: integer
+sweep: object
+task: string
+```
+
+### GET /api/attempts/<id>/segments
+
+Error by segment of one feature and of two features together. Query: `min_size` (1 to 10000000, default 1), `interactions`
+(0 or 1), `top` (1 to 100, default 20). `min_size` only filters the ranking, which is computed once.
+
+```shape
+data: object
+caps: object
+interactions: array
+min_size: integer
+overall_error: number
+rows: integer
+segments: array
+task: string
+```
+
+### GET /api/attempts/<id>/hardest
+
+The worst out-of-fold rows with their features (at most 30 columns). Query: `sort` (a returned column, default `error`),
+`order` (`asc` or `desc`), `limit` (1 to 200, default 50).
+
+```shape
+data: object
+columns: array
+explanation: string
+limit: integer
+order: string
+ranked_by: string
+rows: array
+sort: string
+```
+
+### GET /api/attempts/<id>/flags
+
+Leakage and sanity flags (heuristics, not proof): ID-like columns, features almost identical to the target, suspicious
+score jumps, a perfect out-of-fold result.
+
+```shape
+data: object
+checked: array
+explanation: string
+flags: array
+```
+
+### GET /api/attempts/<id>/features
+
+The describe.json of the bundle (`describe.status` is `valid`, `missing` or `invalid`), native importance, permutation
+importance (from the importance job) and the feature families, with importance grouped by family.
+
+```shape
+data: object
+attempt_id: string
+bundle_id: string
+describe: object
+families: object
+native: object|null
+permutation: object
+```
+
+### GET /api/runs/<id>/history
+
+Score of every succeeded attempt in order with the best so far, the baseline and the improvement bar; `direction` is
+`maximize` or `minimize`.
+
+```shape
+data: object
+bar: number|null
+baseline: object|null
+direction: string
+metric: string
+points: array
+run_id: string
+```
+
+### GET /api/runs/<id>/compare
+
+All attempts of a run with score, spread, round, family, number of features and time. Query: `sort` (`score`, `spread`,
+`round`, `family`, `features`, `time`, `attempt`), `order`, `q`, `round`, `family`. Failed attempts show their status
+and no score, and always come last.
+
+```shape
+data: object
+count: integer
+direction: string
+families: array
+rounds: array
+rows: array
+run_id: string
+```
+
+### GET /api/runs/<id>/paired
+
+Two attempts (`?a=ID&b=ID`) fold by fold: differences, 95% interval, win count, plain-words verdict, the program's own
+rule beside it (bar = threshold_k x baseline dispersion), why they may disagree, and the prediction correlation (F12).
+
+```shape
+data: object
+a: string
+b: string
+comparison: object
+correlation: object
+direction: string
+run_id: string
+threshold_k: number|null
+```
+
+### GET /api/runs/<id>/side-by-side
+
+Two or three attempts (`?ids=A,B,C`): hypothesis, features, hyperparameters and per-fold scores; no code, no paths.
+One or four ids answer 400.
+
+```shape
+data: object
+attempts: array
+run_id: string
+```
+
+### GET /api/runs/<id>/ablation
+
+Display only: score and spread of the attempts with and without each feature family, from the describe.json of the
+bundles; attempts without one are listed in `not_provided`. No endpoint starts an ablation run.
+
+```shape
+data: object
+families: object
+not_provided: array
+note: string
+rows: array
+run_id: string
 ```
 
 ## Write endpoints (POST)
@@ -629,6 +836,15 @@ Starts the protocol preview as a background job; returns the job record (read `/
 ### POST /api/jobs/profile
 
 Starts the data profile (development part only) as a background job.
+
+### POST /api/jobs/importance
+
+Body `{"attempt": ID}`. Starts permutation importance of one attempt as a heavy background job (validation folds of
+repetition 0, at most 50 features, 3 shuffles each, timeout 3600 s). 400 for a malformed id or an attempt without a
+recorded bundle, 404 for an unknown attempt. 202 with the job record (`attempt` is added); poll `GET /api/jobs/<id>`, which
+carries `progress` (`last` event, `events`, `percent`) for this kind. The job writes
+`analytics/importance/<bundle>.json` and its events (`job_start`, `job_progress`, `job_end`) to
+`cockpit/jobs/<id>.progress.jsonl`; it never writes the event log of a run or the registry.
 
 ### POST /api/decisions/plan
 

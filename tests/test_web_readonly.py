@@ -56,7 +56,7 @@ def test_other_methods_answer_405_on_every_rule_and_leave_the_file_unchanged(coc
     covered = {"api.event_stream", "api.notes"}
     for url in urls:
         adapter = cockpit_client.application.url_map.bind("localhost")
-        covered.add(adapter.match(url, method="GET")[0])
+        covered.add(adapter.match(url.split("?")[0], method="GET")[0])
     rules = {r.endpoint for r in cockpit_client.application.url_map.iter_rules()
              if not r.endpoint.startswith("writes.")}  # the write rules are tested in test_cockpit_writes_security
     # every rule except static and the two redirects has a url above

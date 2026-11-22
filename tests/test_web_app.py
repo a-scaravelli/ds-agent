@@ -172,7 +172,8 @@ def test_every_page_route_responds_and_none_is_left_out(web_client):
         if r.endpoint != "static" and not r.endpoint.startswith(("api.", "writes."))
     }
     # ticket 27: the cockpit pages are covered by the cockpit tests, not by the registry fixture ids
-    endpoints -= {"live_page", "audit_page", "setup", "run_control", "decisions_page", "environment_page"}
+    endpoints -= {"live_page", "audit_page", "setup", "run_control", "decisions_page", "environment_page",
+                  "analytics_attempt", "analytics_compare", "analytics_paired"}
     urls = all_urls()
     assert endpoints == set(urls)
     for name, url in urls.items():

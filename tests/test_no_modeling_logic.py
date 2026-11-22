@@ -21,6 +21,7 @@ REVIEW = SRC / "review"
 PIPELINE = SRC / "pipeline"
 WRITER = SRC / "writer"
 ORCHESTRATOR = SRC / "orchestrator"
+ANALYTICS = SRC / "analytics"  # ticket 29: pure functions over pandas, numpy and sklearn.metrics
 SANDBOX_RUNNER = SANDBOX / "subprocess_sandbox.py"
 WEB_CONTROLLER = WEB / "controller.py"
 TESTS = Path(__file__).resolve().parent
@@ -58,12 +59,14 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
     stdlib = set(sys.stdlib_module_names)
     for path in _modules():
         allowed = stdlib | {"kaggle_agent", "<relative>"}
-        if EVALUATION in path.parents:
+        if EVALUATION in path.parents or ANALYTICS in path.parents:
             allowed |= THIRD_PARTY
         if BUNDLE in path.parents:
             allowed |= {"pandas", "numpy"}
         if PIPELINE in path.parents or ORCHESTRATOR in path.parents:
             allowed |= {"pandas"}
+        if ORCHESTRATOR in path.parents:
+            allowed |= {"numpy"}  # ticket 29: analytics_record and importance build arrays of predictions
         if path == REAL_ADAPTER:
             allowed |= KAGGLE_LIBRARY
         if WEB in path.parents:
@@ -75,7 +78,7 @@ def test_third_party_imports_only_in_evaluation_and_kaggle_adapter():
 def test_no_functions_or_classes_outside_code_packages_proposals_registry_evaluation_kaggle_llm_sandbox():
     for path in _modules():
         if any(d in path.parents for d in (PROPOSALS, REGISTRY, EVALUATION, KAGGLE, LLM, AGENTS, SANDBOX, WEB, BUNDLE,
-                                       LOOP, BUDGET, REVIEW, PIPELINE, WRITER, ORCHESTRATOR)):
+                                       LOOP, BUDGET, REVIEW, PIPELINE, WRITER, ORCHESTRATOR, ANALYTICS)):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -324,7 +327,7 @@ def test_web_imports_only_stdlib_flask_proposals_registry_and_itself():
             assert top not in NETWORK_MODULES, f"{path}: {full}"
             if top == "kaggle_agent":
                 parts = full.split(".")
-                assert len(parts) > 1 and parts[1] in {"proposals", "registry", "web"}, full
+                assert len(parts) > 1 and parts[1] in {"proposals", "registry", "web", "analytics"}, full  # ticket 29: web may import analytics
                 assert parts[1] not in forbidden, full
             if top == "<relative>":
                 assert full.lstrip(".").split(".")[0] not in forbidden, f"{path}: {full}"
@@ -515,7 +518,9 @@ def test_bundle_imports_only_stdlib_pandas_numpy_and_allowed_packages():
 
 # --- ticket 27: the run controller (the one web module that imports subprocess) and the event log ---
 
-ORCHESTRATOR_LITERALS = {"start", "resume", "validate-config", "profile", "preview", "--config", "--supervised", "--out"}
+# ticket 29: ``importance`` and its two extra options (the attempt id and the job id are validated by regex)
+ORCHESTRATOR_LITERALS = {"start", "resume", "validate-config", "profile", "preview", "importance", "--config",
+                         "--supervised", "--out", "--attempt", "--job"}
 
 
 def _spawn_violations(source: str) -> list[str]:
@@ -569,7 +574,7 @@ def _check_argv(arg: ast.AST, line: int) -> list[str]:
         for element in items[1:]:
             if isinstance(element, ast.Constant) and element.value in ORCHESTRATOR_LITERALS:
                 continue
-            if isinstance(element, ast.Name) and element.id in ("command", "kind"):
+            if isinstance(element, ast.Name) and element.id in ("command", "kind", "attempt", "job_id"):
                 continue  # validated against the closed tuples RUN_COMMANDS / JOB_COMMANDS at the top of the function
             if isinstance(element, ast.Call) and getattr(element.func, "id", "") == "str" and \
                     len(element.args) == 1 and isinstance(element.args[0], (ast.Name, ast.Attribute)):
@@ -585,14 +590,14 @@ def test_the_web_controller_spawns_only_the_closed_list_of_commands():
     tree = ast.parse(source)
     spawns = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
               and n.func.attr == "_spawn"]
-    assert len(spawns) == 4  # ps, the run, the jobs and the claude check: nothing else
+    assert len(spawns) == 5  # ps, the run, the jobs (plain and importance) and the claude check: nothing else
     # (c) the default command is exactly (sys.executable, -m, kaggle_agent.orchestrator)
     default = next(n for n in tree.body if isinstance(n, ast.Assign) and n.targets[0].id == "DEFAULT_ORCHESTRATOR_ARGV")
     assert ast.unparse(default.value) == "(sys.executable, '-m', 'kaggle_agent.orchestrator')"
     # the commands are the closed tuples
     values = {n.targets[0].id: ast.literal_eval(n.value) for n in tree.body
               if isinstance(n, ast.Assign) and n.targets[0].id in ("RUN_COMMANDS", "JOB_COMMANDS")}
-    assert values == {"RUN_COMMANDS": ("start", "resume"), "JOB_COMMANDS": ("validate-config", "profile", "preview")}
+    assert values == {"RUN_COMMANDS": ("start", "resume"), "JOB_COMMANDS": ("validate-config", "profile", "preview", "importance")}
     # (d) the two seams are constructor parameters, and nothing else passes them
     init = next(n for c in tree.body if isinstance(c, ast.ClassDef) and c.name == "RunController"
                 for n in c.body if isinstance(n, ast.FunctionDef) and n.name == "__init__")

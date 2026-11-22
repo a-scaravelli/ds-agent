@@ -10,7 +10,7 @@ from importlib import metadata
 
 from flask import Blueprint, current_app, jsonify, request
 
-from . import data, live
+from . import analytics_api, data, live
 
 API_VERSION = 1
 blueprint = Blueprint("api", __name__, url_prefix="/api")
@@ -54,6 +54,9 @@ def meta():
 def runs():
     src = _source()
     return _ok(data.runs(src, request.args.get("q")), src)
+
+
+analytics_api.register(get, _source, _ok)  # ticket 29: per-fold, panels, segments, compare, ...
 
 
 @get("/runs/<path:run_id>/chart")

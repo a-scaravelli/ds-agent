@@ -68,6 +68,10 @@ def concrete(endpoint: str) -> str:
 # ticket 27: the live endpoints are documented in docs/api.md and exercised by the live tests; the shape test
 # below covers the read endpoints of ticket 26 and the new GET endpoints that answer without a running project
 LIVE_ONLY = {"/api/jobs/<id>"}  # needs a job id; checked by the setup tests
+# ticket 29: the analytics endpoints answer with data or with a not_recorded object (a different key set); their shapes
+# are checked against real recorded runs by tests/test_analytics_docs.py
+ANALYTICS_ONLY = {e for e in documented_shapes() if re.search(
+    r"/(analytics|folds|panels|segments|hardest|flags|features|paired|history|compare|side-by-side|ablation)$", e)}
 
 
 def endpoint_url(endpoint: str) -> str:
@@ -107,11 +111,11 @@ def test_every_endpoint_has_the_documented_shape(cockpit_client):
     assert rules - {"/api/events/stream"} == set(shapes), (rules - {"/api/events/stream"}) ^ set(shapes)
     nonempty = 0
     for endpoint in shapes:
-        if endpoint in LIVE_ONLY:
+        if endpoint in LIVE_ONLY | ANALYTICS_ONLY:
             continue
         body = api(cockpit_client, endpoint_url(endpoint))
         nonempty += bool(check_shape(endpoint, body))
-    assert nonempty == len(shapes) - len(LIVE_ONLY)  # the fixture has data for every endpoint
+    assert nonempty == len(shapes) - len(LIVE_ONLY | ANALYTICS_ONLY)  # the fixture has data for every endpoint
     # the other run (running, nothing read) and the attempt without scores have the same shapes
     check_shape("/api/runs/<id>", api(cockpit_client, f"/api/runs/{RUN_B}"))
     check_shape("/api/runs/<id>/holdout", api(cockpit_client, f"/api/runs/{RUN_B}/holdout"))

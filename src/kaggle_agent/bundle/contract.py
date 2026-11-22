@@ -33,6 +33,12 @@ The two functions:
   one row per input row, the same width of at least 2 in every row, and for
   ``probabilities`` each row summing to 1 (multiclass).
 
+``fit`` may also write ``describe.json`` next to the model, in ``BUNDLE_MODEL_DIR`` (optional, ticket 29):
+the features it uses, derived features with their source columns, hyperparameters and its own
+importances. The fields and limits live in ``kaggle_agent.proposals.describe``; the platform validates
+the file and keeps a normalised copy; a missing or invalid file never fails a run. ``predict`` returns a
+probability matrix with the columns in the order of the SORTED class labels (as the metrics use them).
+
 The child seeds ``random`` and ``numpy.random`` with the seed derived by the evaluation
 engine in both processes. A bundle never reports its own score: the parent computes every
 metric. Predictions cross the process boundary as JSON only, never pickle; a bundle may use

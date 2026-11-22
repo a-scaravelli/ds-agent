@@ -59,6 +59,11 @@ def _parser() -> argparse.ArgumentParser:
         p = sub.add_parser(name, help="cockpit job: write a JSON result to --out")
         p.add_argument("--config", required=True, help="path of the TOML configuration file")
         p.add_argument("--out", required=True, help="file that receives the JSON result")
+    p = sub.add_parser("importance", help="cockpit job: permutation importance of one attempt")
+    p.add_argument("--config", required=True, help="path of the TOML configuration file")
+    p.add_argument("--attempt", required=True, help="id of the attempt")
+    p.add_argument("--out", required=True, help="file that receives the JSON result")
+    p.add_argument("--job", default=None, help="job id (progress events go to cockpit/jobs/<id>.progress.jsonl)")
     return parser
 
 
@@ -119,6 +124,10 @@ def run(args, deps: Dependencies | None) -> CommandResult:
         return CommandResult(codes.USAGE, (f"error: {error}",))
     if args.command == "status":
         return status(config)
+    if args.command == "importance":
+        from .importance import run_importance
+        return CommandResult(run_importance(args.config, args.attempt, args.out, args.job,
+                                            None if deps is None else deps.sandbox), ())
     if args.command in ("preview", "profile"):  # the real clients are built only if data is missing
         return CommandResult(jobs.run_job(args.command, args.config, args.out, deps), ())
     try:
